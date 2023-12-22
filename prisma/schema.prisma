@@ -11,10 +11,54 @@ datasource db {
   directUrl = env("POSTGRES_URL_NON_POOLING") // uses a direct connection
 }
 
-model users {
-  id        Int      @id @default(autoincrement())
+model User {
+  id        String    @id @default(uuid()) @db.Uuid
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime? @updatedAt @map("updated_at")
   name      String
-  email     String   @unique
-  image     String
-  createdAt DateTime @default(now())
+
+  SlackOauthState SlackOauthState[]
+}
+
+model Organization {
+  id        String    @id @default(uuid()) @db.Uuid
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime? @updatedAt @map("updated_at")
+  name      String
+
+  SlackConnections SlackConnections?
+  SlackOauthState  SlackOauthState[]
+
+  @@map("organizations")
+}
+
+model SlackOauthState {
+  id             String   @id @db.Uuid // no default since we use the state from slack
+  createdAt      DateTime @default(now()) @map("created_at")
+  organizationId String   @map("organization_id") @db.Uuid
+  createdBy      String   @map("created_by") @db.Uuid
+
+  Organization Organization? @relation(fields: [organizationId], references: [id])
+  CreatedBy    User?         @relation(fields: [createdBy], references: [id])
+
+  @@map("slack_oauth_states")
+}
+
+model SlackConnections {
+  id                  String    @id @default(uuid()) @db.Uuid
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime? @updatedAt @map("updated_at")
+  organizationId      String    @unique @map("organization_id") @db.Uuid
+  slackTeamId         String    @map("slack_team_id")
+  token               String
+  name                String?
+  domain              String?
+  emailDomain         String?   @map("email_domain")
+  iconUrl             String?   @map("icon_url")
+  slackEnterpriseId   String?   @map("slack_enterprise_id")
+  slackEnterpriseName String?   @map("slack_enterprise_name")
+
+  Organization Organization? @relation(fields: [organizationId], references: [id])
+
+  @@map("slack_connections")
 }

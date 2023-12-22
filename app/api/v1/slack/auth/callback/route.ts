@@ -56,7 +56,7 @@ export async function GET(request: NextRequest) {
 
   console.log(`Authenticated org ID: ${slackOauthState.organizationId}`);
 
-  let accessToken: String;
+  let accessToken: string;
   try {
     const response = await fetch('https://slack.com/api/oauth.v2.access', {
       method: 'POST',
@@ -101,12 +101,12 @@ export async function GET(request: NextRequest) {
     }
   });
 
-  const teamInfoResponse: SlackTeamResponse = await response.json();
-
-  if (teamInfoResponse.ok && teamInfoResponse.team) {
-    const team = teamInfoResponse.team;
+  const json = await response.json();
+  if ('ok' in json && json.ok && 'team' in json && json.team) {
+    const teamInfoResponse: SlackTeamResponse = json as SlackTeamResponse;
 
     try {
+      const team = teamInfoResponse.team!;
       await prisma.slackConnections.upsert({
         where: {
           organizationId: slackOauthState.organizationId
@@ -119,7 +119,7 @@ export async function GET(request: NextRequest) {
           emailDomain: team.email_domain,
           slackEnterpriseId: team.enterprise_id,
           slackEnterpriseName: team.enterprise_name,
-          token: accessToken.toString()
+          token: accessToken
         },
         create: {
           organizationId: slackOauthState.organizationId,
@@ -130,7 +130,7 @@ export async function GET(request: NextRequest) {
           emailDomain: team.email_domain,
           slackEnterpriseId: team.enterprise_id,
           slackEnterpriseName: team.enterprise_name,
-          token: accessToken.toString()
+          token: accessToken
         }
       });
     } catch (error) {

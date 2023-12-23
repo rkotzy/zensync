@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { SlackTeamResponse } from '../../../../../interfaces/slack-api.interface';
+import prisma from '@/lib/prisma';
+import { SlackTeamResponse } from '@/interfaces/slack-api.interface';
 
 export const runtime = 'edge'; // 'nodejs' is the default
 

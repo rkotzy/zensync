@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import prisma from '@/lib/prisma';
 
 export const runtime = 'edge'; // 'nodejs' is the default
 

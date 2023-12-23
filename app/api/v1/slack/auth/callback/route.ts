@@ -50,8 +50,6 @@ export async function GET(request: NextRequest) {
     `Authenticated org ID: ${slackOauthStateResponse.organizationId}`
   );
 
-  console.log('Code received', code); // TODO: Remove this after debugging
-
   let accessToken: string;
   try {
     const params = new URLSearchParams();
@@ -101,7 +99,7 @@ export async function GET(request: NextRequest) {
     });
   }
 
-  console.log('Access token received', accessToken); // TODO: Remove this after debugging
+  console.log('Access token received');
 
   const response = await fetch('https://slack.com/api/team.info', {
     method: 'GET',

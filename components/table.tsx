@@ -5,7 +5,7 @@ import RefreshButton from './refresh-button'
 
 export default async function Table() {
   const startTime = Date.now()
-  const users = await prisma.users.findMany()
+  const users = await prisma.user.findMany()
   const duration = Date.now() - startTime
 
   return (
@@ -27,7 +27,7 @@ export default async function Table() {
           >
             <div className="flex items-center space-x-4">
               <Image
-                src={user.image}
+                src=""
                 alt={user.name}
                 width={48}
                 height={48}
@@ -35,7 +35,7 @@ export default async function Table() {
               />
               <div className="space-y-1">
                 <p className="font-medium leading-none">{user.name}</p>
-                <p className="text-sm text-gray-500">{user.email}</p>
+                <p className="text-sm text-gray-500">{user.name}</p>
               </div>
             </div>
             <p className="text-sm text-gray-500">{timeAgo(user.createdAt)}</p>

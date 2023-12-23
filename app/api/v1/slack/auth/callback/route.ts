@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import prisma from '@/lib/prisma';
+import { db } from '@/lib/drizzle';
+import { slackOauthState, slackConnections } from '@/lib/schema';
+import { eq } from 'drizzle-orm';
 import { SlackTeamResponse } from '@/interfaces/slack-api.interface';
 
 export const runtime = 'edge'; // 'nodejs' is the default
@@ -22,26 +24,15 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  // Check if prisma exists
-  if (!prisma) {
-    return new Response(JSON.stringify({ error: 'Unknown server error' }), {
-      status: 500,
-      headers: {
-        'Content-Type': 'application/json'
-      }
-    });
-  }
-
-  const slackOauthState = await prisma.slackOauthState.findUnique({
-    where: {
-      id: state
-    }
+  const slackOauthStateResponse = await db.query.slackOauthState.findFirst({
+    where: eq(slackOauthState.id, state)
   });
 
   // Check if state exists and is not expired
   if (
-    !slackOauthState ||
-    new Date().getTime() - new Date(slackOauthState.createdAt).getTime() >
+    !slackOauthStateResponse ||
+    new Date().getTime() -
+      new Date(slackOauthStateResponse.createdAt).getTime() >
       600000 // 10 minutes validity
   ) {
     return new Response(
@@ -55,7 +46,9 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  console.log(`Authenticated org ID: ${slackOauthState.organizationId}`);
+  console.log(
+    `Authenticated org ID: ${slackOauthStateResponse.organizationId}`
+  );
 
   let accessToken: string;
   try {
@@ -108,11 +101,11 @@ export async function GET(request: NextRequest) {
 
     try {
       const team = teamInfoResponse.team!;
-      await prisma.slackConnections.upsert({
-        where: {
-          organizationId: slackOauthState.organizationId
-        },
-        update: {
+
+      await db
+        .insert(slackConnections)
+        .values({
+          organizationId: slackOauthStateResponse.organizationId,
           slackTeamId: team.id,
           name: team.name,
           domain: team.domain,
@@ -121,19 +114,20 @@ export async function GET(request: NextRequest) {
           slackEnterpriseId: team.enterprise_id,
           slackEnterpriseName: team.enterprise_name,
           token: accessToken
-        },
-        create: {
-          organizationId: slackOauthState.organizationId,
-          slackTeamId: team.id,
-          name: team.name,
-          domain: team.domain,
-          iconUrl: team.icon.image,
-          emailDomain: team.email_domain,
-          slackEnterpriseId: team.enterprise_id,
-          slackEnterpriseName: team.enterprise_name,
-          token: accessToken
-        }
-      });
+        })
+        .onConflictDoUpdate({
+          target: slackConnections.id,
+          set: {
+            slackTeamId: team.id,
+            name: team.name,
+            domain: team.domain,
+            iconUrl: team.icon.image,
+            emailDomain: team.email_domain,
+            slackEnterpriseId: team.enterprise_id,
+            slackEnterpriseName: team.enterprise_name,
+            token: accessToken
+          }
+        });
     } catch (error) {
       console.error(error);
       return new Response(

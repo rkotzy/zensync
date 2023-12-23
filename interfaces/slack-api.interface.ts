@@ -14,5 +14,5 @@ export interface SlackTeam {
 }
 
 export interface SlackTeamIcon {
-  image: string; // Representing the image_132 URL
+  image_132: string; // Representing the image_132 URL
 }

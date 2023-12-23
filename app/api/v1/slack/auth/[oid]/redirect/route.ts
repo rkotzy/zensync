@@ -9,7 +9,7 @@ export async function GET(request: NextRequest) {
   const oid = request.nextUrl.searchParams.get('oid');
 
   // Check if 'oid' parameter exists
-  if (!oid) {
+  if (!oid || !isValidUUID(oid)) {
     return new Response(JSON.stringify({ error: 'Missing oid parameter' }), {
       status: 400,
       headers: {
@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
   try {
     await db.insert(slackOauthState).values({
       id: state,
-      createdBy: 'TODO',
+      createdBy: '19e3fc45-fb44-43cb-b72b-1d25087bbb62', // TODO: Get user id from session
       organizationId: oid
     });
   } catch (error) {
@@ -38,4 +38,11 @@ export async function GET(request: NextRequest) {
 
   const redirectUrl = `https://slack.com/oauth/v2/authorize?client_id=${process.env.SLACK_CLIENT_ID}&scope=team:read&state=${state}`;
   return NextResponse.redirect(redirectUrl);
+}
+
+// Utility function to validate UUID
+function isValidUUID(uuid: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    uuid
+  );
 }

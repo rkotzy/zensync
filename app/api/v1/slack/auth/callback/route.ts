@@ -129,7 +129,8 @@ export async function GET(request: NextRequest) {
           }
         });
     } else {
-      console.log(`Error fetching team info: ${json}`);
+      console.log('Error fetching team info:', JSON.stringify(json, null, 2));
+
       return new Response(
         JSON.stringify({ error: 'Invalid access token or permissions.' }),
         {

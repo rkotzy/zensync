@@ -77,6 +77,19 @@ export async function GET(request: NextRequest) {
 
     const responseData = await response.json();
     accessToken = responseData.access_token;
+
+    if (!accessToken) {
+      console.log(
+        'Error fetching access token:',
+        JSON.stringify(responseData, null, 2)
+      );
+      return new Response(JSON.stringify({ error: 'Missing access token' }), {
+        status: 400,
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+    }
   } catch (error) {
     console.log(error);
     return new Response(JSON.stringify({ error: 'Authentication failed' }), {

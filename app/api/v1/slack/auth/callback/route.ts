@@ -95,11 +95,11 @@ export async function GET(request: NextRequest) {
     }
   });
 
-  const json = await response.json();
-  if ('ok' in json && json.ok && 'team' in json && json.team) {
-    const teamInfoResponse: SlackTeamResponse = json as SlackTeamResponse;
+  try {
+    const json = await response.json();
+    if ('ok' in json && json.ok && 'team' in json && json.team) {
+      const teamInfoResponse: SlackTeamResponse = json as SlackTeamResponse;
 
-    try {
       const team = teamInfoResponse.team!;
 
       await db
@@ -128,24 +128,24 @@ export async function GET(request: NextRequest) {
             token: accessToken
           }
         });
-    } catch (error) {
-      console.error(error);
+    } else {
+      console.log(`Error fetching team info: ${json}`);
       return new Response(
-        JSON.stringify({ error: 'Error saving access token.' }),
+        JSON.stringify({ error: 'Invalid access token or permissions.' }),
         {
-          status: 500,
+          status: 400,
           headers: {
             'Content-Type': 'application/json'
           }
         }
       );
     }
-  } else {
-    console.log(`Error fetching team info: ${response.json()}`);
+  } catch (error) {
+    console.error(error);
     return new Response(
-      JSON.stringify({ error: 'Invalid access token or permissions.' }),
+      JSON.stringify({ error: 'Error saving access token.' }),
       {
-        status: 400,
+        status: 500,
         headers: {
           'Content-Type': 'application/json'
         }

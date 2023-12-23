@@ -132,7 +132,7 @@ export async function GET(request: NextRequest) {
           token: accessToken
         })
         .onConflictDoUpdate({
-          target: slackConnections.id,
+          target: slackConnections.organizationId,
           set: {
             slackTeamId: team.id,
             name: team.name,

@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
   try {
     await db.insert(slackOauthState).values({
       id: state,
-      createdBy: '19e3fc45-fb44-43cb-b72b-1d25087bbb62', // TODO: Get user id from session
+      createdBy: '00000000-0000-0000-0000-000000000000', // TODO: Get user id from session
       organizationId: oid
     });
   } catch (error) {

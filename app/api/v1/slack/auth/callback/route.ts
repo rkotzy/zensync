@@ -54,16 +54,17 @@ export async function GET(request: NextRequest) {
 
   let accessToken: string;
   try {
+    const params = new URLSearchParams();
+    params.append('client_id', process.env.SLACK_CLIENT_ID!);
+    params.append('client_secret', process.env.SLACK_CLIENT_SECRET!);
+    params.append('code', code);
+
     const response = await fetch('https://slack.com/api/oauth.v2.access', {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/x-www-form-urlencoded'
       },
-      body: JSON.stringify({
-        client_id: process.env.SLACK_CLIENT_ID,
-        client_secret: process.env.SLACK_CLIENT_SECRET,
-        code
-      })
+      body: params
     });
 
     if (!response.ok) {

@@ -104,7 +104,7 @@ export async function GET(request: NextRequest) {
   console.log('Access token received', accessToken); // TODO: Remove this after debugging
 
   const response = await fetch('https://slack.com/api/team.info', {
-    method: 'POST',
+    method: 'GET',
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${accessToken}`
@@ -125,7 +125,7 @@ export async function GET(request: NextRequest) {
           slackTeamId: team.id,
           name: team.name,
           domain: team.domain,
-          iconUrl: team.icon.image,
+          iconUrl: team.icon.image_132,
           emailDomain: team.email_domain,
           slackEnterpriseId: team.enterprise_id,
           slackEnterpriseName: team.enterprise_name,
@@ -137,7 +137,7 @@ export async function GET(request: NextRequest) {
             slackTeamId: team.id,
             name: team.name,
             domain: team.domain,
-            iconUrl: team.icon.image,
+            iconUrl: team.icon.image_132,
             emailDomain: team.email_domain,
             slackEnterpriseId: team.enterprise_id,
             slackEnterpriseName: team.enterprise_name,

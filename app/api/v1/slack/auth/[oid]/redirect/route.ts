@@ -40,9 +40,9 @@ export async function GET(request: NextRequest) {
   return NextResponse.redirect(redirectUrl);
 }
 
-// Utility function to validate UUID
+// Utility function to validate UUID (general format for postgres)
 function isValidUUID(uuid: string) {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
     uuid
   );
 }

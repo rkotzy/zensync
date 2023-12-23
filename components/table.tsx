@@ -1,11 +1,12 @@
-import prisma from '@/lib/prisma'
+import { db } from '@/lib/drizzle'
+import { account } from '@/lib/schema'
 import { timeAgo } from '@/lib/utils'
 import Image from 'next/image'
 import RefreshButton from './refresh-button'
 
 export default async function Table() {
   const startTime = Date.now()
-  const users = await prisma.user.findMany()
+  const users = await db.query.account.findMany();
   const duration = Date.now() - startTime
 
   return (

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import prisma from '@/lib/prisma';
+import { db } from '@/lib/drizzle';
+import { slackOauthState } from '@/lib/schema';
 
 export const runtime = 'edge'; // 'nodejs' is the default
 
@@ -17,25 +18,13 @@ export async function GET(request: NextRequest) {
     });
   }
 
-  // Check if prisma exists
-  if (!prisma) {
-    return new Response(JSON.stringify({ error: 'Unknown server error' }), {
-      status: 500,
-      headers: {
-        'Content-Type': 'application/json'
-      }
-    });
-  }
-
   const state = crypto.randomUUID();
 
   try {
-    await prisma.slackOauthState.create({
-      data: {
-        id: state,
-        createdBy: 'TODO',
-        organizationId: oid
-      }
+    await db.insert(slackOauthState).values({
+      id: state,
+      createdBy: 'TODO',
+      organizationId: oid
     });
   } catch (error) {
     console.log(error);

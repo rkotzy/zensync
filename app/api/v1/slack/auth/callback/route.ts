@@ -130,7 +130,8 @@ export async function GET(request: NextRequest) {
           slackEnterpriseId: team.enterprise_id,
           slackEnterpriseName: team.enterprise_name,
           token: accessToken,
-          slackUserId: authedUser
+          slackUserId: authedUser,
+          status: 'ACTIVE'
         })
         .onConflictDoUpdate({
           target: slackConnection.organizationId,
@@ -143,7 +144,8 @@ export async function GET(request: NextRequest) {
             slackEnterpriseId: team.enterprise_id,
             slackEnterpriseName: team.enterprise_name,
             token: accessToken,
-            slackUserId: authedUser
+            slackUserId: authedUser,
+            status: 'ACTIVE'
           }
         });
     } else {

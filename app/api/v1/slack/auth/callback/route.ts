@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { db } from '@/lib/drizzle';
-import { slackOauthState, slackConnections } from '@/lib/schema';
+import { slackOauthState, slackConnection } from '@/lib/schema';
 import { eq } from 'drizzle-orm';
 import { SlackTeamResponse } from '@/interfaces/slack-api.interface';
 
@@ -117,7 +117,7 @@ export async function GET(request: NextRequest) {
       const team = teamInfoResponse.team!;
 
       await db
-        .insert(slackConnections)
+        .insert(slackConnection)
         .values({
           organizationId: slackOauthStateResponse.organizationId,
           slackTeamId: team.id,
@@ -130,7 +130,7 @@ export async function GET(request: NextRequest) {
           token: accessToken
         })
         .onConflictDoUpdate({
-          target: slackConnections.organizationId,
+          target: slackConnection.organizationId,
           set: {
             slackTeamId: team.id,
             name: team.name,

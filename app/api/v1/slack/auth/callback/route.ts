@@ -51,6 +51,7 @@ export async function GET(request: NextRequest) {
   );
 
   let accessToken: string;
+  let authedUser: string;
   try {
     const params = new URLSearchParams();
     params.append('client_id', process.env.SLACK_CLIENT_ID!);
@@ -76,6 +77,7 @@ export async function GET(request: NextRequest) {
 
     const responseData = await response.json();
     accessToken = responseData.access_token;
+    authedUser = responseData.authed_user.id;
 
     if (!accessToken) {
       console.log(
@@ -127,7 +129,8 @@ export async function GET(request: NextRequest) {
           emailDomain: team.email_domain,
           slackEnterpriseId: team.enterprise_id,
           slackEnterpriseName: team.enterprise_name,
-          token: accessToken
+          token: accessToken,
+          slackUserId: authedUser
         })
         .onConflictDoUpdate({
           target: slackConnection.organizationId,
@@ -139,7 +142,8 @@ export async function GET(request: NextRequest) {
             emailDomain: team.email_domain,
             slackEnterpriseId: team.enterprise_id,
             slackEnterpriseName: team.enterprise_name,
-            token: accessToken
+            token: accessToken,
+            slackUserId: authedUser
           }
         });
     } else {

@@ -1,16 +1,22 @@
 // Import the base CSS styles for the radix-ui components.
-import "@radix-ui/themes/styles.css";
-
+import "./globals.css"
+import { Inter as FontSans } from "next/font/google"
+import { cn } from "../lib/utils";
 import type { Metadata } from "next";
-import { Theme, Card, Container, Flex, Button } from "@radix-ui/themes";
-import NextLink from "next/link";
+import Link from "next/link";
 import { Footer } from "../components/footer";
-import { SignInButton } from "../components/sign-in-button";
+import { SignInButton } from "../components/ui/sign-in-button";
+import { MainNav } from "@/components/main-nav";
 
 export const metadata: Metadata = {
-  title: "Example AuthKit Authenticated App",
-  description: "Example Next.js application demonstrating how to use AuthKit.",
+  title: "Slack-to-Zendesk",
+  description: "Keep your customer Slack channels organized by syncing threads with Zendesk tickets.",
 };
+
+export const fontSans = FontSans({
+  subsets: ["latin"],
+  variable: "--font-sans",
+});
 
 export default function RootLayout({
   children,
@@ -19,50 +25,23 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body style={{ padding: 0, margin: 0 }}>
-        <Theme accentColor="iris" style={{ backgroundColor: "var(--gray-1)" }}>
-          <Container px="5">
-            <Flex align="center" style={{ height: "100vh" }} py="9">
-              <Flex
-                direction="column"
-                style={{
-                  height: "100%",
-                  maxHeight: 850,
-                  minHeight: 500,
-                  width: "100%",
-                }}
-                gap="5"
-              >
-                <Flex grow="1">
-                  <Card size="4" style={{ width: "100%" }}>
-                    <Flex direction="column" height="100%">
-                      <Flex asChild justify="between">
-                        <header>
-                          <Flex gap="4">
-                            <Button asChild variant="soft">
-                              <NextLink href="/">Home</NextLink>
-                            </Button>
-
-                            <Button asChild variant="soft">
-                              <NextLink href="/account">Account</NextLink>
-                            </Button>
-                          </Flex>
-
-                          <SignInButton />
-                        </header>
-                      </Flex>
-
-                      <Flex grow="1" align="center" justify="center">
-                        <main>{children}</main>
-                      </Flex>
-                    </Flex>
-                  </Card>
-                </Flex>
-                <Footer />
-              </Flex>
-            </Flex>
-          </Container>
-        </Theme>
+      <body
+      style={{ padding: 0, margin: 0 }}
+      className={cn(
+        "min-h-screen bg-background font-sans antialiased",
+        fontSans.variable
+      )}
+      >
+      <div className="border-b">
+          <div className="flex h-16 items-center px-4">
+          <Link href="/" className="text-2xl font-bold tracking-tight">Slack-to-Zendesk</Link>
+            <MainNav className="mx-6" />
+            <div className="ml-auto flex items-center space-x-4">
+              <SignInButton />
+            </div>
+          </div>
+      </div>
+      <div className="flex-1 lg:max-w-2xl">{children}</div>
       </body>
     </html>
   );

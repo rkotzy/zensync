@@ -1,6 +1,6 @@
 import { Button, Flex, Heading, Text } from "@radix-ui/themes";
 import NextLink from "next/link";
-import { SignInButton } from "../components/sign-in-button";
+import { SignInButton } from "../components/ui/sign-in-button";
 import { getUser } from "../auth";
 
 export default async function HomePage() {

@@ -1,5 +1,6 @@
-import { clearCookie, getAuthorizationUrl, getUser } from "../auth";
-import { Button, Flex } from "@radix-ui/themes";
+import { clearCookie, getAuthorizationUrl, getUser } from "../../auth";
+import { Button } from "@/components/ui/button"
+import Link from 'next/link'
 
 export async function SignInButton({ large }: { large?: boolean }) {
   const { isAuthenticated } = await getUser();
@@ -7,24 +8,22 @@ export async function SignInButton({ large }: { large?: boolean }) {
 
   if (isAuthenticated) {
     return (
-      <Flex gap="3">
         <form
           action={async () => {
             "use server";
             await clearCookie();
           }}
         >
-          <Button type="submit" size={large ? "3" : "2"}>
+          <Button type="submit">
             Sign Out
           </Button>
         </form>
-      </Flex>
     );
   }
 
   return (
-    <Button asChild size={large ? "3" : "2"}>
-      <a href={authorizationUrl}>Sign In {large && "with AuthKit"}</a>
+    <Button asChild>
+      <Link href={authorizationUrl}>Sign In {large && "with AuthKit"}</Link>
     </Button>
   );
 }

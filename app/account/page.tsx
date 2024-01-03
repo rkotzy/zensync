@@ -1,5 +1,9 @@
+import "@radix-ui/themes/styles.css";
 import { getUser } from "../../auth";
-import { Text, Heading, TextFieldInput, Flex, Box } from "@radix-ui/themes";
+import { Label } from "@/components/ui/label"
+import { Input } from "@/components/ui/input"
+import { Switch } from "@/components/ui/switch"
+import { Button } from "@/components/ui/button"
 
 export default async function AccountPage() {
   const { user } = await getUser();
@@ -12,38 +16,65 @@ export default async function AccountPage() {
   ];
 
   return (
-    <>
-      <Flex direction="column" gap="2" mb="7">
-        <Heading size="8" align="center">
-          Account details
-        </Heading>
-        <Text size="5" align="center" color="gray">
-          Below are your account details
-        </Text>
-      </Flex>
-
-      {userFields && (
-        <Flex
-          direction="column"
-          gap="3"
-          style={{ width: 400 }}
-          justify="center"
-        >
-          {userFields.map(([label, value]) => (
-            <Flex asChild align="center" gap="6" key={value}>
-              <label>
-                <Text weight="bold" size="3" style={{ width: 100 }}>
-                  {label}
-                </Text>
-
-                <Box grow="1">
-                  <TextFieldInput value={value || ""} readOnly />
-                </Box>
-              </label>
-            </Flex>
-          ))}
-        </Flex>
-      )}
-    </>
+    <main className="w-full max-w-3xl py-12 px-4 sm:px-6 lg:px-8">
+      <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-50">Account Settings</h1>
+      <form className="mt-6 space-y-8">
+        <section>
+          <h2 className="text-xl font-bold text-gray-900 dark:text-gray-50">Personal Information</h2>
+          <div className="mt-6 grid grid-cols-1 gap-y-6 gap-x-4 sm:grid-cols-6">
+            <div className="sm:col-span-6">
+              <Label htmlFor="name">Name</Label>
+              <Input id="name" placeholder="Enter your name" />
+            </div>
+            <div className="sm:col-span-6">
+              <Label htmlFor="email">Email</Label>
+              <Input id="email" placeholder="Enter your email" type="email" />
+            </div>
+            <div className="sm:col-span-6">
+              <Label htmlFor="profile-picture">Profile Picture</Label>
+              <Input id="profile-picture" type="file" />
+            </div>
+          </div>
+        </section>
+        <section>
+          <h2 className="text-xl font-bold text-gray-900 dark:text-gray-50">Change Password</h2>
+          <div className="mt-6 grid grid-cols-1 gap-y-6 gap-x-4 sm:grid-cols-6">
+            <div className="sm:col-span-6">
+              <Label htmlFor="current-password">Current Password</Label>
+              <Input id="current-password" placeholder="Enter your current password" type="password" />
+            </div>
+            <div className="sm:col-span-6">
+              <Label htmlFor="new-password">New Password</Label>
+              <Input id="new-password" placeholder="Enter your new password" type="password" />
+            </div>
+            <div className="sm:col-span-6">
+              <Label htmlFor="confirm-password">Confirm Password</Label>
+              <Input id="confirm-password" placeholder="Confirm your new password" type="password" />
+            </div>
+          </div>
+        </section>
+        <section>
+          <h2 className="text-xl font-bold text-gray-900 dark:text-gray-50">Notification Preferences</h2>
+          <div className="mt-6 grid grid-cols-1 gap-y-6 gap-x-4 sm:grid-cols-6">
+            <div className="sm:col-span-6">
+              <div>
+                <div className="mr-4">Email Notifications</div>
+                <Switch className="ml-auto" />
+              </div>
+            </div>
+            <div className="sm:col-span-6">
+              <div>
+                <div className="mr-4">SMS Notifications</div>
+                <Switch className="ml-auto" />
+              </div>
+            </div>
+          </div>
+        </section>
+        <div className="flex justify-end space-x-4">
+          <Button variant="outline">Cancel</Button>
+          <Button>Save Changes</Button>
+        </div>
+      </form>
+    </main>
   );
 }

@@ -1,16 +1,24 @@
 // Import the base CSS styles for the radix-ui components.
 import "@radix-ui/themes/styles.css";
-
+import "./globals.css"
+import { Inter as FontSans } from "next/font/google"
+import { cn } from "../lib/utils";
 import type { Metadata } from "next";
-import { Theme, Card, Container, Flex, Button } from "@radix-ui/themes";
-import NextLink from "next/link";
+import { Theme, Card, Container, Flex } from "@radix-ui/themes";
+import Link from "next/link";
 import { Footer } from "../components/footer";
-import { SignInButton } from "../components/sign-in-button";
+import { Button } from "@/components/ui/button"
+import { SignInButton } from "../components/ui/sign-in-button";
 
 export const metadata: Metadata = {
-  title: "Example AuthKit Authenticated App",
-  description: "Example Next.js application demonstrating how to use AuthKit.",
+  title: "Slack-to-Zendesk",
+  description: "Keep your customer Slack channels organized by syncing threads with Zendesk tickets.",
 };
+
+export const fontSans = FontSans({
+  subsets: ["latin"],
+  variable: "--font-sans",
+});
 
 export default function RootLayout({
   children,
@@ -19,7 +27,13 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body style={{ padding: 0, margin: 0 }}>
+      <body
+      style={{ padding: 0, margin: 0 }}
+      className={cn(
+        "min-h-screen bg-background font-sans antialiased",
+        fontSans.variable
+      )}
+      >
         <Theme accentColor="iris" style={{ backgroundColor: "var(--gray-1)" }}>
           <Container px="5">
             <Flex align="center" style={{ height: "100vh" }} py="9">
@@ -39,12 +53,12 @@ export default function RootLayout({
                       <Flex asChild justify="between">
                         <header>
                           <Flex gap="4">
-                            <Button asChild variant="soft">
-                              <NextLink href="/">Home</NextLink>
+                            <Button variant="secondary">
+                              <Link href="/">Home</Link>
                             </Button>
 
-                            <Button asChild variant="soft">
-                              <NextLink href="/account">Account</NextLink>
+                            <Button variant="secondary">
+                              <Link href="/account">Account</Link>
                             </Button>
                           </Flex>
 

@@ -1,6 +1,6 @@
-import { clearCookie, getAuthorizationUrl, getUser } from "../../auth";
-import { Button } from "@/components/ui/button"
-import Link from 'next/link'
+import { clearCookie, getAuthorizationUrl, getUser } from '../../auth';
+import { Button } from '@/components/ui/button';
+import Link from 'next/link';
 
 export async function SignInButton({ large }: { large?: boolean }) {
   const { isAuthenticated } = await getUser();
@@ -8,22 +8,20 @@ export async function SignInButton({ large }: { large?: boolean }) {
 
   if (isAuthenticated) {
     return (
-        <form
-          action={async () => {
-            "use server";
-            await clearCookie();
-          }}
-        >
-          <Button type="submit">
-            Sign Out
-          </Button>
-        </form>
+      <form
+        action={async () => {
+          'use server';
+          await clearCookie();
+        }}
+      >
+        <Button type="submit">Sign Out</Button>
+      </form>
     );
   }
 
   return (
     <Button asChild>
-      <Link href={authorizationUrl}>Sign In {large && "with AuthKit"}</Link>
+      <Link href={authorizationUrl}>Sign In {large && 'with AuthKit'}</Link>
     </Button>
   );
 }

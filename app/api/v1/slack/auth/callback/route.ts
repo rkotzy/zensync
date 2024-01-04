@@ -13,14 +13,8 @@ export async function GET(request: NextRequest) {
 
   // Check if 'code' and 'state' values exist
   if (!code || !state) {
-    return new Response(
-      JSON.stringify({ error: 'Missing required parameters: code and state.' }),
-      {
-        status: 400,
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      }
+    return Response.redirect(
+      '/connections?slackOauth=error&message=Missing required parameters: code and state.'
     );
   }
 
@@ -35,14 +29,8 @@ export async function GET(request: NextRequest) {
       new Date(slackOauthStateResponse.createdAt).getTime() >
       600000 // 10 minutes validity
   ) {
-    return new Response(
-      JSON.stringify({ error: 'Invalid or expired state.' }),
-      {
-        status: 400,
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      }
+    return Response.redirect(
+      '/connections?slackOauth=error&message=Invalid or expired state.'
     );
   }
 
@@ -67,12 +55,9 @@ export async function GET(request: NextRequest) {
     });
 
     if (!response.ok) {
-      return new Response(JSON.stringify({ error: 'Failed to authenticate' }), {
-        status: 500,
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      });
+      return Response.redirect(
+        '/connections?slackOauth=error&message=Failed to authenticate.'
+      );
     }
 
     const responseData = await response.json();
@@ -84,21 +69,15 @@ export async function GET(request: NextRequest) {
         'Error fetching access token:',
         JSON.stringify(responseData, null, 2)
       );
-      return new Response(JSON.stringify({ error: 'Missing access token' }), {
-        status: 400,
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      });
+      return Response.redirect(
+        '/connections?slackOauth=error&message=Missing access token.'
+      );
     }
   } catch (error) {
     console.log(error);
-    return new Response(JSON.stringify({ error: 'Authentication failed' }), {
-      status: 500,
-      headers: {
-        'Content-Type': 'application/json'
-      }
-    });
+    return Response.redirect(
+      '/connections?slackOauth=error&message=Authentication failed.'
+    );
   }
 
   console.log('Access token received');
@@ -150,29 +129,16 @@ export async function GET(request: NextRequest) {
         });
     } else {
       console.log('Error fetching team info:', JSON.stringify(json, null, 2));
-
-      return new Response(
-        JSON.stringify({ error: 'Invalid access token or permissions.' }),
-        {
-          status: 400,
-          headers: {
-            'Content-Type': 'application/json'
-          }
-        }
+      return Response.redirect(
+        '/connections?slackOauth=error&message=Invalid access token or permissions.'
       );
     }
   } catch (error) {
     console.error(error);
-    return new Response(
-      JSON.stringify({ error: 'Error saving access token.' }),
-      {
-        status: 500,
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      }
+    return Response.redirect(
+      '/connections?slackOauth=error&message=Error saving access token.'
     );
   }
 
-  return NextResponse.json({ message: 'Authentication Successful' });
+  return Response.redirect('/connections?slackOauth=success');
 }

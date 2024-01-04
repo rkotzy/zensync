@@ -20,6 +20,8 @@ export async function GET(request: NextRequest) {
 
   const state = crypto.randomUUID();
 
+  // TODO: Verify user is a member of the organization
+
   try {
     await db.insert(slackOauthState).values({
       id: state,

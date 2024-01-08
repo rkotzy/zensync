@@ -5,6 +5,6 @@ export default {
   out: './migrations',
   driver: 'pg',
   dbCredentials: {
-    connectionString: process.env.POSTGRES_URL_NON_POOLING! + '?sslmode=require'
+    connectionString: process.env.POSTGRES_URL! + '?sslmode=require'
   }
 } satisfies Config;

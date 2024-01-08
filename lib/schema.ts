@@ -93,6 +93,32 @@ export const slackConnection = pgTable('slack_connections', {
   status: text('status')
 });
 
+export const zendeskConnection = pgTable('zendesk_connections', {
+  id: uuid('id').defaultRandom().primaryKey().notNull(),
+  createdAt: timestamp('created_at', {
+    precision: 3,
+    mode: 'date',
+    withTimezone: true
+  })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp('updated_at', {
+    precision: 3,
+    mode: 'date',
+    withTimezone: true
+  }),
+  organizationId: uuid('organization_id')
+    .notNull()
+    .unique()
+    .references(() => organization.id, {
+      onDelete: 'cascade'
+    }),
+  zendeskDomain: text('zendesk_domain').notNull(),
+  zendeskEmail: text('zendesk_email').notNull(),
+  zendeskApiKey: text('zendesk_api_key').notNull(),
+  status: text('status')
+});
+
 // This represents a connection to a Slack channel. There can be many
 // channels associated to a single Organization.
 export const channel = pgTable('channels', {

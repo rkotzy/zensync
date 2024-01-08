@@ -16,27 +16,40 @@ export default function ConnectionsPage() {
   const connectZendesk = async (event: React.MouseEvent<HTMLAnchorElement>) => {
     event.preventDefault();
 
-    const zendeskDomain = (document.getElementById('zendesk-org') as HTMLInputElement).value;
-    const zendeskEmail = (document.getElementById('zendesk-email') as HTMLInputElement).value;
-    const zendeskKey = (document.getElementById('zendesk-key') as HTMLInputElement).value;
+    console.log('Connecting to Zendesk');
+
+    const zendeskDomain = (
+      document.getElementById('zendesk-org') as HTMLInputElement
+    ).value;
+    const zendeskEmail = (
+      document.getElementById('zendesk-email') as HTMLInputElement
+    ).value;
+    const zendeskKey = (
+      document.getElementById('zendesk-key') as HTMLInputElement
+    ).value;
 
     try {
-      const response = await fetch('https://zensync.vercel.app/api/v1/zendesk/auth', {
+      const response = await fetch('/api/v1/zendesk/auth', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ zendeskDomain, zendeskEmail, zendeskKey }),
+        body: JSON.stringify({ zendeskDomain, zendeskEmail, zendeskKey })
       });
 
       const data = await response.json();
+      console.log(data);
       if (response.ok) {
         setMessage('Connection successful');
       } else {
-        setMessage(`Connection failed: ${data.zendeskConnectionMessage}`);
+        setMessage(`Connection failed: ${data.message}`);
       }
     } catch (error) {
-      setMessage(`Connection failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      setMessage(
+        `Connection failed: ${
+          error instanceof Error ? error.message : 'Unknown error'
+        }`
+      );
     }
   };
 
@@ -53,7 +66,9 @@ export default function ConnectionsPage() {
       {slackOauthStatus === 'success' && (
         <div>Successfully connected to Slack.</div>
       )}
-      {slackOauthStatus === 'error' && <div>Error: {slackConnectionMessage}</div>}
+      {slackOauthStatus === 'error' && (
+        <div>Error: {slackConnectionMessage}</div>
+      )}
 
       <h2>Zendesk</h2>
       <Label htmlFor="text">Organization Name</Label>
@@ -67,6 +82,7 @@ export default function ConnectionsPage() {
       <Link href="#" onClick={connectZendesk} className={buttonVariants()}>
         Test Connection
       </Link>
+      {zendeskConnectionMessage && <div>{zendeskConnectionMessage}</div>}
     </>
   );
 }

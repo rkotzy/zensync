@@ -6,8 +6,6 @@ export const runtime = 'edge';
 export async function POST(request: NextRequest) {
   const requestBody = await request.json();
 
-  console.log(JSON.stringify(requestBody, null, 2));
-
   // Stripe all whitespace and lowercase parameters
   const zendeskDomain = requestBody.zendeskDomain
     .replace(/\s/g, '')
@@ -30,20 +28,27 @@ export async function POST(request: NextRequest) {
         }
       }
     );
-    console.log(JSON.stringify(zendeskAccountSettings, null, 2));
+    if (!zendeskAccountSettings.ok) {
+      // If the response status is not OK, log the status and the response text
+      console.error(
+        'Fetch to Zendesk API failed with status:',
+        zendeskAccountSettings.status
+      );
+      console.error('Response:', await zendeskAccountSettings.text());
+      throw new Error('Failed to fetch Zendesk account settings');
+    }
+
+    // Parse the response body to JSON
+    const settingsJson = await zendeskAccountSettings.json();
+    console.log('Zendesk account settings:', settingsJson);
   } catch (error) {
     console.log(error);
     return NextResponse.json(
-      {
-        body: 'Invalid Zendesk Credentials',
-        query: request.nextUrl.search,
-        cookies: request.cookies.getAll()
-      },
-      {
-        status: 400
-      }
+      { message: 'Invalid Zendesk Credentials' },
+      { status: 400 }
     );
   }
+
   // Your existing logic for other types of requests
   return NextResponse.json(
     {

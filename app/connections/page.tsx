@@ -58,7 +58,7 @@ export default function ConnectionsPage() {
       <h1>Connections</h1>
       <h2>Slack</h2>
       <Link
-        href="https://zensync.vercel.app/api/v1/slack/auth/11111111-1111-1111-1111-111111111111/redirect"
+        href="https://zensync.vercel.app/api/v1/slack/auth/11111111-1111-1111-1111-111111111111/redirect" // TODO: - Get this from user session
         className={buttonVariants()}
       >
         Connect To Slack

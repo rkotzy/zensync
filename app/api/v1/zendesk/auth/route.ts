@@ -19,29 +19,54 @@ export async function POST(request: NextRequest) {
   // Base64 encode zendeskEmail/token:zendeskKey
   const zendeskAuthToken = btoa(`${zendeskEmail}/token:${zendeskKey}`);
 
-  // Make a test api call to get account settings
+  // Generate a UUID for the webhook token and database id
+  let uuid = crypto.randomUUID();
+
+  // Create a zendesk webhook subscription
   try {
-    const zendeskAccountSettings = await fetch(
-      `https://${zendeskDomain}.zendesk.com/api/v2/account/settings.json`,
-      {
-        headers: {
-          Authorization: `Basic ${zendeskAuthToken}`
+    const webhookPayload = JSON.stringify({
+      webhook: {
+        endpoint: 'https://zensync.vercel.app/api/v1/zendesk/messages',
+        http_method: 'POST',
+        name: 'Slack-to-Zendesk Sync',
+        request_format: 'json',
+        status: 'active',
+        subscriptions: [],
+        authentication: {
+          type: 'bearer_token',
+          data: {
+            token: uuid
+          },
+          add_position: 'header'
         }
       }
+    });
+
+    const zendeskWebhookResponse = await fetch(
+      `https://${zendeskDomain}.zendesk.com/api/v2/webhooks`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Basic ${zendeskAuthToken}`
+        },
+        body: webhookPayload
+      }
     );
-    if (!zendeskAccountSettings.ok) {
+
+    if (!zendeskWebhookResponse.ok) {
       // If the response status is not OK, log the status and the response text
       console.error(
-        'Fetch to Zendesk API failed with status:',
-        zendeskAccountSettings.status
+        'Zendesk Webhook API failed with status:',
+        zendeskWebhookResponse.status
       );
-      console.error('Response:', await zendeskAccountSettings.text());
-      throw new Error('Failed to fetch Zendesk account settings');
+      console.error('Response:', await zendeskWebhookResponse.text());
+      throw new Error('Failed to set Zendesk webhook');
     }
 
     // Parse the response body to JSON
-    const settingsJson = await zendeskAccountSettings.json();
-    console.log('Zendesk account settings:', settingsJson);
+    const settingsJson = await zendeskWebhookResponse.json();
+    console.log('Zendesk webhook created:', settingsJson);
   } catch (error) {
     console.log(error);
     return NextResponse.json(
@@ -52,6 +77,7 @@ export async function POST(request: NextRequest) {
 
   // If the request is successful, save the credentials to the database
   await db.insert(zendeskConnection).values({
+    id: uuid,
     zendeskApiKey: zendeskKey,
     zendeskDomain: zendeskDomain,
     zendeskEmail: zendeskEmail,

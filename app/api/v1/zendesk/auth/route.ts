@@ -22,8 +22,8 @@ export async function POST(request: NextRequest) {
   // Generate a UUID for the webhook token and database id
   let uuid = crypto.randomUUID();
 
-  // Create a zendesk webhook subscription
   try {
+    // Create a zendesk webhook
     const webhookPayload = JSON.stringify({
       webhook: {
         endpoint: 'https://zensync.vercel.app/api/v1/zendesk/messages',
@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
         name: 'Slack-to-Zendesk Sync',
         request_format: 'json',
         status: 'active',
-        subscriptions: [],
+        subscriptions: ['conditional_ticket_events'],
         authentication: {
           type: 'bearer_token',
           data: {
@@ -65,8 +65,68 @@ export async function POST(request: NextRequest) {
     }
 
     // Parse the response body to JSON
-    const settingsJson = await zendeskWebhookResponse.json();
-    console.log('Zendesk webhook created:', settingsJson);
+    const webhookResponseJson = await zendeskWebhookResponse.json();
+    console.log('Zendesk webhook created:', webhookResponseJson);
+
+    const webhookId = webhookResponseJson.webhook.id;
+    if (!webhookId) {
+      throw new Error('Failed to find webhook id');
+    }
+
+    // Create a zendesk trigger to alert the webhook of ticket changes
+    const triggerPayload = JSON.stringify({
+      trigger: {
+        title: 'Slack-to-Zendesk Sync',
+        description: 'Two-way sync between Slack and Zendesk',
+        active: true,
+        conditions: {
+          all: [
+            {
+              field: 'status',
+              operator: 'less_than',
+              value: 'closed'
+            }
+          ]
+        },
+        actions: [
+          {
+            field: 'notification_webhook',
+            value: [
+              webhookId,
+              JSON.stringify({
+                hello: 'world'
+              })
+            ]
+          }
+        ]
+      }
+    });
+
+    const zendeskTriggerResponse = await fetch(
+      `https://${zendeskDomain}.zendesk.com/api/v2/triggers`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Basic ${zendeskAuthToken}`
+        },
+        body: triggerPayload
+      }
+    );
+
+    if (!zendeskTriggerResponse.ok) {
+      // If the response status is not OK, log the status and the response text
+      console.error(
+        'Zendesk Trigger API failed with status:',
+        zendeskTriggerResponse.status
+      );
+      console.error('Response:', await zendeskTriggerResponse.text());
+      throw new Error('Failed to set Zendesk trigger');
+    }
+
+    // Parse the response body to JSON
+    const triggerResponseJson = await zendeskTriggerResponse.json();
+    console.log('Zendesk trigger created:', triggerResponseJson);
   } catch (error) {
     console.log(error);
     return NextResponse.json(

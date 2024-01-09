@@ -1,5 +1,6 @@
 import { NextResponse, NextRequest } from 'next/server';
 import { db } from '@/lib/drizzle';
+import { zendeskConnection } from '@/lib/schema';
 
 export const runtime = 'edge';
 
@@ -49,15 +50,14 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // If the request is successful, save the credentials to the database
+  await db.insert(zendeskConnection).values({
+    zendeskApiKey: zendeskKey,
+    zendeskDomain: zendeskDomain,
+    zendeskEmail: zendeskEmail,
+    organizationId: '11111111-1111-1111-1111-111111111111' // TODO: Pull this from the user session
+  });
+
   // Your existing logic for other types of requests
-  return NextResponse.json(
-    {
-      body: request.body,
-      query: request.nextUrl.search,
-      cookies: request.cookies.getAll()
-    },
-    {
-      status: 200
-    }
-  );
+  return NextResponse.json({ message: 'Account connected' }, { status: 400 });
 }

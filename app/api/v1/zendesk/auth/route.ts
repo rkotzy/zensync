@@ -84,5 +84,5 @@ export async function POST(request: NextRequest) {
     organizationId: '11111111-1111-1111-1111-111111111111' // TODO: Pull this from the user session
   });
 
-  return NextResponse.json({ message: 'Account connected' }, { status: 400 });
+  return NextResponse.json({ message: 'Account connected' }, { status: 200 });
 }

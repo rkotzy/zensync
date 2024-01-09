@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
   const zendeskEmail = requestBody.zendeskEmail
     .replace(/\s/g, '')
     .toLowerCase();
-  const zendeskKey = requestBody.zendeskKey.replace(/\s/g, '').toLowerCase();
+  const zendeskKey = requestBody.zendeskKey.replace(/\s/g, '');
 
   // Base64 encode zendeskEmail/token:zendeskKey
   const zendeskAuthToken = btoa(`${zendeskEmail}/token:${zendeskKey}`);
@@ -58,6 +58,5 @@ export async function POST(request: NextRequest) {
     organizationId: '11111111-1111-1111-1111-111111111111' // TODO: Pull this from the user session
   });
 
-  // Your existing logic for other types of requests
   return NextResponse.json({ message: 'Account connected' }, { status: 400 });
 }

@@ -58,8 +58,9 @@ export default function ConnectionsPage() {
       <h1>Connections</h1>
       <h2>Slack</h2>
       <Link
-        href="https://zensync.vercel.app/api/v1/slack/auth/11111111-1111-1111-1111-111111111111/redirect" // TODO: - Get this from user session
+        href="/api/v1/slack/auth/11111111-1111-1111-1111-111111111111/redirect" // TODO: - Get this from user session
         className={buttonVariants()}
+        prefetch={false}
       >
         Connect To Slack
       </Link>
@@ -79,7 +80,12 @@ export default function ConnectionsPage() {
 
       <Label htmlFor="text">Zendesk API Key</Label>
       <Input type="text" id="zendesk-key" placeholder="API Key" />
-      <Link href="#" onClick={connectZendesk} className={buttonVariants()}>
+      <Link
+        href="#"
+        onClick={connectZendesk}
+        className={buttonVariants()}
+        prefetch={false}
+      >
         Test Connection
       </Link>
       {zendeskConnectionMessage && <div>{zendeskConnectionMessage}</div>}

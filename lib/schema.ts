@@ -88,7 +88,7 @@ export const slackConnection = pgTable('slack_connections', {
   status: text('status')
 });
 
-export type SlackConnection = InferSelectModel<typeof slackConnection>
+export type SlackConnection = InferSelectModel<typeof slackConnection>;
 
 // A Zendesk connection represents a connection to a Zendesk workspace that
 // is associated to an organization. It should be Oauthed by a Slack admin

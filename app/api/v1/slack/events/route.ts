@@ -1,6 +1,6 @@
 import { NextResponse, NextRequest } from 'next/server';
 import { db } from '@/lib/drizzle';
-import { eq } from 'drizzle-orm';
+import { eq, is } from 'drizzle-orm';
 import { channel, slackConnection, SlackConnection } from '@/lib/schema';
 
 export const runtime = 'edge';
@@ -10,7 +10,8 @@ const eventHandlers: Record<
   (body: any, connection: SlackConnection) => Promise<void>
 > = {
   member_joined_channel: handleChannelJoined,
-  channel_left: handleChannelLeft
+  channel_left: handleChannelLeft,
+  message: handleMessage
   // Add more event handlers as needed
 };
 
@@ -203,4 +204,32 @@ async function handleChannelLeft(request: any, connection: SlackConnection) {
     console.error('Error archiving channel in database:', error);
     throw error;
   }
+}
+
+async function handleMessage(request: any, connection: SlackConnection) {
+  if (!isPayloadEligibleForTicket(request, connection)) {
+    console.log(`Ignoring message: ${request.event_id}`);
+    return;
+  }
+
+  console.log(`Handling message: ${request.event_id}`);
+}
+
+function isPayloadEligibleForTicket(
+  request: any,
+  connection: SlackConnection
+): boolean {
+  const eventData = request.event;
+
+  // Ignore messages from the Zensync itself
+  if (connection.botUserId === eventData.user) {
+    return false;
+  }
+
+  // Ignore messages from bots
+  if (eventData.subtype === 'bot_message') {
+    return false;
+  }
+
+  return true;
 }

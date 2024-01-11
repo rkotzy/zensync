@@ -36,8 +36,18 @@ export async function GET(request: NextRequest) {
       }
     });
   }
+  const scopes = [
+    'team:read',
+    'channels:read',
+    'groups:read',
+    'channels:history',
+    'groups:history',
+    'reactions:read'
+  ].join(',');
 
-  const redirectUrl = `https://slack.com/oauth/v2/authorize?client_id=${process.env.SLACK_CLIENT_ID}&scope=team:read&state=${state}`;
+  const redirectUrl = `https://slack.com/oauth/v2/authorize?client_id=${
+    process.env.SLACK_CLIENT_ID
+  }&scope=${encodeURIComponent(scopes)}&state=${state}`;
   return NextResponse.redirect(redirectUrl);
 }
 

@@ -93,6 +93,9 @@ export const slackConnection = pgTable('slack_connections', {
   status: text('status')
 });
 
+// A Zendesk connection represents a connection to a Zendesk workspace that
+// is associated to an organization. It should be Oauthed by a Slack admin
+// whenever possible.
 export const zendeskConnection = pgTable('zendesk_connections', {
   id: uuid('id').defaultRandom().primaryKey().notNull(),
   createdAt: timestamp('created_at', {

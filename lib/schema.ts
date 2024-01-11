@@ -1,4 +1,5 @@
 import { pgTable, uuid, timestamp, text } from 'drizzle-orm/pg-core';
+import { InferSelectModel } from 'drizzle-orm';
 
 // The organization represents a company. An organization can have many
 // accounts, but a single Slack connection and Zendesk connection.
@@ -82,9 +83,12 @@ export const slackConnection = pgTable('slack_connections', {
   slackEnterpriseId: text('slack_enterprise_id'),
   slackEnterpriseName: text('slack_enterprise_name'),
   token: text('token').notNull(),
-  slackUserId: text('slack_user_id'),
+  authedUserId: text('authed_user_id'),
+  botUserId: text('bot_user_id').notNull(),
   status: text('status')
 });
+
+export type SlackConnection = InferSelectModel<typeof slackConnection>
 
 // A Zendesk connection represents a connection to a Zendesk workspace that
 // is associated to an organization. It should be Oauthed by a Slack admin

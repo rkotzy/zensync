@@ -39,6 +39,7 @@ export async function GET(request: NextRequest) {
 
   let accessToken: string;
   let authedUser: string;
+  let botUserId: string;
   try {
     const params = new URLSearchParams();
     params.append('client_id', process.env.SLACK_CLIENT_ID!);
@@ -61,11 +62,12 @@ export async function GET(request: NextRequest) {
 
     const responseData = await response.json();
     accessToken = responseData.access_token;
-    authedUser = responseData.authed_user.id;
+    authedUser = responseData.authed_user.id
+    botUserId = responseData.bot_user_id;
 
-    if (!accessToken) {
+    if (!accessToken || !botUserId) {
       console.log(
-        'Error fetching access token:',
+        'Error fetching access token or bot user id:',
         JSON.stringify(responseData, null, 2)
       );
       return Response.redirect(
@@ -108,7 +110,8 @@ export async function GET(request: NextRequest) {
           slackEnterpriseId: team.enterprise_id,
           slackEnterpriseName: team.enterprise_name,
           token: accessToken,
-          slackUserId: authedUser,
+          authedUserId: authedUser,
+          botUserId: botUserId,
           status: 'ACTIVE'
         })
         .onConflictDoUpdate({
@@ -122,7 +125,8 @@ export async function GET(request: NextRequest) {
             slackEnterpriseId: team.enterprise_id,
             slackEnterpriseName: team.enterprise_name,
             token: accessToken,
-            slackUserId: authedUser,
+            authedUserId: authedUser,
+            botUserId: botUserId,
             status: 'ACTIVE'
           }
         });

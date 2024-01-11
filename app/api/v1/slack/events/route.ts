@@ -159,7 +159,7 @@ async function handleChannelJoined(request: any, connection: SlackConnection) {
   const channelId = eventData.channel;
   const channelType = eventData.channel_type;
 
-  if (connection.botUserId === eventData.user) {
+  if (connection.botUserId !== eventData.user) {
     return;
   }
 
@@ -184,7 +184,7 @@ async function handleChannelLeft(request: any, connection: SlackConnection) {
   const eventData = request.event;
   const channelId = eventData.channel;
 
-  if (connection.botUserId === eventData.user) {
+  if (connection.botUserId !== eventData.user) {
     return;
   }
 

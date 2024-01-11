@@ -10,7 +10,7 @@ const eventHandlers: Record<
   (body: any, connection: SlackConnection) => Promise<void>
 > = {
   member_joined_channel: handleChannelJoined,
-  member_left_channel: handleChannelLeft
+  channel_left: handleChannelLeft
   // Add more event handlers as needed
 };
 
@@ -183,10 +183,6 @@ async function handleChannelJoined(request: any, connection: SlackConnection) {
 async function handleChannelLeft(request: any, connection: SlackConnection) {
   const eventData = request.event;
   const channelId = eventData.channel;
-
-  if (connection.botUserId !== eventData.user) {
-    return;
-  }
 
   try {
     await db

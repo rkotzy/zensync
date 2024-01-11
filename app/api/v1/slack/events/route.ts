@@ -17,10 +17,11 @@ const eventHandlers: Record<
 export async function POST(request: NextRequest) {
   // Clone the request before consuming since we
   // need is as text and json
-  const clonedRequest = request.clone();
+  const jsonClone = request.clone();
+  const textClone = request.clone();
 
   // Parse the request body
-  const requestBody = await clonedRequest.json();
+  const requestBody = await jsonClone.json();
 
   // Check if this is a URL verification request from Slack
   if (requestBody.type === 'url_verification') {
@@ -37,7 +38,7 @@ export async function POST(request: NextRequest) {
   const signingSecret = process.env.SLACK_SIGNING_SECRET!;
 
   // Verify the Slack request
-  if (!(await verifySlackRequest(clonedRequest, signingSecret))) {
+  if (!(await verifySlackRequest(textClone, signingSecret))) {
     console.warn('Slack verification failed!');
     return new Response('Verification failed', { status: 200 });
   }

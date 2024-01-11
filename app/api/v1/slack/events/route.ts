@@ -15,8 +15,12 @@ const eventHandlers: Record<
 };
 
 export async function POST(request: NextRequest) {
+  // Clone the request before consuming since we
+  // need is as text and json
+  const clonedRequest = request.clone();
+
   // Parse the request body
-  const requestBody = await request.json();
+  const requestBody = await clonedRequest.json();
 
   // Check if this is a URL verification request from Slack
   if (requestBody.type === 'url_verification') {
@@ -33,7 +37,7 @@ export async function POST(request: NextRequest) {
   const signingSecret = process.env.SLACK_SIGNING_SECRET!;
 
   // Verify the Slack request
-  if (!(await verifySlackRequest(request, signingSecret))) {
+  if (!(await verifySlackRequest(clonedRequest, signingSecret))) {
     console.warn('Slack verification failed!');
     return new Response('Verification failed', { status: 200 });
   }
@@ -70,7 +74,7 @@ export async function POST(request: NextRequest) {
 }
 
 async function verifySlackRequest(
-  request: NextRequest,
+  request: Request,
   signingSecret: string
 ): Promise<boolean> {
   const timestamp = request.headers.get('x-slack-request-timestamp');
@@ -105,7 +109,7 @@ async function verifySlackRequest(
   return timingSafeEqual(computedSignature, slackSignature || '');
 }
 
-// Timing-safe string comparison
+// Timing-safe string comparison used in verifySlackRequest
 function timingSafeEqual(a: string, b: string): boolean {
   if (a.length !== b.length) {
     return false;

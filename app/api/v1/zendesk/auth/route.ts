@@ -136,13 +136,25 @@ export async function POST(request: NextRequest) {
   }
 
   // If the request is successful, save the credentials to the database
-  await db.insert(zendeskConnection).values({
-    id: uuid,
-    zendeskApiKey: zendeskKey,
-    zendeskDomain: zendeskDomain,
-    zendeskEmail: zendeskEmail,
-    organizationId: '11111111-1111-1111-1111-111111111111' // TODO: Pull this from the user session
-  });
+  await db
+    .insert(zendeskConnection)
+    .values({
+      id: uuid,
+      zendeskApiKey: zendeskKey,
+      zendeskDomain: zendeskDomain,
+      zendeskEmail: zendeskEmail,
+      organizationId: '11111111-1111-1111-1111-111111111111', // TODO: Pull this from the user session
+      status: 'ACTIVE'
+    })
+    .onConflictDoUpdate({
+      target: zendeskConnection.organizationId,
+      set: {
+        zendeskApiKey: zendeskKey,
+        zendeskDomain: zendeskDomain,
+        zendeskEmail: zendeskEmail,
+        status: 'ACTIVE'
+      }
+    });
 
   return NextResponse.json({ message: 'Account connected' }, { status: 200 });
 }

@@ -1,16 +1,16 @@
 import { NextResponse, NextRequest } from 'next/server';
 import { db } from '@/lib/drizzle';
 import { eq } from 'drizzle-orm';
-import { channel, slackConnection } from '@/lib/schema';
+import { channel, slackConnection, SlackConnection } from '@/lib/schema';
 
 export const runtime = 'edge';
 
 const eventHandlers: Record<
   string,
-  (body: any, orgId: string) => Promise<void>
+  (body: any, connection: SlackConnection) => Promise<void>
 > = {
-  channel_join: handleChannelJoined,
-  channel_left: handleChannelLeft
+  member_joined_channel: handleChannelJoined,
+  member_left_channel: handleChannelLeft
   // Add more event handlers as needed
 };
 
@@ -47,22 +47,32 @@ export async function POST(request: NextRequest) {
   console.log(JSON.stringify(requestBody, null, 2));
 
   ///////////////////////////////////////
-  // Handle events that require an organization ID
+  // Handle events that require an organization details
   ///////////////////////////////////////
 
-  // Find the corresponding organizationId
-  const organizationId = await findOrganizationByTeamId(requestBody.team_id);
+  // Find the corresponding organization connection details
+  const connectionDetails = await findSlackConnectionByTeamId(
+    requestBody.team_id
+  );
 
-  if (organizationId === null) {
+  if (!connectionDetails) {
     console.warn(`No organization found for team ID: ${requestBody.team_id}.`);
     return new Response('Invalid team_id', { status: 404 });
   }
 
-  const eventType = requestBody.event?.subtype;
+  const eventType = requestBody.event?.type;
+  const eventSubtype = requestBody.event?.subtype;
 
-  if (eventType && eventHandlers[eventType]) {
+  if (eventSubtype && eventHandlers[eventSubtype]) {
     try {
-      await eventHandlers[eventType](requestBody, organizationId);
+      await eventHandlers[eventSubtype](requestBody, connectionDetails);
+    } catch (error) {
+      console.error(`Error handling ${eventSubtype} subtype event:`, error);
+      return new Response('Internal Server Error', { status: 500 });
+    }
+  } else if (eventType && eventHandlers[eventType]) {
+    try {
+      await eventHandlers[eventType](requestBody, connectionDetails);
     } catch (error) {
       console.error(`Error handling ${eventType} event:`, error);
       return new Response('Internal Server Error', { status: 500 });
@@ -124,12 +134,12 @@ function timingSafeEqual(a: string, b: string): boolean {
   return mismatch === 0;
 }
 
-async function findOrganizationByTeamId(
+async function findSlackConnectionByTeamId(
   teamId: string | undefined
-): Promise<string | null> {
+): Promise<SlackConnection | null | undefined> {
   if (!teamId) {
     console.error('No team_id found');
-    return null;
+    return undefined;
   }
 
   try {
@@ -137,32 +147,32 @@ async function findOrganizationByTeamId(
       where: eq(slackConnection.slackTeamId, teamId)
     });
 
-    if (connection) {
-      return connection.organizationId;
-    } else {
-      console.log(`No SlackConnection found for team ID: ${teamId}`);
-      return null;
-    }
+    return connection;
   } catch (error) {
     console.error('Error querying SlackConnections:', error);
-    return null;
+    return undefined;
   }
 }
 
-async function handleChannelJoined(eventData: any, organizationId: string) {
-  const channelId = eventData.channel; // TODO: - channel is undefined
+async function handleChannelJoined(request: any, connection: SlackConnection) {
+  const eventData = request.event;
+  const channelId = eventData.channel;
   const channelType = eventData.channel_type;
+
+  if (connection.botUserId === eventData.user) {
+    return;
+  }
 
   try {
     await db.insert(channel).values({
-      organizationId: organizationId,
+      organizationId: connection.organizationId,
       slackChannelId: channelId,
       slackChannelType: channelType,
       status: 'ACTIVE'
     });
 
     console.log(
-      `Channel ${channelId} added to the database with organization ID ${organizationId}.`
+      `Channel ${channelId} added to the database with organization ID ${connection.organizationId}.`
     );
   } catch (error) {
     console.error('Error saving channel to database:', error);
@@ -170,8 +180,13 @@ async function handleChannelJoined(eventData: any, organizationId: string) {
   }
 }
 
-async function handleChannelLeft(eventData: any, organizationId: string) {
+async function handleChannelLeft(request: any, connection: SlackConnection) {
+  const eventData = request.event;
   const channelId = eventData.channel;
+
+  if (connection.botUserId === eventData.user) {
+    return;
+  }
 
   try {
     await db

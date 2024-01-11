@@ -138,7 +138,7 @@ export const channel = pgTable('channels', {
     mode: 'date',
     withTimezone: true
   }),
-  slackChannelId: text('slack_channel_id'),
+  slackChannelId: text('slack_channel_id').unique().notNull(),
   slackChannelType: text('slack_channel_type'),
   organizationId: uuid('organization_id')
     .notNull()

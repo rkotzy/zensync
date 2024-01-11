@@ -7,21 +7,18 @@ import { channel, slackConnection } from '@/lib/schema';
 
 export const runtime = 'edge';
 
+const eventHandlers: Record<
+  string,
+  (body: any, orgId: string) => Promise<void>
+> = {
+  channel_join: handleChannelJoined,
+  channel_left: handleChannelLeft
+  // Add more event handlers as needed
+};
+
 export async function POST(request: NextRequest) {
-  // Retrieve the Slack signing secret
-  const signingSecret = process.env.SLACK_SIGNING_SECRET!;
-
-  // Verify the Slack request
-  if (!(await verifySlackRequest(request, signingSecret))) {
-    console.warn('Slack verification failed!');
-    return new Response('Verification failed', { status: 200 });
-  }
-
   // Parse the request body
   const requestBody = await request.json();
-
-  // Log the request body
-  console.log(JSON.stringify(requestBody, null, 2));
 
   // Check if this is a URL verification request from Slack
   if (requestBody.type === 'url_verification') {
@@ -34,17 +31,41 @@ export async function POST(request: NextRequest) {
     });
   }
 
-  // Check for channel_joined event
-  if (requestBody.event && requestBody.event.subtype === 'channel_join') {
+  // Retrieve the Slack signing secret
+  const signingSecret = process.env.SLACK_SIGNING_SECRET!;
+
+  // Verify the Slack request
+  if (!(await verifySlackRequest(request, signingSecret))) {
+    console.warn('Slack verification failed!');
+    return new Response('Verification failed', { status: 200 });
+  }
+
+  // Log the request body
+  console.log(JSON.stringify(requestBody, null, 2));
+
+  ///////////////////////////////////////
+  // Handle events that require an organization ID
+  ///////////////////////////////////////
+
+  // Find the corresponding organizationId
+  const organizationId = await findOrganizationByTeamId(requestBody.team_id);
+
+  if (organizationId === null) {
+    console.warn(`No organization found for team ID: ${requestBody.team_id}.`);
+    return new Response('Invalid team_id', { status: 404 });
+  }
+
+  const eventType = requestBody.event?.subtype;
+
+  if (eventType && eventHandlers[eventType]) {
     try {
-      // Attempt to handle the channel_joined event
-      await handleChannelJoined(requestBody);
+      await eventHandlers[eventType](requestBody, organizationId);
     } catch (error) {
-      console.error('Error handling channel_joined event:', error);
-      // Handle the error appropriately
-      // Depending on your application's needs, you may choose to send a specific response
+      console.error(`Error handling ${eventType} event:`, error);
       return new Response('Internal Server Error', { status: 500 });
     }
+  } else {
+    console.warn(`No handler for event type: ${eventType}`);
   }
 
   return NextResponse.json({ message: 'Ok' }, { status: 200 });
@@ -100,24 +121,10 @@ async function findOrganizationByTeamId(
   }
 }
 
-async function handleChannelJoined(requestBody: any) {
-  // Extract the event and team_id from the request body
-  const eventData = requestBody.event;
-  const teamId = requestBody.team_id;
-
+async function handleChannelJoined(eventData: any, organizationId: string) {
   const channelId = eventData.channel;
   const channelType = eventData.channel_type;
 
-  // Find the corresponding organizationId
-  const organizationId = await findOrganizationByTeamId(teamId);
-
-  if (organizationId === null) {
-    console.warn(
-      `No organization found for team ID: ${teamId}. Channel not added.`
-    );
-    throw new Error(`No organization associated with team ID: ${teamId}`);
-  }
-  // Create a new entry in the channels table
   try {
     await db.insert(channel).values({
       organizationId: organizationId,
@@ -131,5 +138,22 @@ async function handleChannelJoined(requestBody: any) {
     );
   } catch (error) {
     console.error('Error saving channel to database:', error);
+  }
+}
+
+async function handleChannelLeft(eventData: any, organizationId: string) {
+  const channelId = eventData.channel;
+
+  try {
+    await db
+      .update(channel)
+      .set({
+        status: 'ARCHIVED'
+      })
+      .where(eq(channel.slackChannelId, channelId));
+
+    console.log(`Channel ${channelId} archived.`);
+  } catch (error) {
+    console.error('Error archiving channel in database:', error);
   }
 }

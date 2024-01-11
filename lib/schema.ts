@@ -5,14 +5,12 @@ import { pgTable, uuid, timestamp, text } from 'drizzle-orm/pg-core';
 export const organization = pgTable('organizations', {
   id: uuid('id').defaultRandom().defaultRandom().primaryKey().notNull(),
   createdAt: timestamp('created_at', {
-    precision: 3,
     mode: 'date',
     withTimezone: true
   })
     .defaultNow()
     .notNull(),
   updatedAt: timestamp('updated_at', {
-    precision: 3,
     mode: 'date',
     withTimezone: true
   }),
@@ -24,14 +22,12 @@ export const organization = pgTable('organizations', {
 export const account = pgTable('accounts', {
   id: uuid('id').defaultRandom().primaryKey().notNull(),
   createdAt: timestamp('created_at', {
-    precision: 3,
     mode: 'date',
     withTimezone: true
   })
     .defaultNow()
     .notNull(),
   updatedAt: timestamp('updated_at', {
-    precision: 3,
     mode: 'date',
     withTimezone: true
   }),
@@ -44,7 +40,6 @@ export const account = pgTable('accounts', {
 export const slackOauthState = pgTable('slack_oauth_states', {
   id: uuid('id').primaryKey().notNull(),
   createdAt: timestamp('created_at', {
-    precision: 3,
     mode: 'date',
     withTimezone: true
   })
@@ -64,14 +59,12 @@ export const slackOauthState = pgTable('slack_oauth_states', {
 export const slackConnection = pgTable('slack_connections', {
   id: uuid('id').defaultRandom().primaryKey().notNull(),
   createdAt: timestamp('created_at', {
-    precision: 3,
     mode: 'date',
     withTimezone: true
   })
     .defaultNow()
     .notNull(),
   updatedAt: timestamp('updated_at', {
-    precision: 3,
     mode: 'date',
     withTimezone: true
   }),
@@ -99,14 +92,12 @@ export const slackConnection = pgTable('slack_connections', {
 export const zendeskConnection = pgTable('zendesk_connections', {
   id: uuid('id').defaultRandom().primaryKey().notNull(),
   createdAt: timestamp('created_at', {
-    precision: 3,
     mode: 'date',
     withTimezone: true
   })
     .defaultNow()
     .notNull(),
   updatedAt: timestamp('updated_at', {
-    precision: 3,
     mode: 'date',
     withTimezone: true
   }),
@@ -127,14 +118,12 @@ export const zendeskConnection = pgTable('zendesk_connections', {
 export const channel = pgTable('channels', {
   id: uuid('id').defaultRandom().defaultRandom().primaryKey().notNull(),
   createdAt: timestamp('created_at', {
-    precision: 3,
     mode: 'date',
     withTimezone: true
   })
     .defaultNow()
     .notNull(),
   updatedAt: timestamp('updated_at', {
-    precision: 3,
     mode: 'date',
     withTimezone: true
   }),

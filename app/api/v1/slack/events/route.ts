@@ -150,7 +150,7 @@ async function findOrganizationByTeamId(
 }
 
 async function handleChannelJoined(eventData: any, organizationId: string) {
-  const channelId = eventData.channel;
+  const channelId = eventData.channel; // TODO: - channel is undefined
   const channelType = eventData.channel_type;
 
   try {
@@ -166,6 +166,7 @@ async function handleChannelJoined(eventData: any, organizationId: string) {
     );
   } catch (error) {
     console.error('Error saving channel to database:', error);
+    throw error;
   }
 }
 
@@ -183,5 +184,6 @@ async function handleChannelLeft(eventData: any, organizationId: string) {
     console.log(`Channel ${channelId} archived.`);
   } catch (error) {
     console.error('Error archiving channel in database:', error);
+    throw error;
   }
 }

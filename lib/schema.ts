@@ -139,6 +139,7 @@ export const channel = pgTable('channels', {
     withTimezone: true
   }),
   slackChannelId: text('slack_channel_id'),
+  slackChannelType: text('slack_channel_type'),
   organizationId: uuid('organization_id')
     .notNull()
     .references(() => organization.id, { onDelete: 'cascade' }),

@@ -164,12 +164,18 @@ async function handleChannelJoined(request: any, connection: SlackConnection) {
   }
 
   try {
-    await db.insert(channel).values({
-      organizationId: connection.organizationId,
-      slackChannelId: channelId,
-      slackChannelType: channelType,
-      status: 'ACTIVE'
-    });
+    await db
+      .insert(channel)
+      .values({
+        organizationId: connection.organizationId,
+        slackChannelId: channelId,
+        slackChannelType: channelType,
+        status: 'ACTIVE'
+      })
+      .onConflictDoUpdate({
+        target: channel.slackChannelId,
+        set: { status: 'ACTIVE' }
+      });
 
     console.log(
       `Channel ${channelId} added to the database with organization ID ${connection.organizationId}.`

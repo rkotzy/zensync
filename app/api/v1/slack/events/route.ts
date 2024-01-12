@@ -1,7 +1,8 @@
 import { NextResponse, NextRequest } from 'next/server';
 import { db } from '@/lib/drizzle';
-import { eq, is } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import { channel, slackConnection, SlackConnection } from '@/lib/schema';
+import { SlackMessageData } from '@/interfaces/slack-api.interface';
 
 export const runtime = 'edge';
 
@@ -174,7 +175,7 @@ async function handleChannelJoined(request: any, connection: SlackConnection) {
         status: 'ACTIVE'
       })
       .onConflictDoUpdate({
-        target: channel.slackChannelId,
+        target: [channel.organizationId, channel.slackChannelId],
         set: { status: 'ACTIVE' }
       });
 
@@ -197,7 +198,12 @@ async function handleChannelLeft(request: any, connection: SlackConnection) {
       .set({
         status: 'ARCHIVED'
       })
-      .where(eq(channel.slackChannelId, channelId));
+      .where(
+        and(
+          eq(channel.organizationId, connection.organizationId),
+          eq(channel.slackChannelId, channelId)
+        )
+      );
 
     console.log(`Channel ${channelId} archived.`);
   } catch (error) {
@@ -207,14 +213,38 @@ async function handleChannelLeft(request: any, connection: SlackConnection) {
 }
 
 async function handleMessage(request: any, connection: SlackConnection) {
-
   // Check the payload to see if we can quickly ignore
   if (!isPayloadEligibleForTicket(request, connection)) {
     console.log(`Ignoring message: ${request.event_id}`);
     return;
   }
 
-  // Check if it's a thread or new conversation
+  // Build the message data interface
+  const messageData = request.event as SlackMessageData;
+  if (!messageData || messageData.type !== 'message') {
+    console.error('Invalid message payload');
+    return;
+  }
+
+  // Check if message is already part of a thread
+  if (isChildMessage(messageData)) {
+    // Handle child message
+    // If thread, see if parent message ID exists in conversations table
+    console.log(`Handling child message`);
+    return;
+  }
+
+  // See if "same-sender timeframe" applies
+  const existingConversationId = await sameSenderConversationId();
+  if (existingConversationId) {
+    // Add message to existing conversation
+    console.log(`Adding message to existing conversation`);
+    return;
+  }
+
+  // Create zendesk ticket + conversation + message in transaction
+  console.log(`Creating new conversation`);
+  handleNewConversation();
 
   console.log(`Handling message: ${request.event_id}`);
 }
@@ -236,4 +266,29 @@ function isPayloadEligibleForTicket(
   }
 
   return true;
+}
+
+function isChildMessage(event: SlackMessageData): boolean {
+  if (event.thread_ts) {
+    if (event.thread_ts === event.ts) {
+      return false;
+    } else {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+async function sameSenderConversationId(): Promise<string | null> {
+  // Get the most recent conversation for this channel
+  // If the sender is the same and within timeframe, return the conversation ID
+  // Otherwise, return null
+  return null;
+}
+
+async function handleNewConversation() {
+  // Create Zendesk ticket
+  // Create conversation
+  // Create message
 }

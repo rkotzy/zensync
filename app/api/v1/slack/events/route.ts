@@ -207,10 +207,14 @@ async function handleChannelLeft(request: any, connection: SlackConnection) {
 }
 
 async function handleMessage(request: any, connection: SlackConnection) {
+
+  // Check the payload to see if we can quickly ignore
   if (!isPayloadEligibleForTicket(request, connection)) {
     console.log(`Ignoring message: ${request.event_id}`);
     return;
   }
+
+  // Check if it's a thread or new conversation
 
   console.log(`Handling message: ${request.event_id}`);
 }

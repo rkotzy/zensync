@@ -126,45 +126,68 @@ export const zendeskConnection = pgTable('zendesk_connections', {
 
 // This represents a connection to a Slack channel. There can be many
 // channels associated to a single Organization.
-export const channel = pgTable('channels', {
-  id: uuid('id').defaultRandom().defaultRandom().primaryKey().notNull(),
-  createdAt: timestamp('created_at', {
-    mode: 'date',
-    withTimezone: true
+export const channel = pgTable(
+  'channels',
+  {
+    id: uuid('id').defaultRandom().defaultRandom().primaryKey().notNull(),
+    createdAt: timestamp('created_at', {
+      mode: 'date',
+      withTimezone: true
+    })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp('updated_at', {
+      mode: 'date',
+      withTimezone: true
+    }),
+    slackChannelId: text('slack_channel_id').notNull(),
+    slackChannelType: text('slack_channel_type'),
+    organizationId: uuid('organization_id')
+      .notNull()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    status: text('status')
+  },
+  table => ({
+    channels_organization_slack_channel_unique: unique().on(
+      table.organizationId,
+      table.slackChannelId
+    )
   })
-    .defaultNow()
-    .notNull(),
-  updatedAt: timestamp('updated_at', {
-    mode: 'date',
-    withTimezone: true
-  }),
-  slackChannelId: text('slack_channel_id').unique().notNull(),
-  slackChannelType: text('slack_channel_type'),
-  organizationId: uuid('organization_id')
-    .notNull()
-    .references(() => organization.id, { onDelete: 'cascade' }),
-  status: text('status')
-});
+);
 
 // This represents a link between a Slack thread and a Zendesk ticket.
-export const conversation = pgTable('conversations', {
-  id: uuid('id').defaultRandom().defaultRandom().primaryKey().notNull(),
-  createdAt: timestamp('created_at', {
-    mode: 'date',
-    withTimezone: true
+export const conversation = pgTable(
+  'conversations',
+  {
+    id: uuid('id').defaultRandom().defaultRandom().primaryKey().notNull(),
+    createdAt: timestamp('created_at', {
+      mode: 'date',
+      withTimezone: true
+    })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp('updated_at', {
+      mode: 'date',
+      withTimezone: true
+    }),
+    channelId: uuid('channel_id')
+      .notNull()
+      .references(() => channel.id, { onDelete: 'cascade' }),
+    zendeskTicketId: text('zendesk_ticket_id').notNull(),
+    slackParentMessageId: text('slack_parent_message_id').notNull(),
+    slackAuthorUserId: text('slack_author_user_id').notNull()
+  },
+  table => ({
+    conversations_channel_zendesk_ticket_unique: unique().on(
+      table.channelId,
+      table.zendeskTicketId
+    ),
+    conversations_channel_slack_message_unique: unique().on(
+      table.channelId,
+      table.slackParentMessageId
+    )
   })
-    .defaultNow()
-    .notNull(),
-  updatedAt: timestamp('updated_at', {
-    mode: 'date',
-    withTimezone: true
-  }),
-  channelId: uuid('channel_id')
-    .notNull()
-    .references(() => channel.id, { onDelete: 'cascade' }),
-  zendeskTicketId: text('zendesk_ticket_id').notNull().unique(),
-  slackParentMessageId: text('slack_parent_message_id').notNull().unique()
-});
+);
 
 // This represents the actual messages that are sent in either
 // Slack or Zendesk.
@@ -194,6 +217,7 @@ export const message = pgTable(
   },
   table => ({
     messages_type_platform_identifier_unique: unique().on(
+      table.conversationId,
       table.type,
       table.platformIdentifier
     )

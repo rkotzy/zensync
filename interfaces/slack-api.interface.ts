@@ -16,3 +16,12 @@ export interface SlackTeam {
 export interface SlackTeamIcon {
   image_132: string; // Representing the image_132 URL
 }
+
+export interface SlackMessageData {
+  type: string;
+  channel: string;
+  user: string;
+  text: string;
+  ts: string;
+  thread_ts?: string;
+}

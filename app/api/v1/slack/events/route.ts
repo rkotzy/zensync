@@ -288,7 +288,7 @@ async function sameSenderConversationId(): Promise<string | null> {
 }
 
 async function handleNewConversation() {
-  // Create Zendesk ticket
+  // Create Zendesk ticket indepotently using Slack message ID + channel ID?
   // Create conversation
   // Create message
 }

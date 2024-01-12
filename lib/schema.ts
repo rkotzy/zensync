@@ -1,4 +1,11 @@
-import { pgTable, uuid, timestamp, text } from 'drizzle-orm/pg-core';
+import {
+  pgTable,
+  uuid,
+  timestamp,
+  text,
+  pgEnum,
+  unique
+} from 'drizzle-orm/pg-core';
 import { InferSelectModel } from 'drizzle-orm';
 
 // The organization represents a company. An organization can have many
@@ -75,7 +82,7 @@ export const slackConnection = pgTable('slack_connections', {
     .references(() => organization.id, {
       onDelete: 'cascade'
     }),
-  slackTeamId: text('slack_team_id').notNull(),
+  slackTeamId: text('slack_team_id').notNull().unique(),
   name: text('name'),
   domain: text('domain'),
   emailDomain: text('email_domain'),
@@ -138,3 +145,57 @@ export const channel = pgTable('channels', {
     .references(() => organization.id, { onDelete: 'cascade' }),
   status: text('status')
 });
+
+// This represents a link between a Slack thread and a Zendesk ticket.
+export const conversation = pgTable('conversations', {
+  id: uuid('id').defaultRandom().defaultRandom().primaryKey().notNull(),
+  createdAt: timestamp('created_at', {
+    mode: 'date',
+    withTimezone: true
+  })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp('updated_at', {
+    mode: 'date',
+    withTimezone: true
+  }),
+  channelId: uuid('channel_id')
+    .notNull()
+    .references(() => channel.id, { onDelete: 'cascade' }),
+  zendeskTicketId: text('zendesk_ticket_id').notNull().unique(),
+  slackParentMessageId: text('slack_parent_message_id').notNull().unique()
+});
+
+// This represents the actual messages that are sent in either
+// Slack or Zendesk.
+export const messageTypeEnum = pgEnum('message_type_enum', [
+  'SLACK',
+  'ZENDESK'
+]);
+export const message = pgTable(
+  'messages',
+  {
+    id: uuid('id').defaultRandom().defaultRandom().primaryKey().notNull(),
+    createdAt: timestamp('created_at', {
+      mode: 'date',
+      withTimezone: true
+    })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp('updated_at', {
+      mode: 'date',
+      withTimezone: true
+    }),
+    conversationId: uuid('conversation_id')
+      .notNull()
+      .references(() => conversation.id, { onDelete: 'cascade' }),
+    type: messageTypeEnum('type').notNull(),
+    platformIdentifier: text('platform_identifier').notNull()
+  },
+  table => ({
+    messages_type_platform_identifier_unique: unique().on(
+      table.type,
+      table.platformIdentifier
+    )
+  })
+);

@@ -244,7 +244,7 @@ async function handleMessage(request: any, connection: SlackConnection) {
 
   // Create zendesk ticket + conversation + message in transaction
   console.log(`Creating new conversation`);
-  handleNewConversation();
+  handleNewConversation(messageData);
 
   console.log(`Handling message: ${request.event_id}`);
 }
@@ -287,7 +287,7 @@ async function sameSenderConversationId(): Promise<string | null> {
   return null;
 }
 
-async function handleNewConversation() {
+async function handleNewConversation(messageData: SlackMessageData) {
   // Create Zendesk ticket indepotently using Slack message ID + channel ID?
   // Create conversation
   // Create message

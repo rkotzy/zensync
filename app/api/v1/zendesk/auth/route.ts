@@ -76,8 +76,8 @@ export async function POST(request: NextRequest) {
     // Create a zendesk trigger to alert the webhook of ticket changes
     const triggerPayload = JSON.stringify({
       trigger: {
-        title: 'Slack-to-Zendesk Sync',
-        description: 'Two-way sync between Slack and Zendesk',
+        title: 'Zensync - Slack-to-Zendesk Sync [DO NOT EDIT]',
+        description: 'Two-way sync between Slack and Zendesk.',
         active: true,
         conditions: {
           all: [

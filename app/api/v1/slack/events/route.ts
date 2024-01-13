@@ -1,8 +1,14 @@
 import { NextResponse, NextRequest } from 'next/server';
 import { db } from '@/lib/drizzle';
 import { eq, and } from 'drizzle-orm';
-import { channel, slackConnection, SlackConnection } from '@/lib/schema';
+import {
+  channel,
+  slackConnection,
+  SlackConnection,
+  zendeskConnection
+} from '@/lib/schema';
 import { SlackMessageData } from '@/interfaces/slack-api.interface';
+import { conversation } from '@/lib/schema';
 
 export const runtime = 'edge';
 
@@ -159,24 +165,57 @@ async function findSlackConnectionByTeamId(
 async function handleChannelJoined(request: any, connection: SlackConnection) {
   const eventData = request.event;
   const channelId = eventData.channel;
-  const channelType = eventData.channel_type;
 
   if (connection.botUserId !== eventData.user) {
     return;
   }
 
   try {
+    // Fetch channel info from Slack
+    const params = new URLSearchParams();
+    params.append('client_id', process.env.SLACK_CLIENT_ID!);
+    params.append('client_secret', process.env.SLACK_CLIENT_SECRET!);
+    params.append('channel', channelId);
+
+    const response = await fetch('https://slack.com/api/conversations.info', {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      body: params
+    });
+
+    if (!response.ok) {
+      console.warn('Failed to fetch channel info:', response.statusText);
+      throw new Error('Failed to fetch channel info');
+    }
+
+    const responseData = await response.json();
+    const channelType = getChannelType(responseData.channel);
+    const channelName = responseData.channel?.name;
+    const isShared =
+      responseData.channel?.is_shared ||
+      responseData.channel?.is_pending_ext_shared;
+
+    // Save or update channel in database
     await db
       .insert(channel)
       .values({
         organizationId: connection.organizationId,
         slackChannelId: channelId,
-        slackChannelType: channelType,
-        status: 'ACTIVE'
+        type: channelType,
+        isMember: true,
+        name: channelName,
+        isShared: isShared
       })
       .onConflictDoUpdate({
         target: [channel.organizationId, channel.slackChannelId],
-        set: { status: 'ACTIVE' }
+        set: {
+          type: channelType,
+          isMember: true,
+          name: channelName,
+          isShared: isShared
+        }
       });
 
     console.log(
@@ -188,6 +227,21 @@ async function handleChannelJoined(request: any, connection: SlackConnection) {
   }
 }
 
+function getChannelType(channelData: any): string | null {
+  if (channelData.is_channel) {
+    return 'PUBLIC';
+  } else if (channelData.is_group) {
+    return 'PRIVATE';
+  } else if (channelData.is_im) {
+    return 'DM';
+  } else if (channelData.is_mpim) {
+    return 'GROUP_DM';
+  }
+
+  console.warn(`Unkonwn channel type: ${channelData}`);
+  return null;
+}
+
 async function handleChannelLeft(request: any, connection: SlackConnection) {
   const eventData = request.event;
   const channelId = eventData.channel;
@@ -196,7 +250,7 @@ async function handleChannelLeft(request: any, connection: SlackConnection) {
     await db
       .update(channel)
       .set({
-        status: 'ARCHIVED'
+        isMember: false
       })
       .where(
         and(
@@ -243,10 +297,17 @@ async function handleMessage(request: any, connection: SlackConnection) {
   }
 
   // Create zendesk ticket + conversation + message in transaction
-  console.log(`Creating new conversation`);
-  handleNewConversation(messageData);
-
-  console.log(`Handling message: ${request.event_id}`);
+  try {
+    console.log(`Creating new conversation`);
+    await handleNewConversation(
+      messageData,
+      connection.organizationId,
+      messageData.channel
+    );
+  } catch (error) {
+    console.error('Error creating new conversation:', error);
+    throw error;
+  }
 }
 
 function isPayloadEligibleForTicket(
@@ -287,8 +348,75 @@ async function sameSenderConversationId(): Promise<string | null> {
   return null;
 }
 
-async function handleNewConversation(messageData: SlackMessageData) {
+async function handleNewConversation(
+  messageData: SlackMessageData,
+  organizationId: string,
+  channelId: string
+) {
+  // Fetch Zendesk credentials
+  const zendeskCredentials = await db.query.zendeskConnection.findFirst({
+    where: eq(zendeskConnection.organizationId, organizationId)
+  });
+  const zendeskDomain = zendeskCredentials?.zendeskDomain;
+  const zendeskEmail = zendeskCredentials?.zendeskEmail;
+  const zendeskApiKey = zendeskCredentials?.zendeskApiKey;
+
+  if (!zendeskDomain || !zendeskEmail || !zendeskApiKey) {
+    console.error(
+      `Invalid Zendesk credentials found for organization ${organizationId}`
+    );
+    throw new Error(
+      `Invalid Zendesk credentials found for organization ${organizationId}`
+    );
+  }
+
   // Create Zendesk ticket indepotently using Slack message ID + channel ID?
+  const idempotencyKey = channelId + messageData.ts;
+  const zendeskAuthToken = btoa(`${zendeskEmail}/token:${zendeskApiKey}`);
+  let conversationUuid = crypto.randomUUID();
+  const ticketData = {
+    ticket: {
+      subject: messageData.text,
+      comment: {
+        body: messageData.text
+      },
+      external_id: conversationUuid,
+    }
+  };
+
+  const response = await fetch(
+    `https://${zendeskDomain}.zendesk.com/api/v2/tickets.json`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Basic ${zendeskAuthToken}`,
+        'Content-Type': 'application/json',
+        'Idempotency-Key': idempotencyKey
+      },
+      body: JSON.stringify(ticketData)
+    }
+  );
+
+  if (!response.ok) {
+    console.error('Error creating ticket:', response.statusText);
+    throw new Error('Error creating ticket');
+  }
+
+  const responseData = await response.json();
+  console.log('Ticket created:', responseData);
+  const ticketId = responseData.ticket.id;
+
+  if (!ticketId) {
+    console.error('No ticket ID');
+    throw new Error('No ticket ID');
+  }
+
   // Create conversation
-  // Create message
+  await db.insert(conversation).values({
+    id: conversationUuid,
+    channelId: channelId,
+    slackParentMessageId: messageData.ts,
+    zendeskTicketId: ticketId,
+    slackAuthorUserId: messageData.user
+  });
 }

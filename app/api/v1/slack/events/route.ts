@@ -177,13 +177,15 @@ async function handleChannelJoined(request: any, connection: SlackConnection) {
     params.append('client_secret', process.env.SLACK_CLIENT_SECRET!);
     params.append('channel', channelId);
 
-    const response = await fetch('https://slack.com/api/conversations.info', {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded'
-      },
-      body: params
-    });
+    const response = await fetch(
+      `https://slack.com/api/conversations.info?${params.toString()}`,
+      {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded'
+        }
+      }
+    );
 
     if (!response.ok) {
       console.warn('Failed to fetch channel info:', response.statusText);
@@ -380,7 +382,7 @@ async function handleNewConversation(
       comment: {
         body: messageData.text
       },
-      external_id: conversationUuid,
+      external_id: conversationUuid
     }
   };
 

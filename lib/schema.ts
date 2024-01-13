@@ -3,6 +3,7 @@ import {
   uuid,
   timestamp,
   text,
+  boolean,
   pgEnum,
   unique
 } from 'drizzle-orm/pg-core';
@@ -141,11 +142,13 @@ export const channel = pgTable(
       withTimezone: true
     }),
     slackChannelId: text('slack_channel_id').notNull(),
-    slackChannelType: text('slack_channel_type'),
     organizationId: uuid('organization_id')
       .notNull()
       .references(() => organization.id, { onDelete: 'cascade' }),
-    status: text('status')
+    type: text('type'),
+    isMember: boolean('is_member'),
+    name: text('name'),
+    isShared: boolean('is_shared')
   },
   table => ({
     channels_organization_slack_channel_unique: unique().on(

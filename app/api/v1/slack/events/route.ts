@@ -329,8 +329,16 @@ function isPayloadEligibleForTicket(
     return false;
   }
 
-  // Ignore messages from bots
-  if (eventData.subtype === 'bot_message') {
+  // Ignore subtypes that are not processable
+  // by the message handler
+  const ineligibleSubtypes = new Set([
+    'bot_message',
+    'channel_join',
+    'message_deleted'
+  ]);
+
+  const subtype = eventData.subtype;
+  if (ineligibleSubtypes.has(subtype)) {
     return false;
   }
 
@@ -404,7 +412,9 @@ async function handleNewConversation(
   // TODO: - Add tags
   const ticketData = {
     ticket: {
-      subject: `${channelInfo?.name}: ${messageData.text.substring(0, 69) + "..."}`,
+      subject: `${channelInfo?.name}: ${
+        messageData.text?.substring(0, 69) ?? ''
+      }...`,
       comment: {
         body: messageData.text
       },
@@ -413,7 +423,7 @@ async function handleNewConversation(
   };
 
   const response = await fetch(
-    `https://${zendeskDomain}.zendesk.com/api/v2/tickets.json?async=true`, // WARNING: this is asyncronous
+    `https://${zendeskDomain}.zendesk.com/api/v2/tickets.json`,
     {
       method: 'POST',
       headers: {
@@ -426,7 +436,7 @@ async function handleNewConversation(
   );
 
   if (!response.ok) {
-    console.error('Error creating ticket:', response.statusText);
+    console.error('Error creating ticket:', response);
     throw new Error('Error creating ticket');
   }
 

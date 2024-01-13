@@ -304,7 +304,7 @@ async function handleMessage(request: any, connection: SlackConnection) {
     return;
   }
 
-  // Create zendesk ticket + conversation + message in transaction
+  // Create zendesk ticket + conversation
   try {
     console.log(`Creating new conversation`);
     await handleNewConversation(
@@ -381,10 +381,30 @@ async function handleNewConversation(
   // Create Zendesk ticket indepotently using Slack message ID + channel ID?
   const idempotencyKey = channelId + messageData.ts;
   const zendeskAuthToken = btoa(`${zendeskEmail}/token:${zendeskApiKey}`);
+
+  // Set the primary key for the conversation
   let conversationUuid = crypto.randomUUID();
+
+  // Fetch channel info
+  const channelInfo = await db.query.channel.findFirst({
+    where: eq(channel.slackChannelId, channelId)
+  });
+
+  if (!channelInfo) {
+    console.warn(`No channel found: ${channelId}`);
+    throw new Error(`No channel found`);
+  }
+
+  if (!channelInfo.name) {
+    console.warn(`No channel name found, continuing: ${channelInfo}`);
+  }
+
+  // Create a ticket in Zendesk
+  // TODO: - Add assignee_email
+  // TODO: - Add tags
   const ticketData = {
     ticket: {
-      subject: messageData.text,
+      subject: `${channelInfo?.name}: ${messageData.text.substring(0, 69) + "..."}`,
       comment: {
         body: messageData.text
       },
@@ -393,7 +413,7 @@ async function handleNewConversation(
   };
 
   const response = await fetch(
-    `https://${zendeskDomain}.zendesk.com/api/v2/tickets.json`,
+    `https://${zendeskDomain}.zendesk.com/api/v2/tickets.json?async=true`, // WARNING: this is asyncronous
     {
       method: 'POST',
       headers: {
@@ -422,9 +442,9 @@ async function handleNewConversation(
   // Create conversation
   await db.insert(conversation).values({
     id: conversationUuid,
-    channelId: channelId,
+    channelId: channelInfo.id,
     slackParentMessageId: messageData.ts,
-    zendeskTicketId: ticketId,
+    zendeskTicketId: ticketId, // TODO: Check if this is even needed since using external_id
     slackAuthorUserId: messageData.user
   });
 }

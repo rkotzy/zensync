@@ -193,6 +193,7 @@ async function handleChannelJoined(request: any, connection: SlackConnection) {
     }
 
     const responseData = await response.json();
+    console.log('Channel info recieved:', responseData);
     const channelType = getChannelType(responseData.channel);
     const channelName = responseData.channel?.name;
     const isShared =
@@ -230,6 +231,11 @@ async function handleChannelJoined(request: any, connection: SlackConnection) {
 }
 
 function getChannelType(channelData: any): string | null {
+  if (typeof channelData !== 'object' || channelData === null) {
+    console.warn('Invalid or undefined channel data received:', channelData);
+    return null;
+  }
+  
   if (channelData.is_channel) {
     return 'PUBLIC';
   } else if (channelData.is_group) {

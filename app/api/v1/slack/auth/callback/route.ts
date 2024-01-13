@@ -54,13 +54,14 @@ export async function GET(request: NextRequest) {
       body: params
     });
 
-    if (!response.ok) {
+    const responseData = await response.json();
+
+    if (!responseData.ok) {
       return Response.redirect(
         'https://zensync.vercel.app/connections?slackOauth=error&message=Failed to authenticate.'
       );
     }
 
-    const responseData = await response.json();
     accessToken = responseData.access_token;
     authedUser = responseData.authed_user.id
     botUserId = responseData.bot_user_id;

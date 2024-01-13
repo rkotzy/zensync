@@ -173,8 +173,6 @@ async function handleChannelJoined(request: any, connection: SlackConnection) {
   try {
     // Fetch channel info from Slack
     const params = new URLSearchParams();
-    params.append('client_id', process.env.SLACK_CLIENT_ID!);
-    params.append('client_secret', process.env.SLACK_CLIENT_SECRET!);
     params.append('channel', channelId);
 
     const response = await fetch(
@@ -182,18 +180,20 @@ async function handleChannelJoined(request: any, connection: SlackConnection) {
       {
         method: 'GET',
         headers: {
-          'Content-Type': 'application/x-www-form-urlencoded'
+          'Content-Type': 'application/x-www-form-urlencoded',
+          Authorization: `Bearer ${connection.token}`
         }
       }
     );
 
-    if (!response.ok) {
+    const responseData = await response.json();
+    console.log('Channel info recieved:', responseData);
+
+    if (!responseData.ok) {
       console.warn('Failed to fetch channel info:', response.statusText);
       throw new Error('Failed to fetch channel info');
     }
 
-    const responseData = await response.json();
-    console.log('Channel info recieved:', responseData);
     const channelType = getChannelType(responseData.channel);
     const channelName = responseData.channel?.name;
     const isShared =
@@ -235,7 +235,7 @@ function getChannelType(channelData: any): string | null {
     console.warn('Invalid or undefined channel data received:', channelData);
     return null;
   }
-  
+
   if (channelData.is_channel) {
     return 'PUBLIC';
   } else if (channelData.is_group) {
@@ -267,7 +267,7 @@ async function handleChannelLeft(request: any, connection: SlackConnection) {
         )
       );
 
-    console.log(`Channel ${channelId} archived.`);
+    console.log(`Channel ${channelId} left.`);
   } catch (error) {
     console.error('Error archiving channel in database:', error);
     throw error;

@@ -157,6 +157,7 @@ export const channel = pgTable(
     )
   })
 );
+export type Channel = InferSelectModel<typeof channel>;
 
 // This represents a link between a Slack thread and a Zendesk ticket.
 export const conversation = pgTable(
@@ -191,6 +192,7 @@ export const conversation = pgTable(
     )
   })
 );
+export type Conversation = InferSelectModel<typeof conversation>;
 
 // This represents the actual messages that are sent in either
 // Slack or Zendesk.

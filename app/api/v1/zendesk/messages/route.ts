@@ -37,8 +37,11 @@ export async function POST(request: NextRequest) {
   }
 
   // To be safe I should double-check the organization_id owns the channel_id
-  const channel: any = conversationInfo?.channel;
-  if (!channel?.slackChannelId || channel?.organizationId !== organizationId) {
+  if (
+    !conversationInfo.channel ||
+    !conversationInfo.channel.slackChannelId ||
+    conversationInfo.channel.organizationId !== organizationId
+  ) {
     console.warn(`Invalid Ids: ${organizationId} !== ${conversationInfo}`);
     return NextResponse.json({ message: 'Invalid Ids' }, { status: 401 });
   }
@@ -62,7 +65,7 @@ export async function POST(request: NextRequest) {
       requestBody,
       slackConnectionInfo,
       conversationInfo.slackParentMessageId,
-      channel.slackChannelId
+      conversationInfo.channel.slackChannelId
     );
   } catch (error) {
     console.error(error);

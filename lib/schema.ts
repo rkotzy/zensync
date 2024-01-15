@@ -7,7 +7,7 @@ import {
   pgEnum,
   unique
 } from 'drizzle-orm/pg-core';
-import { InferSelectModel } from 'drizzle-orm';
+import { InferSelectModel, relations } from 'drizzle-orm';
 
 // The organization represents a company. An organization can have many
 // accounts, but a single Slack connection and Zendesk connection.
@@ -157,7 +157,6 @@ export const channel = pgTable(
     )
   })
 );
-export type Channel = InferSelectModel<typeof channel>;
 
 // This represents a link between a Slack thread and a Zendesk ticket.
 export const conversation = pgTable(
@@ -192,7 +191,13 @@ export const conversation = pgTable(
     )
   })
 );
-export type Conversation = InferSelectModel<typeof conversation>;
+
+export const conversationRelations = relations(conversation, ({ one }) => ({
+  channel: one(channel, {
+    fields: [conversation.channelId],
+    references: [channel.id]
+  })
+}));
 
 // This represents the actual messages that are sent in either
 // Slack or Zendesk.

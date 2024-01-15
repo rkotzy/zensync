@@ -111,30 +111,35 @@ async function sendSlackMessage(
   parentMessageId: string,
   slackChannelId: string
 ) {
-  const body = JSON.stringify({
-    channel: slackChannelId,
-    text: requestBody.message,
-    thread_ts: parentMessageId
-  });
+  try {
+    const body = JSON.stringify({
+      channel: slackChannelId,
+      text: requestBody.message,
+      thread_ts: parentMessageId
+    });
 
-  console.log(`Sending Slack message: ${body}`);
+    console.log(`Sending Slack message: ${body}`);
 
-  const response = await fetch('https://slack.com/api/chat.postMessage', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${connection.token}`
-    },
-    body: body
-  });
+    const response = await fetch('https://slack.com/api/chat.postMessage', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${connection.token}`
+      },
+      body: body
+    });
 
-  console.log(`Slack response: ${JSON.stringify(response)}`);
+    console.log(`Slack response: ${JSON.stringify(response)}`);
 
-  const responseData = await response.json();
+    const responseData = await response.json();
 
-  if (!responseData.ok) {
-    throw new Error(`Error posting message: ${responseData.error}`);
+    if (!responseData.ok) {
+      throw new Error(`Error posting message: ${responseData.error}`);
+    }
+  } catch (error) {
+    console.error(error);
+    throw error;
   }
 
-  console.log('Message posted successfully:', responseData);
+  console.log('Message posted successfully');
 }

@@ -36,6 +36,10 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  console.log(
+    `ConversationInfo retrieved: ${JSON.stringify(conversationInfo)}`
+  );
+
   // To be safe I should double-check the organization_id owns the channel_id
   if (
     !conversationInfo.channel ||
@@ -56,9 +60,13 @@ export async function POST(request: NextRequest) {
     console.error(`No Slack connection found for org ${organizationId}`);
     return NextResponse.json(
       { message: 'No Slack connection found' },
-      { status: 500 }
+      { status: 404 }
     );
   }
+
+  console.log(
+    `SlackConnectionInfo retrieved: ${JSON.stringify(slackConnectionInfo)}`
+  );
 
   try {
     sendSlackMessage(
@@ -72,7 +80,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: 'Error' }, { status: 500 });
   }
 
-  return NextResponse.json({ message: 'Ok' }, { status: 500 });
+  return NextResponse.json({ message: 'Ok' }, { status: 200 });
 }
 
 async function authenticateRequest(
@@ -109,6 +117,8 @@ async function sendSlackMessage(
     thread_ts: parentMessageId
   });
 
+  console.log(`Sending Slack message: ${body}`);
+
   const response = await fetch('https://slack.com/api/chat.postMessage', {
     method: 'POST',
     headers: {
@@ -119,6 +129,8 @@ async function sendSlackMessage(
   });
 
   const responseData = await response.json();
+
+  console.log(`Slack response: ${JSON.stringify(responseData)}`);
 
   if (!responseData.ok) {
     throw new Error(`Error posting message: ${responseData.error}`);

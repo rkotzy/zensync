@@ -128,9 +128,9 @@ async function sendSlackMessage(
     body: body
   });
 
-  const responseData = await response.json();
+  console.log(`Slack response: ${JSON.stringify(response)}`);
 
-  console.log(`Slack response: ${JSON.stringify(responseData)}`);
+  const responseData = await response.json();
 
   if (!responseData.ok) {
     throw new Error(`Error posting message: ${responseData.error}`);

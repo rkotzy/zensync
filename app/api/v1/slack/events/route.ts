@@ -519,27 +519,33 @@ async function handleNewConversation(
     }
   };
 
-  const response = await fetch(
-    `https://${zendeskCredentials.zendeskDomain}.zendesk.com/api/v2/tickets.json`,
-    {
-      method: 'POST',
-      headers: {
-        Authorization: `Basic ${zendeskAuthToken}`,
-        'Content-Type': 'application/json',
-        'Idempotency-Key': idempotencyKey
-      },
-      body: JSON.stringify(ticketData)
+  let ticketId: string | null = null;
+  try {
+    const response = await fetch(
+      `https://${zendeskCredentials.zendeskDomain}.zendesk.com/api/v2/tickets.json`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Basic ${zendeskAuthToken}`,
+          'Content-Type': 'application/json',
+          'Idempotency-Key': idempotencyKey
+        },
+        body: JSON.stringify(ticketData)
+      }
+    );
+
+    if (!response.ok) {
+      console.error('Response is not okay:', response);
+      throw new Error('Error creating ticket');
     }
-  );
 
-  if (!response.ok) {
-    console.error('Error creating ticket:', response);
-    throw new Error('Error creating ticket');
+    const responseData = await response.json();
+    console.log('Ticket created:', responseData);
+    ticketId = responseData.ticket.id;
+  } catch (error) {
+    console.error('Error creating ticket:', error);
+    throw error;
   }
-
-  const responseData = await response.json();
-  console.log('Ticket created:', responseData);
-  const ticketId = responseData.ticket.id;
 
   if (!ticketId) {
     console.error('No ticket ID');

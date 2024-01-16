@@ -513,8 +513,7 @@ async function handleNewConversation(
       },
       requester: {
         name: 'Zensync',
-        email: DEFAULT_REQUESTER_EMAIL,
-        external_id: channelInfo?.slackChannelId
+        email: DEFAULT_REQUESTER_EMAIL
       },
       external_id: conversationUuid
     }

@@ -69,7 +69,7 @@ export async function POST(request: NextRequest) {
   );
 
   try {
-    sendSlackMessage(
+    await sendSlackMessage(
       requestBody,
       slackConnectionInfo,
       conversationInfo.slackParentMessageId,
@@ -137,7 +137,7 @@ async function sendSlackMessage(
       throw new Error(`Error posting message: ${responseData.error}`);
     }
   } catch (error) {
-    console.error(error);
+    console.error('Error in sendSlackMessage:', error);
     throw error;
   }
 

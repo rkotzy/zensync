@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
   console.log(JSON.stringify(requestBody, null, 2));
 
   // Save some database calls if it's a message from Zensync
-  if (requestBody.requester_email === DEFAULT_REQUESTER_EMAIL) {
+  if (requestBody.current_user_email === DEFAULT_REQUESTER_EMAIL) {
     console.log('Message from Zensync, skipping');
     return NextResponse.json({ message: 'Ok' }, { status: 200 });
   }

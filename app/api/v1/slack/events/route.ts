@@ -534,13 +534,14 @@ async function handleNewConversation(
       }
     );
 
+    const responseData = await response.json();
+    console.log('Ticket response data:', responseData);
+
     if (!response.ok) {
       console.error('Response is not okay:', response);
       throw new Error('Error creating ticket');
     }
 
-    const responseData = await response.json();
-    console.log('Ticket created:', responseData);
     ticketId = responseData.ticket.id;
   } catch (error) {
     console.error('Error creating ticket:', error);

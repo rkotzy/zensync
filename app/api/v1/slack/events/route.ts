@@ -485,7 +485,7 @@ async function handleNewConversation(
   // Create Zendesk ticket indepotently using Slack message ID + channel ID?
   const idempotencyKey = channelId + messageData.ts;
   const zendeskAuthToken = btoa(
-    `${zendeskConnection.zendeskEmail}/token:${zendeskConnection.zendeskApiKey}`
+    `${zendeskCredentials.zendeskEmail}/token:${zendeskCredentials.zendeskApiKey}`
   );
 
   // Set the primary key for the conversation

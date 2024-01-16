@@ -13,6 +13,8 @@ import { SlackMessageData } from '@/interfaces/slack-api.interface';
 
 export const runtime = 'edge';
 
+const DEFAULT_REQUESTER_EMAIL = 'no-reply@zensync.co';
+
 const eventHandlers: Record<
   string,
   (body: any, connection: SlackConnection) => Promise<void>
@@ -508,6 +510,11 @@ async function handleNewConversation(
       }...`,
       comment: {
         body: messageData.text
+      },
+      requester: {
+        name: 'Zensync',
+        email: DEFAULT_REQUESTER_EMAIL,
+        external_id: channelInfo?.slackChannelId
       },
       external_id: conversationUuid
     }

@@ -125,6 +125,8 @@ export const zendeskConnection = pgTable('zendesk_connections', {
   status: text('status')
 });
 
+export type ZendeskConnection = InferSelectModel<typeof zendeskConnection>;
+
 // This represents a connection to a Slack channel. There can be many
 // channels associated to a single Organization.
 export const channel = pgTable(

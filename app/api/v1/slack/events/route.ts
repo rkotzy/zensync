@@ -5,7 +5,8 @@ import {
   channel,
   slackConnection,
   SlackConnection,
-  zendeskConnection
+  zendeskConnection,
+  ZendeskConnection
 } from '@/lib/schema';
 import { SlackMessageData } from '@/interfaces/slack-api.interface';
 import { conversation } from '@/lib/schema';
@@ -277,7 +278,6 @@ async function handleChannelLeft(request: any, connection: SlackConnection) {
 async function handleMessage(request: any, connection: SlackConnection) {
   // Check the payload to see if we can quickly ignore
   if (!isPayloadEligibleForTicket(request, connection)) {
-    console.log(`Ignoring message: ${request.event_id}`);
     return;
   }
 
@@ -289,10 +289,21 @@ async function handleMessage(request: any, connection: SlackConnection) {
   }
 
   // Check if message is already part of a thread
-  if (isChildMessage(messageData)) {
+  const parentMessageId = getParentMessageId(messageData);
+  if (parentMessageId) {
     // Handle child message
-    // If thread, see if parent message ID exists in conversations table
     console.log(`Handling child message`);
+    try {
+      await handleThreadReply(
+        messageData,
+        connection.organizationId,
+        messageData.channel,
+        parentMessageId
+      );
+    } catch (error) {
+      console.error('Error handling thread reply:', error);
+      throw error;
+    }
     return;
   }
 
@@ -326,35 +337,35 @@ function isPayloadEligibleForTicket(
 
   // Ignore messages from the Zensync itself
   if (connection.botUserId === eventData.user) {
+    console.log('Ignoring message from Zensync');
+    return false;
+  }
+
+  // Ignore hidden messages
+  if (eventData.hidden) {
+    console.log('Ignoring hidden message');
     return false;
   }
 
   // Ignore subtypes that are not processable
   // by the message handler
-  const ineligibleSubtypes = new Set([
-    'bot_message',
-    'channel_join',
-    'message_deleted'
-  ]);
+  const eligibleSubtypes = new Set(['message_replied']);
 
   const subtype = eventData.subtype;
-  if (ineligibleSubtypes.has(subtype)) {
-    return false;
+  if (eligibleSubtypes.has(subtype)) {
+    return true;
   }
 
-  return true;
+  console.log(`Ignoring message subtype: ${subtype}`);
+  return false;
 }
 
-function isChildMessage(event: SlackMessageData): boolean {
-  if (event.thread_ts) {
-    if (event.thread_ts === event.ts) {
-      return false;
-    } else {
-      return true;
-    }
+function getParentMessageId(event: SlackMessageData): string | null {
+  if (event.thread_ts && event.thread_ts !== event.ts) {
+    return event.thread_ts;
   }
 
-  return false;
+  return null;
 }
 
 async function sameSenderConversationId(): Promise<string | null> {
@@ -364,39 +375,111 @@ async function sameSenderConversationId(): Promise<string | null> {
   return null;
 }
 
+async function handleThreadReply(
+  messageData: SlackMessageData,
+  organizationId: string,
+  channelId: string,
+  slackParentMessageId: string
+) {
+  // Fetch Zendesk credentials
+  let zendeskCredentials: ZendeskConnection | null;
+  try {
+    zendeskCredentials = await fetchZendeskCredentials(organizationId);
+  } catch (error) {
+    console.error(error);
+    throw new Error('Error fetching Zendesk credentials');
+  }
+  if (!zendeskCredentials) {
+    console.error(`No Zendesk credentials found for org: ${organizationId}`);
+    throw new Error('No Zendesk credentials found');
+  }
+
+  // get conversation from database
+  const conversationInfo = await db.query.conversation.findFirst({
+    where: and(
+      eq(conversation.channelId, channelId),
+      eq(conversation.slackParentMessageId, slackParentMessageId)
+    )
+  });
+
+  if (!conversationInfo) {
+    console.error('No conversation found');
+    throw new Error('No conversation found');
+  }
+
+  // Create ticket comment indepotently using Slack message ID + channel ID?
+  const idempotencyKey = channelId + messageData.ts;
+  const zendeskAuthToken = btoa(
+    `${zendeskCredentials.zendeskEmail}/token:${zendeskCredentials.zendeskApiKey}`
+  );
+
+  // Create a comment in ticket
+  // TODO: - Add assignee_email
+  // TODO: - Add tags
+  const commentData = {
+    ticket: {
+      comment: {
+        body: messageData.text
+      },
+      status: 'open'
+    }
+  };
+
+  const response = await fetch(
+    `https://${zendeskCredentials.zendeskDomain}.zendesk.com/api/v2/tickets/${conversationInfo.zendeskTicketId}.json`,
+    {
+      method: 'PUT',
+      headers: {
+        Authorization: `Basic ${zendeskAuthToken}`,
+        'Content-Type': 'application/json',
+        'Idempotency-Key': idempotencyKey
+      },
+      body: JSON.stringify(commentData)
+    }
+  );
+
+  if (!response.ok) {
+    console.error('Error updating ticket comment:', response);
+    throw new Error('Error creating comment');
+  }
+
+  const responseData = await response.json();
+  console.log('Ticket comment updated:', responseData);
+
+  // TODO: - Update last message ID conversation
+}
+
 async function handleNewConversation(
   messageData: SlackMessageData,
   organizationId: string,
   channelId: string
 ) {
   // Fetch Zendesk credentials
-  const zendeskCredentials = await db.query.zendeskConnection.findFirst({
-    where: eq(zendeskConnection.organizationId, organizationId)
-  });
-  const zendeskDomain = zendeskCredentials?.zendeskDomain;
-  const zendeskEmail = zendeskCredentials?.zendeskEmail;
-  const zendeskApiKey = zendeskCredentials?.zendeskApiKey;
-
-  if (!zendeskDomain || !zendeskEmail || !zendeskApiKey) {
-    console.error(
-      `Invalid Zendesk credentials found for organization ${organizationId}`
-    );
-    throw new Error(
-      `Invalid Zendesk credentials found for organization ${organizationId}`
-    );
+  let zendeskCredentials: ZendeskConnection | null;
+  try {
+    zendeskCredentials = await fetchZendeskCredentials(organizationId);
+  } catch (error) {
+    console.error(error);
+    throw new Error('Error fetching Zendesk credentials');
   }
-
-  // Create Zendesk ticket indepotently using Slack message ID + channel ID?
-  const idempotencyKey = channelId + messageData.ts;
-  const zendeskAuthToken = btoa(`${zendeskEmail}/token:${zendeskApiKey}`);
-
-  // Set the primary key for the conversation
-  let conversationUuid = crypto.randomUUID();
+  if (!zendeskCredentials) {
+    console.error(`No Zendesk credentials found for org: ${organizationId}`);
+    throw new Error('No Zendesk credentials found');
+  }
 
   // Fetch channel info
   const channelInfo = await db.query.channel.findFirst({
     where: eq(channel.slackChannelId, channelId)
   });
+
+  // Create Zendesk ticket indepotently using Slack message ID + channel ID?
+  const idempotencyKey = channelId + messageData.ts;
+  const zendeskAuthToken = btoa(
+    `${zendeskConnection.zendeskEmail}/token:${zendeskConnection.zendeskApiKey}`
+  );
+
+  // Set the primary key for the conversation
+  let conversationUuid = crypto.randomUUID();
 
   if (!channelInfo) {
     console.warn(`No channel found: ${channelId}`);
@@ -423,7 +506,7 @@ async function handleNewConversation(
   };
 
   const response = await fetch(
-    `https://${zendeskDomain}.zendesk.com/api/v2/tickets.json`,
+    `https://${zendeskCredentials.zendeskDomain}.zendesk.com/api/v2/tickets.json`,
     {
       method: 'POST',
       headers: {
@@ -450,11 +533,32 @@ async function handleNewConversation(
   }
 
   // Create conversation
+  // TODO: - Have a last message ID column
   await db.insert(conversation).values({
     id: conversationUuid,
     channelId: channelInfo.id,
     slackParentMessageId: messageData.ts,
-    zendeskTicketId: ticketId, // TODO: Check if this is even needed since using external_id
+    zendeskTicketId: ticketId,
     slackAuthorUserId: messageData.user
   });
+}
+
+async function fetchZendeskCredentials(
+  organizationId: string
+): Promise<ZendeskConnection | null> {
+  const zendeskCredentials = await db.query.zendeskConnection.findFirst({
+    where: eq(zendeskConnection.organizationId, organizationId)
+  });
+  const zendeskDomain = zendeskCredentials?.zendeskDomain;
+  const zendeskEmail = zendeskCredentials?.zendeskEmail;
+  const zendeskApiKey = zendeskCredentials?.zendeskApiKey;
+
+  if (!zendeskDomain || !zendeskEmail || !zendeskApiKey) {
+    console.error(
+      `Invalid Zendesk credentials found for organization ${organizationId}`
+    );
+    return null;
+  }
+
+  return zendeskCredentials;
 }

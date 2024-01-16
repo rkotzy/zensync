@@ -6,10 +6,10 @@ import {
   slackConnection,
   SlackConnection,
   zendeskConnection,
-  ZendeskConnection
+  ZendeskConnection,
+  conversation
 } from '@/lib/schema';
 import { SlackMessageData } from '@/interfaces/slack-api.interface';
-import { conversation } from '@/lib/schema';
 
 export const runtime = 'edge';
 
@@ -395,17 +395,22 @@ async function handleThreadReply(
   }
 
   // get conversation from database
-  const conversationInfo = await db.query.conversation.findFirst({
-    where: and(
-      eq(channel.slackChannelId, channelId),
-      eq(conversation.slackParentMessageId, slackParentMessageId)
-    ),
-    with: {
-      channel: true
-    }
-  });
+  const conversationInfo = await db
+    .select({
+      zendeskTicketId: conversation.zendeskTicketId
+    })
+    .from(conversation)
+    .innerJoin(channel, eq(conversation.channelId, channel.id))
+    .where(
+      and(
+        eq(channel.slackChannelId, channelId),
+        eq(conversation.slackParentMessageId, slackParentMessageId),
+        eq(channel.organizationId, organizationId)
+      )
+    )
+    .limit(1);
 
-  if (!conversationInfo) {
+  if (conversationInfo.length === 0 || !conversationInfo[0].zendeskTicketId) {
     console.error('No conversation found');
     throw new Error('No conversation found');
   }
@@ -429,7 +434,7 @@ async function handleThreadReply(
   };
 
   const response = await fetch(
-    `https://${zendeskCredentials.zendeskDomain}.zendesk.com/api/v2/tickets/${conversationInfo.zendeskTicketId}.json`,
+    `https://${zendeskCredentials.zendeskDomain}.zendesk.com/api/v2/tickets/${conversationInfo[0].zendeskTicketId}.json`,
     {
       method: 'PUT',
       headers: {

@@ -397,9 +397,12 @@ async function handleThreadReply(
   // get conversation from database
   const conversationInfo = await db.query.conversation.findFirst({
     where: and(
-      eq(conversation.channelId, channelId),
+      eq(channel.id, channelId),
       eq(conversation.slackParentMessageId, slackParentMessageId)
-    )
+    ),
+    with: {
+      channel: true
+    }
   });
 
   if (!conversationInfo) {

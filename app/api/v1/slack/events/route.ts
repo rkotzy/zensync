@@ -438,6 +438,8 @@ async function getOrCreateZendeskUser(
       }
     };
 
+    console.log(`Upserting user data: ${JSON.stringify(zendeskUserData)}`);
+
     const response = await fetch(
       `https://${zendeskCredentials.zendeskDomain}.zendesk.com/api/v2/users/create_or_update`,
       {

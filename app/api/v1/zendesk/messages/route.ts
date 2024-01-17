@@ -163,6 +163,9 @@ async function sendSlackMessage(
       );
       username = slackUser.username ?? requestBody.current_user_name;
       imageUrl = slackUser.imageUrl;
+      console.log(`Request body: ${JSON.stringify(requestBody)}`);
+      console.log(`Slack user: ${slackUser}`);
+      console.log(`Username: ${username}`);
     }
   } catch (error) {
     console.warn('Error getting Slack user:', error);

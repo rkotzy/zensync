@@ -154,12 +154,14 @@ async function sendSlackMessage(
   let imageUrl: string | undefined;
 
   try {
-    const slackUser = await getSlackUser(
-      connection,
-      requestBody.current_user_email
-    );
-    username = slackUser.username;
-    imageUrl = slackUser.imageUrl;
+    if (requestBody.current_user_email) {
+      const slackUser = await getSlackUser(
+        connection,
+        requestBody.current_user_email
+      );
+      username = slackUser.username;
+      imageUrl = slackUser.imageUrl;
+    }
   } catch (error) {
     console.warn('Error getting Slack user:', error);
   }

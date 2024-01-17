@@ -113,17 +113,64 @@ async function authenticateRequest(
   return connection.organizationId;
 }
 
+async function getSlackUser(
+  connection: SlackConnection,
+  email: string
+): Promise<{ username: string; imageUrl: string }> {
+  try {
+    const response = await fetch(
+      `https://slack.com/api/users.lookupByEmail?email=${email}`,
+      {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          Authorization: `Bearer ${connection.token}`
+        }
+      }
+    );
+
+    const responseData = await response.json();
+
+    if (!responseData.ok) {
+      throw new Error(`Error getting Slack user: ${responseData.error}`);
+    }
+
+    const username = responseData.user.profile.display_name;
+    const imageUrl = responseData.user.profile.image_192;
+    return { username, imageUrl };
+  } catch (error) {
+    console.error('Error in getSlackUser:', error);
+    throw error;
+  }
+}
+
 async function sendSlackMessage(
   requestBody: any,
   connection: SlackConnection,
   parentMessageId: string,
   slackChannelId: string
 ) {
+  let username: string | undefined = requestBody.current_user_name;
+  let imageUrl: string | undefined;
+
+  try {
+    const slackUser = await getSlackUser(
+      connection,
+      requestBody.current_user_email
+    );
+    username = slackUser.username;
+    imageUrl = slackUser.imageUrl;
+  } catch (error) {
+    console.warn('Error getting Slack user:', error);
+  }
+
   try {
     const body = JSON.stringify({
       channel: slackChannelId,
       text: requestBody.message,
-      thread_ts: parentMessageId
+      thread_ts: parentMessageId,
+      username: username,
+      icon_url: imageUrl
     });
 
     console.log(`Sending Slack message: ${body}`);

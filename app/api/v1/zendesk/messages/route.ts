@@ -131,6 +131,8 @@ async function getSlackUser(
 
     const responseData = await response.json();
 
+    console.log(`Slack user response: ${JSON.stringify(responseData)}`);
+
     if (!responseData.ok) {
       throw new Error(`Error getting Slack user: ${responseData.error}`);
     }
@@ -164,7 +166,7 @@ async function sendSlackMessage(
       username = slackUser.username ?? requestBody.current_user_name;
       imageUrl = slackUser.imageUrl;
       console.log(`Request body: ${JSON.stringify(requestBody)}`);
-      console.log(`Slack user: ${slackUser}`);
+      console.log(`Slack user: ${JSON.stringify(slackUser)}`);
       console.log(`Username: ${username}`);
     }
   } catch (error) {

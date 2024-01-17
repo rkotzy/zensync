@@ -424,14 +424,11 @@ async function handleThreadReply(
   );
 
   // Create a comment in ticket
-  // TODO: - Add assignee_email
-  // TODO: - Add tags
   const commentData = {
     ticket: {
       comment: {
         body: messageData.text
       },
-      author_id: 22876708771604,
       status: 'open'
     }
   };
@@ -503,7 +500,6 @@ async function handleNewConversation(
 
   // Create a ticket in Zendesk
   // TODO: - Add assignee_email
-  // TODO: - Add tags
   const ticketData = {
     ticket: {
       subject: `${channelInfo?.name}: ${
@@ -516,7 +512,8 @@ async function handleNewConversation(
         name: 'Zensync',
         email: DEFAULT_REQUESTER_EMAIL
       },
-      external_id: conversationUuid
+      external_id: conversationUuid,
+      tags: ['zensync']
     }
   };
 

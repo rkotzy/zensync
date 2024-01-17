@@ -75,10 +75,10 @@ export async function POST(request: NextRequest) {
 
   const eventsToHandle = ['member_joined_channel', 'channel_left', 'message'];
   if (
-    (eventSubtype && eventsToHandle.includes(eventSubtype)) ||
-    (eventType && eventsToHandle.includes(eventType))
+    eventsToHandle.includes(eventSubtype) ||
+    eventsToHandle.includes(eventType)
   ) {
-    console.log(`Publishing event to qstash`);
+    console.log(`Publishing event ${eventType}:${eventSubtype} to qstash`);
     try {
       const qstash = new Client({ token: process.env.QSTASH_TOKEN! });
       const qstashResponse = await qstash.publishJSON({

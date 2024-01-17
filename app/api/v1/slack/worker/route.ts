@@ -41,8 +41,8 @@ async function handler(request: NextRequest) {
     return new NextResponse('No connection details found.', { status: 500 });
   }
 
-  const eventType = requestBody.event?.type;
-  const eventSubtype = requestBody.event?.subtype;
+  const eventType = requestBody.eventBody.event?.type;
+  const eventSubtype = requestBody.eventBody.event?.subtype;
 
   if (eventSubtype && eventHandlers[eventSubtype]) {
     try {

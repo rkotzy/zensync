@@ -46,7 +46,8 @@ export async function GET(request: NextRequest) {
     'chat:write',
     'chat:write.customize',
     'users:read.email',
-    'users:read'
+    'users:read',
+    'users.profile:read'
   ].join(',');
 
   const redirectUrl = `https://slack.com/oauth/v2/authorize?client_id=${

@@ -89,11 +89,15 @@ export async function POST(request: NextRequest) {
       console.error('Error publishing to qstash:', error);
       return new Response('Internal Server Error', { status: 500 });
     }
+  } else {
+    console.log(
+      `No event type found for event: ${JSON.stringify(
+        requestBody.event,
+        null,
+        2
+      )}`
+    );
   }
-
-  console.log(
-    `No event type found for event: ${JSON.stringify(requestBody.event)}`
-  );
 
   return NextResponse.json({ message: 'Ok' }, { status: 200 });
 

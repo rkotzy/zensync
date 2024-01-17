@@ -26,23 +26,24 @@ const eventHandlers: Record<
 
 export const POST = verifySignatureEdge(handler);
 async function handler(request: NextRequest) {
-  const requestBody = await request.json();
+  const jsonRequest = await request.json();
+  const requestBody = jsonRequest.eventBody;
 
   // Log the request body
-  console.log(JSON.stringify(requestBody, null, 2));
+  console.log(JSON.stringify(jsonRequest, null, 2));
 
   ///////////////////////////////////////
   // Handle events that require an organization details
   ///////////////////////////////////////
 
-  const connectionDetails = requestBody.connectionDetails;
+  const connectionDetails = jsonRequest.connectionDetails;
   if (!connectionDetails) {
     console.error('No connection details found');
     return new NextResponse('No connection details found.', { status: 500 });
   }
 
-  const eventType = requestBody.eventBody.event?.type;
-  const eventSubtype = requestBody.eventBody.event?.subtype;
+  const eventType = requestBody.event?.type;
+  const eventSubtype = requestBody.event?.subtype;
 
   if (eventSubtype && eventHandlers[eventSubtype]) {
     try {

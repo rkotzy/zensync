@@ -116,7 +116,7 @@ async function authenticateRequest(
 async function getSlackUser(
   connection: SlackConnection,
   email: string
-): Promise<{ username: string; imageUrl: string }> {
+): Promise<{ username: string | undefined; imageUrl: string }> {
   try {
     const response = await fetch(
       `https://slack.com/api/users.lookupByEmail?email=${email}`,
@@ -138,8 +138,9 @@ async function getSlackUser(
     }
 
     const username =
-      responseData.user.profile.display_name ??
-      responseData.user.profile.real_name;
+      responseData.user.profile.display_name ||
+      responseData.user.profile.real_name ||
+      undefined;
     const imageUrl = responseData.user.profile.image_192;
     return { username, imageUrl };
   } catch (error) {
@@ -163,7 +164,7 @@ async function sendSlackMessage(
         connection,
         requestBody.current_user_email
       );
-      username = slackUser.username ?? requestBody.current_user_name;
+      username = slackUser.username || requestBody.current_user_name;
       imageUrl = slackUser.imageUrl;
       console.log(`Request body: ${JSON.stringify(requestBody)}`);
       console.log(`Slack user: ${JSON.stringify(slackUser)}`);

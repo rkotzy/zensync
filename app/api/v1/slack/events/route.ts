@@ -13,8 +13,6 @@ import { SlackMessageData } from '@/interfaces/slack-api.interface';
 
 export const runtime = 'edge';
 
-const DEFAULT_REQUESTER_EMAIL = 'no-reply@zensync.co';
-
 const eventHandlers: Record<
   string,
   (body: any, connection: SlackConnection) => Promise<void>
@@ -290,6 +288,41 @@ async function handleMessage(request: any, connection: SlackConnection) {
     return;
   }
 
+  // Fetch Zendesk credentials
+  let zendeskCredentials: ZendeskConnection | null;
+  try {
+    zendeskCredentials = await fetchZendeskCredentials(
+      connection.organizationId
+    );
+  } catch (error) {
+    console.error(error);
+    throw new Error('Error fetching Zendesk credentials');
+  }
+  if (!zendeskCredentials) {
+    console.error(
+      `No Zendesk credentials found for org: ${connection.organizationId}`
+    );
+    throw new Error('No Zendesk credentials found');
+  }
+
+  // Get or create Zendesk user
+  let zendeskUserId: number | undefined;
+  try {
+    zendeskUserId = await getOrCreateZendeskUser(
+      connection,
+      zendeskCredentials,
+      messageData,
+      messageData.channel
+    );
+  } catch (error) {
+    console.error('Error getting or creating Zendesk user:', error);
+    throw error;
+  }
+  if (!zendeskUserId) {
+    console.error('No Zendesk user ID');
+    throw new Error('No Zendesk user ID');
+  }
+
   // Check if message is already part of a thread
   const parentMessageId = getParentMessageId(messageData);
   if (parentMessageId) {
@@ -298,9 +331,11 @@ async function handleMessage(request: any, connection: SlackConnection) {
     try {
       await handleThreadReply(
         messageData,
+        zendeskCredentials,
         connection.organizationId,
         messageData.channel,
-        parentMessageId
+        parentMessageId,
+        zendeskUserId
       );
     } catch (error) {
       console.error('Error handling thread reply:', error);
@@ -322,8 +357,9 @@ async function handleMessage(request: any, connection: SlackConnection) {
     console.log(`Creating new conversation`);
     await handleNewConversation(
       messageData,
-      connection.organizationId,
-      messageData.channel
+      zendeskCredentials,
+      messageData.channel,
+      zendeskUserId
     );
   } catch (error) {
     console.error('Error creating new conversation:', error);
@@ -377,25 +413,101 @@ async function sameSenderConversationId(): Promise<string | null> {
   return null;
 }
 
+async function getOrCreateZendeskUser(
+  slackConnection: SlackConnection,
+  zendeskCredentials: ZendeskConnection,
+  messageData: SlackMessageData,
+  slackChannelId: string
+): Promise<number | undefined> {
+  const zendeskAuthToken = btoa(
+    `${zendeskCredentials.zendeskEmail}/token:${zendeskCredentials.zendeskApiKey}`
+  );
+
+  try {
+    const { username, imageUrl } = await getSlackUser(
+      slackConnection,
+      messageData.user
+    );
+
+    const zendeskUserData = {
+      user: {
+        name: username || 'Unknown Slack user',
+        skip_verify_email: true,
+        external_id: `zensync-${slackChannelId}:${messageData.user}`
+      }
+    };
+
+    const response = await fetch(
+      `https://${zendeskCredentials.zendeskDomain}.zendesk.com/api/v2/users/create_or_update`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Basic ${zendeskAuthToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(zendeskUserData)
+      }
+    );
+
+    if (!response.ok) {
+      console.error('Error updating user:', response);
+      throw new Error('Error updating or creating user');
+    }
+
+    const responseData = await response.json();
+    console.log('User created or updated:', responseData);
+
+    return responseData.user.id;
+  } catch (error) {
+    console.error('Error creating or updating user:', error);
+    throw error;
+  }
+}
+
+async function getSlackUser(
+  connection: SlackConnection,
+  userId: string
+): Promise<{ username: string | undefined; imageUrl: string }> {
+  try {
+    const response = await fetch(
+      `https://slack.com/api/users.info?user=${userId}`,
+      {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          Authorization: `Bearer ${connection.token}`
+        }
+      }
+    );
+
+    const responseData = await response.json();
+
+    console.log(`Slack user response: ${JSON.stringify(responseData)}`);
+
+    if (!responseData.ok) {
+      throw new Error(`Error getting Slack user: ${responseData.error}`);
+    }
+
+    const username =
+      responseData.user.profile.display_name ||
+      responseData.user.profile.real_name ||
+      undefined;
+    const imageUrl = responseData.user.profile.image_72;
+    return { username, imageUrl };
+  } catch (error) {
+    console.error('Error in getSlackUser:', error);
+    throw error;
+  }
+}
+
 async function handleThreadReply(
   messageData: SlackMessageData,
+  zendeskCredentials: ZendeskConnection,
   organizationId: string,
   channelId: string,
-  slackParentMessageId: string
+  slackParentMessageId: string,
+  authorId: number
 ) {
-  // Fetch Zendesk credentials
-  let zendeskCredentials: ZendeskConnection | null;
-  try {
-    zendeskCredentials = await fetchZendeskCredentials(organizationId);
-  } catch (error) {
-    console.error(error);
-    throw new Error('Error fetching Zendesk credentials');
-  }
-  if (!zendeskCredentials) {
-    console.error(`No Zendesk credentials found for org: ${organizationId}`);
-    throw new Error('No Zendesk credentials found');
-  }
-
   // get conversation from database
   const conversationInfo = await db
     .select({
@@ -427,7 +539,9 @@ async function handleThreadReply(
   const commentData = {
     ticket: {
       comment: {
-        body: messageData.text
+        body: messageData.text,
+        public: true,
+        author_id: authorId
       },
       status: 'open'
     }
@@ -459,22 +573,10 @@ async function handleThreadReply(
 
 async function handleNewConversation(
   messageData: SlackMessageData,
-  organizationId: string,
-  channelId: string
+  zendeskCredentials: ZendeskConnection,
+  channelId: string,
+  authorId: number
 ) {
-  // Fetch Zendesk credentials
-  let zendeskCredentials: ZendeskConnection | null;
-  try {
-    zendeskCredentials = await fetchZendeskCredentials(organizationId);
-  } catch (error) {
-    console.error(error);
-    throw new Error('Error fetching Zendesk credentials');
-  }
-  if (!zendeskCredentials) {
-    console.error(`No Zendesk credentials found for org: ${organizationId}`);
-    throw new Error('No Zendesk credentials found');
-  }
-
   // Fetch channel info
   const channelInfo = await db.query.channel.findFirst({
     where: eq(channel.slackChannelId, channelId)
@@ -508,10 +610,7 @@ async function handleNewConversation(
       comment: {
         body: messageData.text
       },
-      requester: {
-        name: 'Zensync',
-        email: DEFAULT_REQUESTER_EMAIL
-      },
+      requester_id: authorId,
       external_id: conversationUuid,
       tags: ['zensync']
     }

@@ -10,17 +10,15 @@ import {
 
 export const runtime = 'edge';
 
-const DEFAULT_REQUESTER_EMAIL = 'no-reply@zensync.co';
-
 export async function POST(request: NextRequest) {
   const requestBody = await request.json();
   console.log(JSON.stringify(requestBody, null, 2));
 
   // Save some database calls if it's a message from Zensync
-  if (requestBody.current_user_email === DEFAULT_REQUESTER_EMAIL) {
-    console.log('Message from Zensync, skipping');
-    return NextResponse.json({ message: 'Ok' }, { status: 200 });
-  }
+  // if (requestBody.current_user_email === DEFAULT_REQUESTER_EMAIL) {
+  //   console.log('Message from Zensync, skipping');
+  //   return NextResponse.json({ message: 'Ok' }, { status: 200 });
+  // }
 
   // Authenticate the request and get organization_id
   const organizationId = await authenticateRequest(request);
@@ -166,9 +164,6 @@ async function sendSlackMessage(
       );
       username = slackUser.username || requestBody.current_user_name;
       imageUrl = slackUser.imageUrl;
-      console.log(`Request body: ${JSON.stringify(requestBody)}`);
-      console.log(`Slack user: ${JSON.stringify(slackUser)}`);
-      console.log(`Username: ${username}`);
     }
   } catch (error) {
     console.warn('Error getting Slack user:', error);

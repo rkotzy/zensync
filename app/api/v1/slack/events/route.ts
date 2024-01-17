@@ -431,6 +431,7 @@ async function handleThreadReply(
       comment: {
         body: messageData.text
       },
+      author_id: 22876708771604,
       status: 'open'
     }
   };

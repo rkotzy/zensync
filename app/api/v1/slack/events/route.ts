@@ -473,7 +473,7 @@ async function getSlackUser(
 ): Promise<{ username: string | undefined; imageUrl: string }> {
   try {
     const response = await fetch(
-      `https://slack.com/api/users.info?user=${userId}`,
+      `https://slack.com/api/users.profile.get?user=${userId}`,
       {
         method: 'GET',
         headers: {
@@ -492,8 +492,8 @@ async function getSlackUser(
     }
 
     const username =
-      responseData.user.profile.display_name ||
-      responseData.user.profile.real_name ||
+      responseData.profile.display_name ||
+      responseData.profile.real_name ||
       undefined;
     const imageUrl = responseData.user.profile.image_72;
     return { username, imageUrl };

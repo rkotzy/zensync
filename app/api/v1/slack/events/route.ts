@@ -468,13 +468,13 @@ async function getOrCreateZendeskUser(
 }
 
 function extractProfileImageUrls(slackImageUrl: string): {
-  directUrl: string;
-  fallbackUrl: string | null;
+  gravatarUrl: string;
+  slackUrl: string | null;
 } {
-  const [directUrl, fallbackUrl] = slackImageUrl.split('&d=');
+  const [gravatarUrl, slackUrl] = slackImageUrl.split('&d=');
   return {
-    directUrl,
-    fallbackUrl: fallbackUrl ? decodeURIComponent(fallbackUrl) : null
+    gravatarUrl,
+    slackUrl: slackUrl ? decodeURIComponent(slackUrl) : null
   };
 }
 
@@ -507,14 +507,11 @@ async function getSlackUser(
       responseData.profile.real_name ||
       undefined;
 
-    const { directUrl, fallbackUrl } = extractProfileImageUrls(
+    const { gravatarUrl, slackUrl } = extractProfileImageUrls(
       responseData.profile.image_72
     );
 
-    console.log(`Direct URL: ${directUrl}`);
-    console.log(`Fallback URL: ${fallbackUrl}`);
-
-    const imageUrl = directUrl || fallbackUrl || '';
+    const imageUrl = slackUrl || gravatarUrl;
     return { username, imageUrl };
   } catch (error) {
     console.error('Error in getSlackUser:', error);

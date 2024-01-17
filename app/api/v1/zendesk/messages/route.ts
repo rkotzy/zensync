@@ -135,7 +135,9 @@ async function getSlackUser(
       throw new Error(`Error getting Slack user: ${responseData.error}`);
     }
 
-    const username = responseData.user.profile.display_name;
+    const username =
+      responseData.user.profile.display_name ??
+      responseData.user.profile.real_name;
     const imageUrl = responseData.user.profile.image_192;
     return { username, imageUrl };
   } catch (error) {
@@ -150,7 +152,7 @@ async function sendSlackMessage(
   parentMessageId: string,
   slackChannelId: string
 ) {
-  let username: string | undefined = requestBody.current_user_name;
+  let username: string | undefined;
   let imageUrl: string | undefined;
 
   try {
@@ -159,7 +161,7 @@ async function sendSlackMessage(
         connection,
         requestBody.current_user_email
       );
-      username = slackUser.username;
+      username = slackUser.username ?? requestBody.current_user_name;
       imageUrl = slackUser.imageUrl;
     }
   } catch (error) {

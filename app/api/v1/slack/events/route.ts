@@ -78,6 +78,7 @@ export async function POST(request: NextRequest) {
     (eventSubtype && eventsToHandle.includes(eventSubtype)) ||
     (eventType && eventsToHandle.includes(eventType))
   ) {
+    console.log(`Publishing event to qstash`);
     try {
       const qstash = new Client({ token: process.env.QSTASH_TOKEN! });
       const qstashResponse = await qstash.publishJSON({
@@ -89,6 +90,10 @@ export async function POST(request: NextRequest) {
       return new Response('Internal Server Error', { status: 500 });
     }
   }
+
+  console.log(
+    `No event type found for event: ${JSON.stringify(requestBody.event)}`
+  );
 
   return NextResponse.json({ message: 'Ok' }, { status: 200 });
 

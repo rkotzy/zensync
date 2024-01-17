@@ -495,7 +495,7 @@ async function getSlackUser(
       responseData.profile.display_name ||
       responseData.profile.real_name ||
       undefined;
-    const imageUrl = responseData.user.profile.image_72;
+    const imageUrl = responseData.profile.image_72;
     return { username, imageUrl };
   } catch (error) {
     console.error('Error in getSlackUser:', error);

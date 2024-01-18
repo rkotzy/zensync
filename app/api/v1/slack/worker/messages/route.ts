@@ -58,7 +58,7 @@ async function handler(request: NextRequest) {
     console.warn(`No handler for event type: ${eventType}`);
   }
 
-  return NextResponse.json({ message: 'Ok' }, { status: 200 });
+  return new NextResponse('Ok', { status: 200 });
 }
 
 async function handleChannelJoined(request: any, connection: SlackConnection) {

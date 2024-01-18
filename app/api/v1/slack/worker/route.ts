@@ -174,10 +174,11 @@ async function handleChannelLeft(request: any, connection: SlackConnection) {
 }
 
 async function handleMessage(request: any, connection: SlackConnection) {
-  // Check the payload to see if we can quickly ignore
-  if (!isPayloadEligibleForTicket(request, connection)) {
-    return;
-  }
+  // We should only have this code in one place but might want
+  // To introduce it here too
+  // if (!isPayloadEligibleForTicket(request, connection)) {
+  //   return;
+  // }
 
   // Build the message data interface
   const messageData = request.event as SlackMessageData;
@@ -263,37 +264,6 @@ async function handleMessage(request: any, connection: SlackConnection) {
     console.error('Error creating new conversation:', error);
     throw error;
   }
-}
-
-function isPayloadEligibleForTicket(
-  request: any,
-  connection: SlackConnection
-): boolean {
-  const eventData = request.event;
-
-  // Ignore messages from the Zensync itself
-  if (connection.botUserId === eventData.user) {
-    console.log('Ignoring message from Zensync');
-    return false;
-  }
-
-  // Ignore hidden messages
-  if (eventData.hidden) {
-    console.log('Ignoring hidden message');
-    return false;
-  }
-
-  // Ignore subtypes that are not processable
-  // by the message handler
-  const eligibleSubtypes = new Set(['message_replied', undefined]);
-
-  const subtype = eventData.subtype;
-  if (eligibleSubtypes.has(subtype)) {
-    return true;
-  }
-
-  console.log(`Ignoring message subtype: ${subtype}`);
-  return false;
 }
 
 function getParentMessageId(event: SlackMessageData): string | null {

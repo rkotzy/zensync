@@ -107,7 +107,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  return NextResponse.json({ message: 'Ok' }, { status: 200 });
+  return NextResponse.json({ message: 'Ok' }, { status: 202 });
 
   // if (eventSubtype && eventHandlers[eventSubtype]) {
   //   try {

@@ -3,7 +3,6 @@ import { db } from '@/lib/drizzle';
 import { eq, and } from 'drizzle-orm';
 import {
   channel,
-  slackConnection,
   SlackConnection,
   zendeskConnection,
   ZendeskConnection,
@@ -26,17 +25,13 @@ const eventHandlers: Record<
 
 export const POST = verifySignatureEdge(handler);
 async function handler(request: NextRequest) {
-  const jsonRequest = await request.json();
-  const requestBody = jsonRequest.eventBody;
+  const requestJson = await request.json();
 
   // Log the request body
-  console.log(JSON.stringify(jsonRequest, null, 2));
+  console.log(JSON.stringify(requestJson, null, 2));
 
-  ///////////////////////////////////////
-  // Handle events that require an organization details
-  ///////////////////////////////////////
-
-  const connectionDetails = jsonRequest.connectionDetails;
+  const requestBody = requestJson.eventBody;
+  const connectionDetails = requestJson.connectionDetails;
   if (!connectionDetails) {
     console.error('No connection details found');
     return new NextResponse('No connection details found.', { status: 500 });

@@ -26,7 +26,10 @@ const eventHandlers: Record<
 export const POST = verifySignatureEdge(handler);
 async function handler(request: NextRequest) {
   let requestJson = await request.json();
-  if (request.headers.get('User-Agent') === 'Upstash-QStash') {
+  if (
+    request.headers.get('User-Agent') === 'Upstash-QStash' &&
+    requestJson.sourceMessasgeId
+  ) {
     console.log(
       `Qstash callback detected: ${JSON.stringify(requestJson, null, 2)}`
     );
@@ -67,6 +70,10 @@ async function handler(request: NextRequest) {
 }
 
 function parseQstashCallback(requestBody: any): any {
+  if (!requestBody.body) {
+    return requestBody;
+  }
+
   try {
     const base64Decoded = atob(requestBody.body);
     const response = JSON.parse(base64Decoded);

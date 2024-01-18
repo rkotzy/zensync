@@ -6,8 +6,6 @@ import { Client } from '@upstash/qstash';
 
 export const runtime = 'edge';
 
-const FILE_SHARE_PROCESSED = 'zensync:file_share_processed';
-
 export async function POST(request: NextRequest) {
   // Clone the request before consuming since we
   // need is as text and json
@@ -190,11 +188,7 @@ function isPayloadEligibleForTicket(
 
   // Ignore subtypes that are not processable
   // by the message handler
-  const eligibleSubtypes = new Set([
-    'message_replied',
-    FILE_SHARE_PROCESSED,
-    undefined
-  ]);
+  const eligibleSubtypes = new Set(['message_replied', undefined]);
 
   const subtype = eventData.subtype;
   if (eligibleSubtypes.has(subtype)) {

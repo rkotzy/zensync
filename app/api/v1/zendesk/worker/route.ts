@@ -7,101 +7,75 @@ import {
   SlackConnection,
   slackConnection
 } from '@/lib/schema';
-import { Client } from '@upstash/qstash';
+import { verifySignatureEdge } from '@upstash/qstash/dist/nextjs';
 
 export const runtime = 'edge';
 
-export async function POST(request: NextRequest) {
-  const requestBody = await request.json();
-  console.log(JSON.stringify(requestBody, null, 2));
+export const POST = verifySignatureEdge(handler);
+export async function handler(request: NextRequest) {
+  const requestJson = await request.json();
 
-  // Save some database calls if it's a message from Zensync
-  // if (requestBody.current_user_email === DEFAULT_REQUESTER_EMAIL) {
-  //   console.log('Message from Zensync, skipping');
-  //   return NextResponse.json({ message: 'Ok' }, { status: 200 });
-  // }
+  // Log the request body
+  console.log(JSON.stringify(requestJson, null, 2));
 
-  // Authenticate the request and get organization_id
-  const organizationId = await authenticateRequest(request);
-  if (!organizationId) {
-    return new NextResponse('Unauthorized', { status: 401 });
+  const requestBody = requestJson.eventBody;
+  const organizationId = requestJson.organizationId;
+
+  // Get the conversation from external_id
+  const conversationInfo = await db.query.conversation.findFirst({
+    where: eq(conversation.id, requestBody.external_id),
+    with: {
+      channel: true
+    }
+  });
+
+  if (!conversationInfo?.slackParentMessageId) {
+    console.error(`No conversation found for id ${requestBody.external_id}`);
+    return new NextResponse('No conversation found', { status: 404 });
   }
 
-  // queue the message to be sent to slack
-  try {
-    const qstash = new Client({ token: process.env.QSTASH_TOKEN! });
-    const qstashResponse = await qstash.publishJSON({
-      url: 'https://zensync.vercel.app/api/v1/zendesk/worker',
-      body: { eventBody: requestBody, organizationId: organizationId }
+  console.log(
+    `ConversationInfo retrieved: ${JSON.stringify(conversationInfo)}`
+  );
+
+  // To be safe I should double-check the organization_id owns the channel_id
+  if (
+    !conversationInfo.channel ||
+    !conversationInfo.channel.slackChannelId ||
+    conversationInfo.channel.organizationId !== organizationId
+  ) {
+    console.warn(`Invalid Ids: ${organizationId} !== ${conversationInfo}`);
+    return new NextResponse('Invalid Ids', { status: 401 });
+  }
+
+  // Create a Slack message in a thread from parent message id
+  const slackConnectionInfo: SlackConnection | undefined =
+    await db.query.slackConnection.findFirst({
+      where: eq(slackConnection.organizationId, organizationId)
     });
-  } catch (error) {
-    console.error('Error publishing to qstash:', error);
-    return new Response('Error queuing message', { status: 409 });
+
+  if (!slackConnectionInfo) {
+    console.error(`No Slack connection found for org ${organizationId}`);
+    return new NextResponse('No Slack connection found', { status: 404 });
   }
 
-  return NextResponse.json({ message: 'Ok' }, { status: 202 });
+  console.log(
+    `SlackConnectionInfo retrieved: ${JSON.stringify(slackConnectionInfo)}`
+  );
 
-  // // Get the conversation from external_id
-  // const conversationInfo = await db.query.conversation.findFirst({
-  //   where: eq(conversation.id, requestBody.external_id),
-  //   with: {
-  //     channel: true
-  //   }
-  // });
+  try {
+    await sendSlackMessage(
+      requestBody,
+      slackConnectionInfo,
+      conversationInfo.slackParentMessageId,
+      conversationInfo.channel.slackChannelId
+    );
+  } catch (error) {
+    console.error(error);
+    return new NextResponse('Error', { status: 500 });
+  }
 
-  // if (!conversationInfo?.slackParentMessageId) {
-  //   console.error(`No conversation found for id ${requestBody.external_id}`);
-  //   return NextResponse.json(
-  //     { message: 'No conversation found' },
-  //     { status: 404 }
-  //   );
-  // }
-
-  // console.log(
-  //   `ConversationInfo retrieved: ${JSON.stringify(conversationInfo)}`
-  // );
-
-  // // To be safe I should double-check the organization_id owns the channel_id
-  // if (
-  //   !conversationInfo.channel ||
-  //   !conversationInfo.channel.slackChannelId ||
-  //   conversationInfo.channel.organizationId !== organizationId
-  // ) {
-  //   console.warn(`Invalid Ids: ${organizationId} !== ${conversationInfo}`);
-  //   return NextResponse.json({ message: 'Invalid Ids' }, { status: 401 });
-  // }
-
-  // // Create a Slack message in a thread from parent message id
-  // const slackConnectionInfo: SlackConnection | undefined =
-  //   await db.query.slackConnection.findFirst({
-  //     where: eq(slackConnection.organizationId, organizationId)
-  //   });
-
-  // if (!slackConnectionInfo) {
-  //   console.error(`No Slack connection found for org ${organizationId}`);
-  //   return NextResponse.json(
-  //     { message: 'No Slack connection found' },
-  //     { status: 404 }
-  //   );
-  // }
-
-  // console.log(
-  //   `SlackConnectionInfo retrieved: ${JSON.stringify(slackConnectionInfo)}`
-  // );
-
-  // try {
-  //   await sendSlackMessage(
-  //     requestBody,
-  //     slackConnectionInfo,
-  //     conversationInfo.slackParentMessageId,
-  //     conversationInfo.channel.slackChannelId
-  //   );
-  // } catch (error) {
-  //   console.error(error);
-  //   return NextResponse.json({ message: 'Error' }, { status: 500 });
-  // }
-
-  // return NextResponse.json({ message: 'Ok' }, { status: 200 });
+  return new NextResponse('Ok', { status: 200 });
 }
 
 async function authenticateRequest(

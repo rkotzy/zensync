@@ -94,13 +94,7 @@ export async function POST(request: NextRequest) {
         return new Response('Internal Server Error', { status: 500 });
       }
     } else {
-      console.log(
-        `Unproccessable message subtype: ${JSON.stringify(
-          requestBody.event,
-          null,
-          2
-        )}`
-      );
+      console.log(`Unproccessable message subtype: ${eventSubtype}`);
     }
   } else {
     console.log(

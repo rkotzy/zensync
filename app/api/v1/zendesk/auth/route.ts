@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
     // Create a zendesk webhook
     const webhookPayload = JSON.stringify({
       webhook: {
-        endpoint: 'https://zensync.vercel.app/api/v1/zendesk/messages',
+        endpoint: 'https://zensync.vercel.app/api/v1/zendesk/events',
         http_method: 'POST',
         name: 'Slack-to-Zendesk Sync',
         request_format: 'json',

@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
   try {
     const qstash = new Client({ token: process.env.QSTASH_TOKEN! });
     await qstash.publishJSON({
-      url: 'https://zensync.vercel.app/api/v1/zendesk/worker',
+      url: 'https://zensync.vercel.app/api/v1/zendesk/worker/messages',
       body: { eventBody: requestBody, organizationId: organizationId },
       headers: { 'x-ticket-updated-at': ticketLastUpdatedAt },
       contentBasedDeduplication: true

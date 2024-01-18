@@ -73,13 +73,14 @@ export async function POST(request: NextRequest) {
   const eventType = requestBody.event?.type;
   const eventSubtype = requestBody.event?.subtype;
 
+  // TODO: - This is a hacky way to handle events and the logic is error prone
   const eventsToHandle = ['member_joined_channel', 'channel_left', 'message'];
   if (
     eventsToHandle.includes(eventSubtype) ||
     eventsToHandle.includes(eventType)
   ) {
     if (
-      eventType !== 'message' &&
+      eventType !== 'message' ||
       isPayloadEligibleForTicket(requestBody, connectionDetails)
     ) {
       console.log(`Publishing event ${eventType}:${eventSubtype} to qstash`);

@@ -14,6 +14,7 @@ export async function POST(request: NextRequest) {
 
   // Parse the request body
   const requestBody = await jsonClone.json();
+  console.log(JSON.stringify(requestBody, null, 2));
 
   // Check if this is a URL verification request from Slack
   if (requestBody.type === 'url_verification') {
@@ -35,9 +36,6 @@ export async function POST(request: NextRequest) {
     return new Response('Verification failed', { status: 200 });
   }
 
-  // Log the request body
-  console.log(JSON.stringify(requestBody, null, 2));
-
   ///////////////////////////////////////
   // Handle events that require an organization details
   ///////////////////////////////////////
@@ -55,33 +53,25 @@ export async function POST(request: NextRequest) {
   const eventType = requestBody.event?.type;
   const eventSubtype = requestBody.event?.subtype;
 
-  // TODO: - This is a hacky way to handle events and the logic is error prone
-  const eventsToHandle = ['member_joined_channel', 'channel_left', 'message'];
   if (
-    eventsToHandle.includes(eventSubtype) ||
-    eventsToHandle.includes(eventType)
+    isSpecificEventToHandle(eventType, eventSubtype) ||
+    (eventType === 'message' &&
+      isPayloadEligibleForTicket(requestBody, connectionDetails))
   ) {
-    if (
-      eventType !== 'message' ||
-      isPayloadEligibleForTicket(requestBody, connectionDetails)
-    ) {
-      console.log(`Publishing event ${eventType}:${eventSubtype} to qstash`);
-      try {
-        const qstash = new Client({ token: process.env.QSTASH_TOKEN! });
-        await qstash.publishJSON({
-          url: 'https://zensync.vercel.app/api/v1/slack/worker',
-          body: { eventBody: requestBody, connectionDetails: connectionDetails }
-        });
-      } catch (error) {
-        console.error('Error publishing to qstash:', error);
-        return new Response('Internal Server Error', { status: 500 });
-      }
-    } else {
-      console.log(`Unproccessable message subtype: ${eventSubtype}`);
+    console.log(`Publishing event ${eventType}:${eventSubtype} to qstash`);
+    try {
+      const qstash = new Client({ token: process.env.QSTASH_TOKEN! });
+      await qstash.publishJSON({
+        url: 'https://zensync.vercel.app/api/v1/slack/worker',
+        body: { eventBody: requestBody, connectionDetails: connectionDetails }
+      });
+    } catch (error) {
+      console.error('Error publishing to qstash:', error);
+      return new Response('Internal Server Error', { status: 500 });
     }
   } else {
     console.log(
-      `No event type found for event: ${JSON.stringify(
+      `No processable event type found for event: ${JSON.stringify(
         requestBody.event,
         null,
         2
@@ -191,4 +181,15 @@ function isPayloadEligibleForTicket(
 
   console.log(`Ignoring message subtype: ${subtype}`);
   return false;
+}
+
+function isSpecificEventToHandle(
+  eventType: string,
+  eventSubtype: string
+): boolean {
+  const specificEventsToHandle = ['member_joined_channel', 'channel_left'];
+  return (
+    specificEventsToHandle.includes(eventType) ||
+    specificEventsToHandle.includes(eventSubtype)
+  );
 }

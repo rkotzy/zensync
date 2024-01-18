@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
     try {
       const qstash = new Client({ token: process.env.QSTASH_TOKEN! });
       await qstash.publishJSON({
-        url: 'https://zensync.vercel.app/api/v1/slack/worker',
+        url: 'https://zensync.vercel.app/api/v1/slack/worker/messages',
         body: { eventBody: requestBody, connectionDetails: connectionDetails },
         contentBasedDeduplication: true
       });
@@ -173,7 +173,11 @@ function isPayloadEligibleForTicket(
 
   // Ignore subtypes that are not processable
   // by the message handler
-  const eligibleSubtypes = new Set(['message_replied', undefined]);
+  const eligibleSubtypes = new Set([
+    'message_replied',
+    'file_share',
+    undefined
+  ]);
 
   const subtype = eventData.subtype;
   if (eligibleSubtypes.has(subtype)) {

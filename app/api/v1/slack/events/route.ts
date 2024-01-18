@@ -1,6 +1,6 @@
 import { NextResponse, NextRequest } from 'next/server';
 import { db } from '@/lib/drizzle';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, is } from 'drizzle-orm';
 import {
   channel,
   slackConnection,
@@ -78,16 +78,29 @@ export async function POST(request: NextRequest) {
     eventsToHandle.includes(eventSubtype) ||
     eventsToHandle.includes(eventType)
   ) {
-    console.log(`Publishing event ${eventType}:${eventSubtype} to qstash`);
-    try {
-      const qstash = new Client({ token: process.env.QSTASH_TOKEN! });
-      const qstashResponse = await qstash.publishJSON({
-        url: 'https://zensync.vercel.app/api/v1/slack/worker',
-        body: { eventBody: requestBody, connectionDetails: connectionDetails }
-      });
-    } catch (error) {
-      console.error('Error publishing to qstash:', error);
-      return new Response('Internal Server Error', { status: 500 });
+    if (
+      eventType !== 'message' &&
+      isPayloadEligibleForTicket(requestBody, connectionDetails)
+    ) {
+      console.log(`Publishing event ${eventType}:${eventSubtype} to qstash`);
+      try {
+        const qstash = new Client({ token: process.env.QSTASH_TOKEN! });
+        const qstashResponse = await qstash.publishJSON({
+          url: 'https://zensync.vercel.app/api/v1/slack/worker',
+          body: { eventBody: requestBody, connectionDetails: connectionDetails }
+        });
+      } catch (error) {
+        console.error('Error publishing to qstash:', error);
+        return new Response('Internal Server Error', { status: 500 });
+      }
+    } else {
+      console.log(
+        `Unproccessable message subtype: ${JSON.stringify(
+          requestBody.event,
+          null,
+          2
+        )}`
+      );
     }
   } else {
     console.log(

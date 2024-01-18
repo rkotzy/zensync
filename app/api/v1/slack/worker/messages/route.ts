@@ -25,8 +25,13 @@ const eventHandlers: Record<
 
 export const POST = verifySignatureEdge(handler);
 async function handler(request: NextRequest) {
-  const requestJson = await request.json();
-
+  let requestJson = await request.json();
+  if (request.headers.get('User-Agent') === 'Upstash-QStash') {
+    console.log(
+      `Qstash callback detected: ${JSON.stringify(requestJson, null, 2)}`
+    );
+    requestJson = parseQstashCallback(requestJson);
+  }
   // Log the request body
   console.log(JSON.stringify(requestJson, null, 2));
 
@@ -59,6 +64,17 @@ async function handler(request: NextRequest) {
   }
 
   return new NextResponse('Ok', { status: 200 });
+}
+
+function parseQstashCallback(requestBody: any): any {
+  try {
+    const base64Decoded = atob(requestBody.body);
+    const response = JSON.parse(base64Decoded);
+    return response.body;
+  } catch (error) {
+    console.error('Error parsing JSON:', error);
+    return new NextResponse('Error parsing Qstash callback', { status: 400 });
+  }
 }
 
 async function handleChannelJoined(request: any, connection: SlackConnection) {

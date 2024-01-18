@@ -19,6 +19,13 @@ export async function POST(request: NextRequest) {
     return new NextResponse('Ok', { status: 200 });
   }
 
+  // Make sure we have the last updated ticket time
+  const ticketLastUpdatedAt = requestBody.last_updated_at;
+  if (!ticketLastUpdatedAt) {
+    console.error('Missing last_updated_at');
+    return new NextResponse('Missing last_updated_at', { status: 400 });
+  }
+
   // Authenticate the request and get organization_id
   const organizationId = await authenticateRequest(request);
   if (!organizationId) {
@@ -30,7 +37,9 @@ export async function POST(request: NextRequest) {
     const qstash = new Client({ token: process.env.QSTASH_TOKEN! });
     await qstash.publishJSON({
       url: 'https://zensync.vercel.app/api/v1/zendesk/worker',
-      body: { eventBody: requestBody, organizationId: organizationId }
+      body: { eventBody: requestBody, organizationId: organizationId },
+      headers: { 'x-ticket-updated-at': ticketLastUpdatedAt },
+      contentBasedDeduplication: true
     });
   } catch (error) {
     console.error('Error publishing to qstash:', error);

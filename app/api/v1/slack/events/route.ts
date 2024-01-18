@@ -6,6 +6,8 @@ import { Client } from '@upstash/qstash';
 
 export const runtime = 'edge';
 
+const FILE_SHARE_PROCESSED = 'zensync:file_share_processed';
+
 export async function POST(request: NextRequest) {
   // Clone the request before consuming since we
   // need is as text and json
@@ -64,6 +66,21 @@ export async function POST(request: NextRequest) {
       await qstash.publishJSON({
         url: 'https://zensync.vercel.app/api/v1/slack/worker/messages',
         body: { eventBody: requestBody, connectionDetails: connectionDetails },
+        contentBasedDeduplication: true
+      });
+    } catch (error) {
+      console.error('Error publishing to qstash:', error);
+      return new Response('Internal Server Error', { status: 500 });
+    }
+  } else if (eventSubtype === 'file_share') {
+    // handle file_share messages differently by processing the file first
+    console.log(`Publishing event ${eventType}:${eventSubtype} to qstash`);
+    try {
+      const qstash = new Client({ token: process.env.QSTASH_TOKEN! });
+      await qstash.publishJSON({
+        url: 'https://zensync.vercel.app/api/v1/slack/worker/files',
+        body: { body: requestBody },
+        callback: 'https://zensync.vercel.app/api/v1/slack/worker/messages',
         contentBasedDeduplication: true
       });
     } catch (error) {
@@ -175,7 +192,7 @@ function isPayloadEligibleForTicket(
   // by the message handler
   const eligibleSubtypes = new Set([
     'message_replied',
-    'file_share',
+    FILE_SHARE_PROCESSED,
     undefined
   ]);
 

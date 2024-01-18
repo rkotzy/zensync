@@ -12,7 +12,7 @@ import { verifySignatureEdge } from '@upstash/qstash/dist/nextjs';
 export const runtime = 'edge';
 
 export const POST = verifySignatureEdge(handler);
-export async function handler(request: NextRequest) {
+async function handler(request: NextRequest) {
   const requestJson = await request.json();
 
   // Log the request body

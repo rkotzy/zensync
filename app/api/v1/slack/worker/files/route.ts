@@ -61,6 +61,7 @@ async function handler(request: NextRequest) {
     await uploadFileFromUrlToZendesk(
       slackFile.url_private_download,
       slackFile.name,
+      slackFile.mimetype,
       zendeskCredentials
     );
   } catch (error) {
@@ -110,6 +111,7 @@ async function fetchZendeskCredentials(
 async function uploadFileFromUrlToZendesk(
   fileUrl: string,
   fileName: string,
+  mimetype: string,
   zendeskCredentials: ZendeskConnection
 ): Promise<void> {
   const fileResponse = await fetch(fileUrl);
@@ -127,11 +129,14 @@ async function uploadFileFromUrlToZendesk(
     `${zendeskCredentials.zendeskEmail}/token:${zendeskCredentials.zendeskApiKey}`
   );
 
+  console.log('File: ', file);
+
   const response = await fetch(url, {
     method: 'POST',
     headers: {
       Authorization: `Basic ${zendeskAuthToken}`,
-      ...file.getHeaders() // TODO: - TypeError: J.getHeaders is not a function
+      'Content-Type': mimetype,
+      //...file.getHeaders() // TODO: - TypeError: J.getHeaders is not a function
     },
     body: file as any // This is sketchy unwrapping
   });

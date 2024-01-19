@@ -8,7 +8,6 @@ import {
 } from '@/lib/schema';
 import { verifySignatureEdge } from '@upstash/qstash/dist/nextjs';
 import { Client } from '@upstash/qstash';
-import fetch from 'node-fetch';
 import FormData from 'form-data';
 
 export const runtime = 'edge';
@@ -134,7 +133,7 @@ async function uploadFileFromUrlToZendesk(
       Authorization: `Basic ${zendeskAuthToken}`,
       ...file.getHeaders()
     },
-    body: file
+    body: file as any // This is sketchy
   });
 
   if (!response.ok) {

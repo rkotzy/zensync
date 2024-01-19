@@ -131,9 +131,9 @@ async function uploadFileFromUrlToZendesk(
     method: 'POST',
     headers: {
       Authorization: `Basic ${zendeskAuthToken}`,
-      ...file.getHeaders()
+      ...file.getHeaders() // TODO: - TypeError: J.getHeaders is not a function
     },
-    body: file as any // This is sketchy
+    body: file as any // This is sketchy unwrapping
   });
 
   if (!response.ok) {
@@ -143,4 +143,5 @@ async function uploadFileFromUrlToZendesk(
   const data = await response.json();
   console.log('Uploaded to Zendesk:', data);
   // Use the data.upload.token in your ticket update API call
+  // TODO: - need to return the token here
 }

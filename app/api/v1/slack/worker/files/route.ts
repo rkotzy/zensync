@@ -27,7 +27,7 @@ async function handler(request: NextRequest) {
 
   // TODO: - Need to handle an array of files here
   // Check if a file object exists
-  const slackFile = slackRequestBody.files?.[0];
+  const slackFile = slackRequestBody.event?.files?.[0];
   if (!slackFile) {
     console.error('No file object found in request body');
     return new NextResponse('No file object found in request body', {

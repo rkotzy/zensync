@@ -8,7 +8,7 @@ import {
 } from '@/lib/schema';
 import { verifySignatureEdge } from '@upstash/qstash/dist/nextjs';
 import { Client } from '@upstash/qstash';
-import FormData from 'form-data'; 
+import FormData from 'form-data';
 
 export const runtime = 'edge';
 
@@ -115,11 +115,11 @@ async function uploadFileFromUrlToZendesk(
   zendeskCredentials: ZendeskConnection
 ): Promise<void> {
   const fileResponse = await fetch(fileUrl);
-  if (!fileResponse.ok)
-    throw new Error(`Unexpected response ${fileResponse.statusText}`);
-
-  const file = new FormData();
-  file.append('file', fileResponse.body, fileName);
+  if (!fileResponse.ok) {
+    throw new Error(`Error fetching file: ${fileResponse.statusText}`);
+  }
+  const arrayBuffer = await fileResponse.arrayBuffer();
+  const fileBuffer = Buffer.from(arrayBuffer);
 
   const url = `https://${
     zendeskCredentials.zendeskDomain
@@ -135,10 +135,9 @@ async function uploadFileFromUrlToZendesk(
     method: 'POST',
     headers: {
       Authorization: `Basic ${zendeskAuthToken}`,
-      'Content-Type': mimetype,
-      //...file.getHeaders() // TODO: - TypeError: J.getHeaders is not a function
+      'Content-Type': mimetype
     },
-    body: file as any // This is sketchy unwrapping
+    body: fileBuffer
   });
 
   if (!response.ok) {

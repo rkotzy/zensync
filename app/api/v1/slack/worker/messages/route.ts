@@ -67,17 +67,19 @@ async function handler(request: NextRequest) {
   return new NextResponse('Ok', { status: 200 });
 }
 
-function parseQstashCallback(requestBody: any): any {
-  if (!requestBody.body) {
-    return requestBody;
+function parseQstashCallback(request: any): any {
+  if (!request.body) {
+    console.log('No qstach body');
+    return request;
   }
 
   try {
-    const base64Decoded = atob(requestBody.body);
+    const base64Decoded = atob(request.body);
     const response = JSON.parse(base64Decoded);
-    return response.body;
+    return response;
   } catch (error) {
-    return requestBody;
+    console.error('Error parsing qstash callback body:', error);
+    return request;
   }
 }
 

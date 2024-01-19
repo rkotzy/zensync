@@ -27,12 +27,12 @@ export const POST = verifySignatureEdge(handler);
 async function handler(request: NextRequest) {
   let requestJson = await request.json();
   console.log(JSON.stringify(requestJson, null, 2));
-  if (request.headers.get('User-Agent') === 'Upstash-QStash') {
-    console.log(
-      `Qstash callback detected: ${JSON.stringify(requestJson, null, 2)}`
-    );
-    requestJson = parseQstashCallback(requestJson);
-  }
+  // if (request.headers.get('User-Agent') === 'Upstash-QStash') {
+  //   console.log(
+  //     `Qstash callback detected: ${JSON.stringify(requestJson, null, 2)}`
+  //   );
+  //   requestJson = parseQstashCallback(requestJson);
+  // }
   // Log the request body
   console.log(JSON.stringify(requestJson, null, 2));
 

@@ -1,24 +1,147 @@
 import { NextResponse, NextRequest } from 'next/server';
 import { db } from '@/lib/drizzle';
-import { eq, and } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import {
-  channel,
-  SlackConnection,
   zendeskConnection,
   ZendeskConnection,
-  conversation
+  SlackConnection
 } from '@/lib/schema';
-import { SlackMessageData } from '@/interfaces/slack-api.interface';
 import { verifySignatureEdge } from '@upstash/qstash/dist/nextjs';
+import { Client } from '@upstash/qstash';
+import fetch from 'node-fetch';
+import FormData from 'form-data';
 
 export const runtime = 'edge';
-
-const FILE_SHARE_PROCESSED = 'zensync:file_share_processed';
 
 export const POST = verifySignatureEdge(handler);
 async function handler(request: NextRequest) {
   const requestJson = await request.json();
+  let responseJson = requestJson;
   console.log(JSON.stringify(requestJson, null, 2));
 
-  return NextResponse.json(requestJson, { status: 200 });
+  const slackRequestBody = requestJson.eventBody;
+  const connectionDetails: SlackConnection = requestJson.connectionDetails;
+  if (!connectionDetails) {
+    console.error('No connection details found');
+    return new NextResponse('No connection details found.', { status: 500 });
+  }
+
+  // TODO: - Need to handle an array of files here
+  // Check if a file object exists
+  const slackFile = slackRequestBody.files?.[0];
+  if (!slackFile) {
+    console.error('No file object found in request body');
+    return new NextResponse('No file object found in request body', {
+      status: 400
+    });
+  }
+
+  // Fetch Zendesk credentials
+  let zendeskCredentials: ZendeskConnection | null;
+  try {
+    zendeskCredentials = await fetchZendeskCredentials(
+      connectionDetails.organizationId
+    );
+  } catch (error) {
+    console.error(error);
+    return new NextResponse('Error fetching Zendesk credentials', {
+      status: 503
+    });
+  }
+  if (!zendeskCredentials) {
+    console.error(
+      `No Zendesk credentials found for org: ${connectionDetails.organizationId}`
+    );
+    return new NextResponse('Error fetching Zendesk credentials', {
+      status: 409
+    });
+  }
+
+  // Upload the file to Zendesk
+  try {
+    await uploadFileFromUrlToZendesk(
+      slackFile.url_private_download,
+      slackFile.name,
+      zendeskCredentials
+    );
+  } catch (error) {
+    console.error(error);
+    return new NextResponse('Error uploading file to Zendesk', {
+      status: 409
+    });
+  }
+
+  try {
+    const qstash = new Client({ token: process.env.QSTASH_TOKEN! });
+    await qstash.publishJSON({
+      url: 'https://zensync.vercel.app/api/v1/slack/worker/messages',
+      body: { responseJson },
+      contentBasedDeduplication: true
+    });
+  } catch (error) {
+    console.error('Error publishing to qstash:', error);
+    return new NextResponse('Internal Server Error', { status: 500 });
+  }
+
+  return new NextResponse('Ok', { status: 202 });
+}
+
+// TODO: - this is a duplicate of the one in zendesk/worker/messages/route.ts
+async function fetchZendeskCredentials(
+  organizationId: string
+): Promise<ZendeskConnection | null> {
+  const zendeskCredentials = await db.query.zendeskConnection.findFirst({
+    where: eq(zendeskConnection.organizationId, organizationId)
+  });
+  const zendeskDomain = zendeskCredentials?.zendeskDomain;
+  const zendeskEmail = zendeskCredentials?.zendeskEmail;
+  const zendeskApiKey = zendeskCredentials?.zendeskApiKey;
+
+  if (!zendeskDomain || !zendeskEmail || !zendeskApiKey) {
+    console.error(
+      `Invalid Zendesk credentials found for organization ${organizationId}`
+    );
+    return null;
+  }
+
+  return zendeskCredentials;
+}
+
+// Function to upload a file to Zendesk directly from a URL
+async function uploadFileFromUrlToZendesk(
+  fileUrl: string,
+  fileName: string,
+  zendeskCredentials: ZendeskConnection
+): Promise<void> {
+  const fileResponse = await fetch(fileUrl);
+  if (!fileResponse.ok)
+    throw new Error(`Unexpected response ${fileResponse.statusText}`);
+
+  const file = new FormData();
+  file.append('file', fileResponse.body, fileName);
+
+  const url = `https://${
+    zendeskCredentials.zendeskDomain
+  }/api/v2/uploads.json?filename=${encodeURIComponent(fileName)}`;
+
+  const zendeskAuthToken = btoa(
+    `${zendeskCredentials.zendeskEmail}/token:${zendeskCredentials.zendeskApiKey}`
+  );
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      Authorization: `Basic ${zendeskAuthToken}`,
+      ...file.getHeaders()
+    },
+    body: file
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to upload to Zendesk: ${response}`);
+  }
+
+  const data = await response.json();
+  console.log('Uploaded to Zendesk:', data);
+  // Use the data.upload.token in your ticket update API call
 }

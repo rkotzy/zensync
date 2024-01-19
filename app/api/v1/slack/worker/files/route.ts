@@ -129,8 +129,6 @@ async function uploadFileFromUrlToZendesk(
     `${zendeskCredentials.zendeskEmail}/token:${zendeskCredentials.zendeskApiKey}`
   );
 
-  console.log('File: ', file);
-
   const response = await fetch(url, {
     method: 'POST',
     headers: {

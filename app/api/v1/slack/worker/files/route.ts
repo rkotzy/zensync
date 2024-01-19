@@ -141,7 +141,10 @@ async function uploadFileFromUrlToZendesk(
     body: file as any // This is sketchy unwrapping
   });
 
+  const jsonResponse = await response.json();
+
   if (!response.ok) {
+    console.error('Failed to upload to Zendesk:', jsonResponse);
     throw new Error(`Failed to upload to Zendesk: ${response}`);
   }
 

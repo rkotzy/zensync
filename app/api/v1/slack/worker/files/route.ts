@@ -123,7 +123,7 @@ async function uploadFileFromUrlToZendesk(
 
   const url = `https://${
     zendeskCredentials.zendeskDomain
-  }/api/v2/uploads.json?filename=${encodeURIComponent(fileName)}`;
+  }.zendesk.com/api/v2/uploads.json?filename=${encodeURIComponent(fileName)}`;
 
   const zendeskAuthToken = btoa(
     `${zendeskCredentials.zendeskEmail}/token:${zendeskCredentials.zendeskApiKey}`

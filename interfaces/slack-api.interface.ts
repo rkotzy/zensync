@@ -25,3 +25,5 @@ export interface SlackMessageData {
   ts: string;
   thread_ts?: string;
 }
+
+// TODO: - Add interfaces for files

@@ -57,8 +57,9 @@ async function handler(request: NextRequest) {
   }
 
   // Upload the file to Zendesk
+  let uploadToken: string;
   try {
-    await uploadFileFromUrlToZendesk(
+    uploadToken = await uploadFileFromUrlToZendesk(
       slackFile.url_private,
       slackFile.name,
       slackFile.mimetype,
@@ -71,11 +72,25 @@ async function handler(request: NextRequest) {
     });
   }
 
+  if (!uploadToken) {
+    console.error('No upload token found');
+    return new NextResponse('No upload token found', { status: 500 });
+  }
+
+  const zendeskFileTokens = {
+    zendeskFileTokens: [
+      {
+        token: uploadToken
+      }
+    ]
+  };
+
   try {
     const qstash = new Client({ token: process.env.QSTASH_TOKEN! });
     await qstash.publishJSON({
       url: 'https://zensync.vercel.app/api/v1/slack/worker/messages',
       body: responseJson,
+      ...zendeskFileTokens,
       contentBasedDeduplication: true
     });
   } catch (error) {
@@ -113,7 +128,7 @@ async function uploadFileFromUrlToZendesk(
   fileName: string,
   mimetype: string,
   zendeskCredentials: ZendeskConnection
-): Promise<void> {
+): Promise<string> {
   const fileResponse = await fetch(fileUrl);
   if (!fileResponse.ok) {
     throw new Error(`Error fetching file: ${fileResponse.statusText}`);
@@ -148,6 +163,5 @@ async function uploadFileFromUrlToZendesk(
 
   const data = await response.json();
   console.log('Uploaded to Zendesk:', data);
-  // Use the data.upload.token in your ticket update API call
-  // TODO: - need to return the token here
+  return data.upload.token;
 }

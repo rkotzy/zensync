@@ -59,7 +59,7 @@ async function handler(request: NextRequest) {
   // Upload the file to Zendesk
   try {
     await uploadFileFromUrlToZendesk(
-      slackFile.url_private_download,
+      slackFile.url_private,
       slackFile.name,
       slackFile.mimetype,
       zendeskCredentials

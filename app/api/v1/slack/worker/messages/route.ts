@@ -63,7 +63,7 @@ async function handler(request: NextRequest) {
     console.warn(`No handler for event type: ${eventType}`);
   }
 
-  return new NextResponse('Ok', { status: 200 });
+  return new NextResponse('Ok', { status: 202 });
 }
 
 function parseQstashCallback(request: any): any {

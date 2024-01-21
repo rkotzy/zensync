@@ -75,7 +75,7 @@ async function handler(request: NextRequest) {
     return new NextResponse('Error', { status: 500 });
   }
 
-  return new NextResponse('Ok', { status: 200 });
+  return new NextResponse('Ok', { status: 202 });
 }
 
 async function authenticateRequest(

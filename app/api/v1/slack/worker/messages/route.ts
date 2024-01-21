@@ -19,7 +19,8 @@ const eventHandlers: Record<
 > = {
   member_joined_channel: handleChannelJoined,
   channel_left: handleChannelLeft,
-  message: handleMessage
+  message: handleMessage,
+  file_share: handleFileUpload
   // Add more event handlers as needed
 };
 
@@ -192,6 +193,16 @@ async function handleChannelLeft(request: any, connection: SlackConnection) {
     console.error('Error archiving channel in database:', error);
     throw error;
   }
+}
+
+async function handleFileUpload(request: any, connection: SlackConnection) {
+  if (request.zendeskFileTokens) {
+    console.log('File upload handled successfully');
+  } else {
+    console.log('Need to handle file fallback');
+  }
+
+  await handleMessage(request, connection);
 }
 
 async function handleMessage(request: any, connection: SlackConnection) {

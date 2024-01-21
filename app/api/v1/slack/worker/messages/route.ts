@@ -209,6 +209,9 @@ async function handleMessage(request: any, connection: SlackConnection) {
     return;
   }
 
+  // Set any file upload data
+  const fileUploadTokens: string[] | undefined = request.zendeskFileTokens;
+
   // Fetch Zendesk credentials
   let zendeskCredentials: ZendeskConnection | null;
   try {
@@ -256,7 +259,8 @@ async function handleMessage(request: any, connection: SlackConnection) {
         connection.organizationId,
         messageData.channel,
         parentMessageId,
-        zendeskUserId
+        zendeskUserId,
+        fileUploadTokens
       );
     } catch (error) {
       console.error('Error handling thread reply:', error);
@@ -280,7 +284,8 @@ async function handleMessage(request: any, connection: SlackConnection) {
       messageData,
       zendeskCredentials,
       messageData.channel,
-      zendeskUserId
+      zendeskUserId,
+      fileUploadTokens
     );
   } catch (error) {
     console.error('Error creating new conversation:', error);
@@ -415,7 +420,8 @@ async function handleThreadReply(
   organizationId: string,
   channelId: string,
   slackParentMessageId: string,
-  authorId: number
+  authorId: number,
+  fileUploadTokens: string[] | undefined
 ) {
   // get conversation from database
   const conversationInfo = await db
@@ -445,7 +451,7 @@ async function handleThreadReply(
   );
 
   // Create a comment in ticket
-  const commentData = {
+  let commentData: any = {
     ticket: {
       comment: {
         body: messageData.text,
@@ -455,6 +461,10 @@ async function handleThreadReply(
       status: 'open'
     }
   };
+
+  if (fileUploadTokens && fileUploadTokens.length > 0) {
+    commentData.ticket.comment.uploads = fileUploadTokens;
+  }
 
   const response = await fetch(
     `https://${zendeskCredentials.zendeskDomain}.zendesk.com/api/v2/tickets/${conversationInfo[0].zendeskTicketId}.json`,
@@ -484,7 +494,8 @@ async function handleNewConversation(
   messageData: SlackMessageData,
   zendeskCredentials: ZendeskConnection,
   channelId: string,
-  authorId: number
+  authorId: number,
+  fileUploadTokens: string[] | undefined
 ) {
   // Fetch channel info
   const channelInfo = await db.query.channel.findFirst({
@@ -511,19 +522,24 @@ async function handleNewConversation(
 
   // Create a ticket in Zendesk
   // TODO: - Add assignee_email
-  const ticketData = {
+  let ticketData: any = {
     ticket: {
       subject: `${channelInfo?.name}: ${
         messageData.text?.substring(0, 69) ?? ''
       }...`,
       comment: {
-        body: messageData.text
+        body: messageData.text,
+        public: true
       },
       requester_id: authorId,
       external_id: conversationUuid,
       tags: ['zensync']
     }
   };
+
+  if (fileUploadTokens && fileUploadTokens.length > 0) {
+    ticketData.ticket.comment.uploads = fileUploadTokens;
+  }
 
   let ticketId: string | null = null;
   try {

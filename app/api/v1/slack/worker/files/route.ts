@@ -62,7 +62,8 @@ async function handler(request: NextRequest) {
       slackFile.url_private,
       slackFile.name,
       slackFile.mimetype,
-      zendeskCredentials
+      zendeskCredentials,
+      connectionDetails
     );
   } catch (error) {
     console.error(error);
@@ -121,9 +122,15 @@ async function uploadFileFromUrlToZendesk(
   fileUrl: string,
   fileName: string,
   mimetype: string,
-  zendeskCredentials: ZendeskConnection
+  zendeskCredentials: ZendeskConnection,
+  slackCredentials: SlackConnection
 ): Promise<string> {
-  const fileResponse = await fetch(fileUrl);
+  const fileResponse = await fetch(fileUrl, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${slackCredentials.token}`
+    }
+  });
   if (!fileResponse.ok) {
     throw new Error(`Error fetching file: ${fileResponse.statusText}`);
   }
@@ -138,7 +145,7 @@ async function uploadFileFromUrlToZendesk(
     `${zendeskCredentials.zendeskEmail}/token:${zendeskCredentials.zendeskApiKey}`
   );
 
-  console.log('fileBuffer', fileBuffer);
+  console.log(`Buffer size: ${fileBuffer.length} bytes`);
   console.log(`preparing to upload file type ${mimetype} to ${url}`);
 
   const response = await fetch(url, {

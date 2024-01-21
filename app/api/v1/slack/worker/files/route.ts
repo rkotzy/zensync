@@ -76,19 +76,15 @@ async function handler(request: NextRequest) {
     return new NextResponse('No upload token found', { status: 500 });
   }
 
-  const zendeskFileTokens = {
-    zendeskFileTokens: [uploadToken]
-  };
+  responseJson.eventBody.event.zendeskFileTokens = [uploadToken];
 
-  const qstashBody = { ...responseJson, ...zendeskFileTokens };
-
-  console.log('Publishing to qstash:', qstashBody);
+  console.log('Publishing to qstash:', responseJson);
 
   try {
     const qstash = new Client({ token: process.env.QSTASH_TOKEN! });
     await qstash.publishJSON({
       url: 'https://zensync.vercel.app/api/v1/slack/worker/messages',
-      body: qstashBody,
+      body: responseJson,
       contentBasedDeduplication: true
     });
   } catch (error) {

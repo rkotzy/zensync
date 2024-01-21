@@ -8,7 +8,6 @@ import {
 } from '@/lib/schema';
 import { verifySignatureEdge } from '@upstash/qstash/dist/nextjs';
 import { Client } from '@upstash/qstash';
-import FormData from 'form-data';
 
 export const runtime = 'edge';
 
@@ -78,11 +77,7 @@ async function handler(request: NextRequest) {
   }
 
   const zendeskFileTokens = {
-    zendeskFileTokens: [
-      {
-        token: uploadToken
-      }
-    ]
+    zendeskFileTokens: [uploadToken]
   };
 
   try {

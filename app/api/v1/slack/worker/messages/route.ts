@@ -34,7 +34,6 @@ async function handler(request: NextRequest) {
   //   requestJson = parseQstashCallback(requestJson);
   // }
   // Log the request body
-  console.log(JSON.stringify(requestJson, null, 2));
 
   const requestBody = requestJson.eventBody;
   const connectionDetails = requestJson.connectionDetails;
@@ -211,6 +210,7 @@ async function handleMessage(request: any, connection: SlackConnection) {
 
   // Set any file upload data
   const fileUploadTokens: string[] | undefined = request.zendeskFileTokens;
+  console.log(`Upload tokens: ${fileUploadTokens}`);
 
   // Fetch Zendesk credentials
   let zendeskCredentials: ZendeskConnection | null;
@@ -391,7 +391,9 @@ async function getSlackUser(
 
     const responseData = await response.json();
 
-    console.log(`Slack user response: ${JSON.stringify(responseData)}`);
+    console.log(
+      `Slack user response: ${JSON.stringify(responseData, null, 2)}`
+    );
 
     if (!responseData.ok) {
       throw new Error(`Error getting Slack user: ${responseData.error}`);

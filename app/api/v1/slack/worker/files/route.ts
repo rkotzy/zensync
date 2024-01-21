@@ -80,12 +80,15 @@ async function handler(request: NextRequest) {
     zendeskFileTokens: [uploadToken]
   };
 
+  const qstashBody = { ...responseJson, ...zendeskFileTokens };
+
+  console.log('Publishing to qstash:', qstashBody);
+
   try {
     const qstash = new Client({ token: process.env.QSTASH_TOKEN! });
     await qstash.publishJSON({
       url: 'https://zensync.vercel.app/api/v1/slack/worker/messages',
-      body: responseJson,
-      ...zendeskFileTokens,
+      body: qstashBody,
       contentBasedDeduplication: true
     });
   } catch (error) {

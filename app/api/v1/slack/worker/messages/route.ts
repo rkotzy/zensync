@@ -489,7 +489,7 @@ async function handleThreadReply(
     `${zendeskCredentials.zendeskEmail}/token:${zendeskCredentials.zendeskApiKey}`
   );
 
-  let htmlBody = messageData.text;
+  let htmlBody = slackMarkdownToHtml(messageData.text);
   if (!htmlBody || htmlBody === '') {
     htmlBody = '<i>(Empty message)</i>';
   }
@@ -564,7 +564,7 @@ async function handleNewConversation(
     console.warn(`No channel name found, continuing: ${channelInfo}`);
   }
 
-  let htmlBody = messageData.text;
+  let htmlBody = slackMarkdownToHtml(messageData.text);
   if (!htmlBody || htmlBody === '') {
     htmlBody = '<i>(Empty message)</i>';
   }
@@ -653,4 +653,36 @@ async function fetchZendeskCredentials(
   }
 
   return zendeskCredentials;
+}
+
+function slackMarkdownToHtml(markdown: string): string {
+  // Handle block quotes
+  markdown = markdown.replace(/^>\s?(.*)/gm, '<blockquote>$1</blockquote>');
+
+  // Replace code blocks and inline code, handling curly braces within them
+  markdown = markdown.replace(
+    /```(.*?)```/gs,
+    (_, code) => `<pre><code>${escapeCurlyBraces(code)}</code></pre>`
+  );
+  markdown = markdown.replace(
+    /`(.*?)`/g,
+    (_, code) => `<code>${escapeCurlyBraces(code)}</code>`
+  );
+
+  // Convert bold text: **text** or __text__
+  markdown = markdown.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+  markdown = markdown.replace(/__(.*?)__/g, '<strong>$1</strong>');
+
+  // Convert italic text: *text* or _text_
+  markdown = markdown.replace(/\*(.*?)\*/g, '<em>$1</em>');
+  markdown = markdown.replace(/_(.*?)_/g, '<em>$1</em>');
+
+  // Convert strikethrough: ~~text~~
+  markdown = markdown.replace(/~~(.*?)~~/g, '<del>$1</del>');
+
+  return markdown;
+}
+
+function escapeCurlyBraces(code: string): string {
+  return code.replace(/{{(.*?)}}/g, '&lcub;&lcub;$1&rcub;&rcub;');
 }

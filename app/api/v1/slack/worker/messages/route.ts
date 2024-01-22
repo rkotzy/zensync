@@ -659,26 +659,46 @@ function slackMarkdownToHtml(markdown: string): string {
   // Handle block quotes
   markdown = markdown.replace(/^>\s?(.*)/gm, '<blockquote>$1</blockquote>');
 
-  // Replace code blocks and inline code, handling curly braces within them
+  // Handle code blocks first to prevent formatting inside them
   markdown = markdown.replace(
     /```(.*?)```/gs,
     (_, code) => `<pre><code>${escapeCurlyBraces(code)}</code></pre>`
   );
+
+  // Handle ordered lists
+  markdown = markdown.replace(
+    /^\d+\.\s(.*)/gm,
+    (_, item) => `<li>${item}</li>`
+  );
+  markdown = markdown.replace(/(<li>.*<\/li>)/gs, '<ol>$1</ol>');
+
+  // Handle bulleted lists
+  markdown = markdown.replace(
+    /^[\*\+\-]\s(.*)/gm,
+    (_, item) => `<li>${item}</li>`
+  );
+  markdown = markdown.replace(/(<li>.*<\/li>)/gs, '<ul>$1</ul>');
+
+  // Handle inline code
   markdown = markdown.replace(
     /`(.*?)`/g,
     (_, code) => `<code>${escapeCurlyBraces(code)}</code>`
   );
 
-  // Convert bold text: **text** or __text__
-  markdown = markdown.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-  markdown = markdown.replace(/__(.*?)__/g, '<strong>$1</strong>');
+  // Convert bold text: *text*
+  markdown = markdown.replace(/\*(.*?)\*/g, '<strong>$1</strong>');
 
-  // Convert italic text: *text* or _text_
-  markdown = markdown.replace(/\*(.*?)\*/g, '<em>$1</em>');
+  // Convert italic text: _text_
   markdown = markdown.replace(/_(.*?)_/g, '<em>$1</em>');
 
-  // Convert strikethrough: ~~text~~
-  markdown = markdown.replace(/~~(.*?)~~/g, '<del>$1</del>');
+  // Convert strikethrough: ~text~
+  markdown = markdown.replace(/~(.*?)~/g, '<del>$1</del>');
+
+  // Convert new lines to <br> for lines not inside block elements
+  markdown = markdown.replace(
+    /^(?!<li>|<\/li>|<ol>|<\/ol>|<ul>|<\/ul>|<pre>|<\/pre>|<blockquote>|<\/blockquote>).*$/gm,
+    '$&<br>'
+  );
 
   return markdown;
 }

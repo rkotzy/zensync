@@ -199,7 +199,11 @@ async function handleChannelLeft(request: any, connection: SlackConnection) {
   }
 }
 
-async function handleFileUpload(request: any, connection: SlackConnection) {
+async function handleFileUpload(
+  request: any,
+  connection: SlackConnection,
+  isPublic: boolean = true
+) {
   if (request.zendeskFileTokens) {
     console.log('File upload handled successfully');
     return await handleMessage(request, connection);
@@ -227,22 +231,26 @@ async function handleFileUpload(request: any, connection: SlackConnection) {
 
     request.event.text += htmlOutput;
     console.log(`Updated request: ${JSON.stringify(request, null, 2)}`);
-    return await handleMessage(request, connection);
+    return await handleMessage(request, connection, isPublic);
   }
 }
 
 async function handleMessageEdit(request: any, connection: SlackConnection) {
-  console.log('Handling message edit');
-  if (request.event?.message?.text) {
-    request.event.message.text = `\n\n<strong>(Edited)</strong>\n\n${request.event.message.text}`;
-  }
+  // TODO: - these edits come through at a different level than a regular message handler.
+  // Need to rebuild the request object to match the regular message handler and
+  // start by running it through the handleFileUpload function to set any file attachments
+  // that may have been added.
 
-  if (request.event?.message?.edited?.user) {
-    console.log('Setting user to editing user');
-    request.event.user = request.event.message.edited.user;
-  }
+  if (request.event?.message) {
+    console.log('Handling message edit');
+    request.event = request.event.message;
+    request.event.text = `\n\n<strong>(Edited)</strong>\n\n${request.event.text}`;
 
-  return await handleMessage(request, connection, false);
+    return await handleFileUpload(request, connection, false);
+  } else {
+    console.log('Unknown message edit type:', request);
+    return await handleMessage(request, connection, false);
+  }
 }
 
 async function handleMessage(

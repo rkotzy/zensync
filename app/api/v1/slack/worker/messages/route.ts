@@ -248,7 +248,7 @@ async function handleMessageEdit(request: any, connection: SlackConnection) {
     request.event = {
       ...request.event,
       ...request.event.message,
-      text: `\n\n<strong>(Edited)</strong>\n\n${request.event.message.text}`
+      text: `<strong>(Edited)</strong>\n\n${request.event.message.text}`
     };
 
     return await handleFileUpload(request, connection, false);
@@ -318,8 +318,8 @@ async function handleMessage(
 
   // Check if message is already part of a thread
   const parentMessageId = getParentMessageId(messageData);
-  if (parentMessageId) {
-    // Handle child message
+  if (parentMessageId || !isPublic) {
+    // Handle child message or private message
     console.log(`Handling child message`);
     try {
       await handleThreadReply(
@@ -327,7 +327,7 @@ async function handleMessage(
         zendeskCredentials,
         connection.organizationId,
         messageData.channel,
-        parentMessageId,
+        parentMessageId ?? messageData.ts,
         zendeskUserId,
         fileUploadTokens,
         isPublic

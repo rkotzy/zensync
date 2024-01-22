@@ -17,6 +17,8 @@ async function handler(request: NextRequest) {
   let responseJson = requestJson;
   console.log(JSON.stringify(requestJson, null, 2));
 
+  return new NextResponse('Failure testing', { status: 500 });
+
   const slackRequestBody = requestJson.eventBody;
   const connectionDetails: SlackConnection = requestJson.connectionDetails;
   if (!connectionDetails) {
@@ -77,8 +79,7 @@ async function handler(request: NextRequest) {
     return new NextResponse('No upload token found', { status: 500 });
   }
 
-  //!IMPORTANT - uncomment below line after testing
-  //responseJson.eventBody.zendeskFileTokens = [uploadToken];
+  responseJson.eventBody.zendeskFileTokens = [uploadToken];
 
   console.log('Publishing to qstash:', responseJson);
 

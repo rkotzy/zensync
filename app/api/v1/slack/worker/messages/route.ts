@@ -198,11 +198,32 @@ async function handleChannelLeft(request: any, connection: SlackConnection) {
 async function handleFileUpload(request: any, connection: SlackConnection) {
   if (request.zendeskFileTokens) {
     console.log('File upload handled successfully');
+    return await handleMessage(request, connection);
   } else {
     console.log('Need to handle file fallback');
-  }
 
-  await handleMessage(request, connection);
+    const files = request.eventBody.event.files;
+
+    // Check if there are files
+    if (!files || files.length === 0) {
+      console.log('No files found in fallback');
+      return await handleMessage(request, connection);
+    }
+
+    // Start building the HTML output
+    let htmlOutput = '<p><strong>Attachments:</strong>';
+
+    // Iterate over each file and add a link to the HTML output
+    for (const file of files) {
+      htmlOutput += `<br><a href="${file.permalink}">${file.title}</a>`;
+    }
+
+    // Close the paragraph tag
+    htmlOutput += '</p>';
+
+    request.eventBody.event.text += htmlOutput;
+    return await handleMessage(request, connection);
+  }
 }
 
 async function handleMessage(request: any, connection: SlackConnection) {
@@ -467,7 +488,7 @@ async function handleThreadReply(
   let commentData: any = {
     ticket: {
       comment: {
-        body: messageData.text,
+        html_body: messageData.text,
         public: true,
         author_id: authorId
       },
@@ -541,7 +562,7 @@ async function handleNewConversation(
         messageData.text?.substring(0, 69) ?? ''
       }...`,
       comment: {
-        body: messageData.text,
+        html_body: messageData.text,
         public: true
       },
       requester_id: authorId,

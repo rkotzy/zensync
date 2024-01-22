@@ -19,83 +19,83 @@ async function handler(request: NextRequest) {
 
   return new NextResponse('Failure testing', { status: 500 });
 
-  const slackRequestBody = requestJson.eventBody;
-  const connectionDetails: SlackConnection = requestJson.connectionDetails;
-  if (!connectionDetails) {
-    console.error('No connection details found');
-    return new NextResponse('No connection details found.', { status: 500 });
-  }
+  // const slackRequestBody = requestJson.eventBody;
+  // const connectionDetails: SlackConnection = requestJson.connectionDetails;
+  // if (!connectionDetails) {
+  //   console.error('No connection details found');
+  //   return new NextResponse('No connection details found.', { status: 500 });
+  // }
 
-  // TODO: - Need to handle an array of files here
-  // Check if a file object exists
-  const slackFile = slackRequestBody.event?.files?.[0];
-  if (!slackFile) {
-    console.error('No file object found in request body');
-    return new NextResponse('No file object found in request body', {
-      status: 400
-    });
-  }
+  // // TODO: - Need to handle an array of files here
+  // // Check if a file object exists
+  // const slackFile = slackRequestBody.event?.files?.[0];
+  // if (!slackFile) {
+  //   console.error('No file object found in request body');
+  //   return new NextResponse('No file object found in request body', {
+  //     status: 400
+  //   });
+  // }
 
-  // Fetch Zendesk credentials
-  let zendeskCredentials: ZendeskConnection | null;
-  try {
-    zendeskCredentials = await fetchZendeskCredentials(
-      connectionDetails.organizationId
-    );
-  } catch (error) {
-    console.error(error);
-    return new NextResponse('Error fetching Zendesk credentials', {
-      status: 503
-    });
-  }
-  if (!zendeskCredentials) {
-    console.error(
-      `No Zendesk credentials found for org: ${connectionDetails.organizationId}`
-    );
-    return new NextResponse('Error fetching Zendesk credentials', {
-      status: 409
-    });
-  }
+  // // Fetch Zendesk credentials
+  // let zendeskCredentials: ZendeskConnection | null;
+  // try {
+  //   zendeskCredentials = await fetchZendeskCredentials(
+  //     connectionDetails.organizationId
+  //   );
+  // } catch (error) {
+  //   console.error(error);
+  //   return new NextResponse('Error fetching Zendesk credentials', {
+  //     status: 503
+  //   });
+  // }
+  // if (!zendeskCredentials) {
+  //   console.error(
+  //     `No Zendesk credentials found for org: ${connectionDetails.organizationId}`
+  //   );
+  //   return new NextResponse('Error fetching Zendesk credentials', {
+  //     status: 409
+  //   });
+  // }
 
-  // Upload the file to Zendesk
-  let uploadToken: string;
-  try {
-    uploadToken = await uploadFileFromUrlToZendesk(
-      slackFile.url_private,
-      slackFile.name,
-      slackFile.mimetype,
-      zendeskCredentials,
-      connectionDetails
-    );
-  } catch (error) {
-    console.error(error);
-    return new NextResponse('Error uploading file to Zendesk', {
-      status: 409
-    });
-  }
+  // // Upload the file to Zendesk
+  // let uploadToken: string;
+  // try {
+  //   uploadToken = await uploadFileFromUrlToZendesk(
+  //     slackFile.url_private,
+  //     slackFile.name,
+  //     slackFile.mimetype,
+  //     zendeskCredentials,
+  //     connectionDetails
+  //   );
+  // } catch (error) {
+  //   console.error(error);
+  //   return new NextResponse('Error uploading file to Zendesk', {
+  //     status: 409
+  //   });
+  // }
 
-  if (!uploadToken) {
-    console.error('No upload token found');
-    return new NextResponse('No upload token found', { status: 500 });
-  }
+  // if (!uploadToken) {
+  //   console.error('No upload token found');
+  //   return new NextResponse('No upload token found', { status: 500 });
+  // }
 
-  responseJson.eventBody.zendeskFileTokens = [uploadToken];
+  // responseJson.eventBody.zendeskFileTokens = [uploadToken];
 
-  console.log('Publishing to qstash:', responseJson);
+  // console.log('Publishing to qstash:', responseJson);
 
-  try {
-    const qstash = new Client({ token: process.env.QSTASH_TOKEN! });
-    await qstash.publishJSON({
-      url: 'https://zensync.vercel.app/api/v1/slack/worker/messages',
-      body: responseJson,
-      contentBasedDeduplication: true
-    });
-  } catch (error) {
-    console.error('Error publishing to qstash:', error);
-    return new NextResponse('Internal Server Error', { status: 500 });
-  }
+  // try {
+  //   const qstash = new Client({ token: process.env.QSTASH_TOKEN! });
+  //   await qstash.publishJSON({
+  //     url: 'https://zensync.vercel.app/api/v1/slack/worker/messages',
+  //     body: responseJson,
+  //     contentBasedDeduplication: true
+  //   });
+  // } catch (error) {
+  //   console.error('Error publishing to qstash:', error);
+  //   return new NextResponse('Internal Server Error', { status: 500 });
+  // }
 
-  return new NextResponse('Ok', { status: 202 });
+  // return new NextResponse('Ok', { status: 202 });
 }
 
 // TODO: - this is a duplicate of the one in zendesk/worker/messages/route.ts

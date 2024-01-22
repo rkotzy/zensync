@@ -236,6 +236,12 @@ async function handleMessageEdit(request: any, connection: SlackConnection) {
   if (request.event?.message?.text) {
     request.event.message.text = `\n\n<strong>(Edited)</strong>\n\n${request.event.message.text}`;
   }
+
+  if (request.event?.message?.edited?.user) {
+    console.log('Setting user to editing user');
+    request.event.message.user = request.event.message.edited.user;
+  }
+
   return await handleMessage(request, connection, false);
 }
 
@@ -285,8 +291,7 @@ async function handleMessage(
     zendeskUserId = await getOrCreateZendeskUser(
       connection,
       zendeskCredentials,
-      messageData,
-      messageData.channel
+      messageData
     );
   } catch (error) {
     console.error('Error getting or creating Zendesk user:', error);
@@ -363,12 +368,18 @@ async function sameSenderConversationId(): Promise<string | null> {
 async function getOrCreateZendeskUser(
   slackConnection: SlackConnection,
   zendeskCredentials: ZendeskConnection,
-  messageData: SlackMessageData,
-  slackChannelId: string
+  messageData: SlackMessageData
 ): Promise<number | undefined> {
   const zendeskAuthToken = btoa(
     `${zendeskCredentials.zendeskEmail}/token:${zendeskCredentials.zendeskApiKey}`
   );
+
+  const slackChannelId = messageData.channel;
+
+  if (!messageData.user) {
+    console.error('No slack user found: ${messageData}');
+    throw new Error('No message user found');
+  }
 
   try {
     const { username, imageUrl } = await getSlackUser(

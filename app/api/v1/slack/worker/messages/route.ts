@@ -243,8 +243,13 @@ async function handleMessageEdit(request: any, connection: SlackConnection) {
 
   if (request.event?.message) {
     console.log('Handling message edit');
-    request.event = request.event.message;
-    request.event.text = `\n\n<strong>(Edited)</strong>\n\n${request.event.text}`;
+
+    // Merge the message data into the event object
+    request.event = {
+      ...request.event,
+      ...request.event.message,
+      text: `\n\n<strong>(Edited)</strong>\n\n${request.event.message.text}`
+    };
 
     return await handleFileUpload(request, connection, false);
   } else {

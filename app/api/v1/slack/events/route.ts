@@ -190,7 +190,11 @@ function isPayloadEligibleForTicket(
 
   // Ignore subtypes that are not processable
   // by the message handler
-  const eligibleSubtypes = new Set(['message_replied', undefined]);
+  const eligibleSubtypes = new Set([
+    'message_replied',
+    'message_changed',
+    undefined
+  ]);
 
   const subtype = eventData.subtype;
   if (eligibleSubtypes.has(subtype)) {

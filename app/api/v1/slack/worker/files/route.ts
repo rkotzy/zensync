@@ -24,12 +24,11 @@ async function handler(request: NextRequest) {
     return new NextResponse('No connection details found.', { status: 500 });
   }
 
-  // TODO: - Need to handle an array of files here
-  // Check if a file object exists
-  let slackFile = slackRequestBody.event?.files?.[0];
-  if (!slackFile) {
-    console.error('No file object found in request body');
-    return new NextResponse('No file object found in request body', {
+  // Handle an array of files here
+  const slackFiles = slackRequestBody.event?.files || [];
+  if (slackFiles.length === 0) {
+    console.error('No file objects found in request body');
+    return new NextResponse('No file objects found in request body', {
       status: 400
     });
   }
@@ -55,38 +54,47 @@ async function handler(request: NextRequest) {
     });
   }
 
-  // Fetch Slack Connect file if needed
-  // https://api.slack.com/apis/channels-between-orgs#check_file_info
-  if (slackFile.id || slackFile.file_access === 'check_file_info') {
-    console.log('Fetching file info from Slack');
-    slackFile = await getFileInfoFromSlack(connectionDetails, slackFile.id);
+  // Array to hold upload tokens for each file
+  let zendeskFileTokens = [];
+
+  for (let slackFile of slackFiles) {
+    // Fetch Slack Connect file if needed
+    // https://api.slack.com/apis/channels-between-orgs#check_file_info
+    if (slackFile.id && slackFile.file_access === 'check_file_info') {
+      console.log('Fetching file info from Slack');
+      slackFile = await getFileInfoFromSlack(connectionDetails, slackFile.id);
+    }
+
+    console.log('Slack file to upload:', slackFile);
+
+    // Upload the file to Zendesk
+    let uploadToken: string;
+    try {
+      uploadToken = await uploadFileFromUrlToZendesk(
+        slackFile.url_private,
+        slackFile.name,
+        slackFile.mimetype,
+        zendeskCredentials,
+        connectionDetails
+      );
+    } catch (error) {
+      console.error(error);
+      return new NextResponse('Error uploading file to Zendesk', {
+        status: 409
+      });
+    }
+
+    // We intentionally fail here if a single upload token is missing and try them all again
+    if (!uploadToken) {
+      console.error('No upload token found');
+      return new NextResponse('No upload token found', { status: 500 });
+    }
+
+    zendeskFileTokens.push(uploadToken);
   }
 
-  console.log('Slack file to upload:', slackFile);
-
-  // Upload the file to Zendesk
-  let uploadToken: string;
-  try {
-    uploadToken = await uploadFileFromUrlToZendesk(
-      slackFile.url_private,
-      slackFile.name,
-      slackFile.mimetype,
-      zendeskCredentials,
-      connectionDetails
-    );
-  } catch (error) {
-    console.error(error);
-    return new NextResponse('Error uploading file to Zendesk', {
-      status: 409
-    });
-  }
-
-  if (!uploadToken) {
-    console.error('No upload token found');
-    return new NextResponse('No upload token found', { status: 500 });
-  }
-
-  responseJson.eventBody.zendeskFileTokens = [uploadToken];
+  // Add the Zendesk upload tokens to the response
+  responseJson.eventBody.zendeskFileTokens = zendeskFileTokens;
 
   console.log('Publishing to qstash:', responseJson);
 

@@ -17,7 +17,7 @@ async function handler(request: NextRequest) {
   let responseJson = requestJson;
   console.log(JSON.stringify(requestJson, null, 2));
 
-  return new NextResponse(requestJson, { status: 500 });
+  return new NextResponse('Failure testing', { status: 500 });
 
   // const slackRequestBody = requestJson.eventBody;
   // const connectionDetails: SlackConnection = requestJson.connectionDetails;

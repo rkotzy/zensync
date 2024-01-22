@@ -30,10 +30,11 @@ async function handler(request: NextRequest) {
   console.log(JSON.stringify(requestJson, null, 2));
 
   // This checks for a case where the request is a callback from Qstash
-  if (request.headers.get('User-Agent') === 'Upstash-QStash' && request.body) {
-    console.log(
-      `Qstash callback detected: ${JSON.stringify(requestJson, null, 2)}`
-    );
+  if (
+    request.headers.get('User-Agent') === 'Upstash-QStash' &&
+    requestJson.sourceBody
+  ) {
+    console.log(`Qstash callback detected.`);
     requestJson = parseQstashCallback(requestJson);
   }
   // Log the request body
@@ -71,13 +72,13 @@ async function handler(request: NextRequest) {
 }
 
 function parseQstashCallback(request: any): any {
-  if (!request.body) {
-    console.log('No qstash body');
+  if (!request.sourceBody) {
+    console.log('No qstash source body');
     return request;
   }
 
   try {
-    const base64Decoded = atob(request.body);
+    const base64Decoded = atob(request.sourceBody);
     const response = JSON.parse(base64Decoded);
     return response;
   } catch (error) {

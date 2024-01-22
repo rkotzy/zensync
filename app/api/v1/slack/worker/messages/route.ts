@@ -232,6 +232,7 @@ async function handleFileUpload(request: any, connection: SlackConnection) {
 }
 
 async function handleMessageEdit(request: any, connection: SlackConnection) {
+  console.log('Handling message edit');
   if (request.event?.message?.text) {
     request.event.message.text = `\n\n<strong>(Edited)</strong>\n\n${request.event.message.text}`;
   }
@@ -429,6 +430,7 @@ async function getSlackUser(
   userId: string
 ): Promise<{ username: string | undefined; imageUrl: string }> {
   try {
+    console.log(`Getting Slack user ${userId}`);
     const response = await fetch(
       `https://slack.com/api/users.profile.get?user=${userId}`,
       {

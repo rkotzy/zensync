@@ -26,7 +26,7 @@ async function handler(request: NextRequest) {
 
   // TODO: - Need to handle an array of files here
   // Check if a file object exists
-  const slackFile = slackRequestBody.event?.files?.[0];
+  let slackFile = slackRequestBody.event?.files?.[0];
   if (!slackFile) {
     console.error('No file object found in request body');
     return new NextResponse('No file object found in request body', {
@@ -54,6 +54,15 @@ async function handler(request: NextRequest) {
       status: 409
     });
   }
+
+  // Fetch Slack Connect file if needed
+  // https://api.slack.com/apis/channels-between-orgs#check_file_info
+  if (slackFile.id || slackFile.file_access === 'check_file_info') {
+    console.log('Fetching file info from Slack');
+    slackFile = await getFileInfoFromSlack(connectionDetails, slackFile.id);
+  }
+
+  console.log('Slack file to upload:', slackFile);
 
   // Upload the file to Zendesk
   let uploadToken: string;
@@ -165,4 +174,34 @@ async function uploadFileFromUrlToZendesk(
   const data = await response.json();
   console.log('Uploaded to Zendesk:', data);
   return data.upload.token;
+}
+
+async function getFileInfoFromSlack(
+  slackConnection: SlackConnection,
+  fileId: string
+): Promise<any> {
+  try {
+    const response = await fetch(
+      `https://slack.com/api/files.info?file=${fileId}`,
+      {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          Authorization: `Bearer ${slackConnection.token}`
+        }
+      }
+    );
+
+    const responseData = await response.json();
+
+    console.log(`Slack file info response: ${JSON.stringify(responseData)}`);
+
+    if (!responseData.ok) {
+      throw new Error(`Error getting Slack file info: ${responseData.error}`);
+    }
+    return responseData.file;
+  } catch (error) {
+    console.error('Error in getFileInfoFromSlack:', error);
+    throw error;
+  }
 }

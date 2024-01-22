@@ -195,6 +195,7 @@ function isPayloadEligibleForTicket(
   const eligibleSubtypes = new Set([
     'message_replied',
     'message_changed',
+    'message_deleted',
     undefined
   ]);
 

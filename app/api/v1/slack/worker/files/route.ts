@@ -77,7 +77,8 @@ async function handler(request: NextRequest) {
     return new NextResponse('No upload token found', { status: 500 });
   }
 
-  responseJson.eventBody.zendeskFileTokens = [uploadToken];
+  //!IMPORTANT - uncomment below line after testing
+  //responseJson.eventBody.zendeskFileTokens = [uploadToken];
 
   console.log('Publishing to qstash:', responseJson);
 

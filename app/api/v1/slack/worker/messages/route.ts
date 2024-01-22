@@ -286,6 +286,7 @@ async function handleMessage(
   }
 
   // Get or create Zendesk user
+  console.log('Get or create user call:', messageData);
   let zendeskUserId: number | undefined;
   try {
     zendeskUserId = await getOrCreateZendeskUser(
@@ -377,7 +378,7 @@ async function getOrCreateZendeskUser(
   const slackChannelId = messageData.channel;
 
   if (!messageData.user) {
-    console.error('No slack user found: ${messageData}');
+    console.error(`No slack user found: ${messageData}`);
     throw new Error('No message user found');
   }
 

@@ -239,7 +239,7 @@ async function handleMessageEdit(request: any, connection: SlackConnection) {
 
   if (request.event?.message?.edited?.user) {
     console.log('Setting user to editing user');
-    request.event.message.user = request.event.message.edited.user;
+    request.event.user = request.event.message.edited.user;
   }
 
   return await handleMessage(request, connection, false);

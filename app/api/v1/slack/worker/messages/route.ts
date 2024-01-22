@@ -36,9 +36,8 @@ async function handler(request: NextRequest) {
   ) {
     console.log(`Qstash callback detected.`);
     requestJson = parseQstashCallback(requestJson);
+    console.log(JSON.stringify(requestJson, null, 2));
   }
-  // Log the request body
-  console.log(JSON.stringify(requestJson, null, 2));
 
   const requestBody = requestJson.eventBody;
   const connectionDetails = requestJson.connectionDetails;
@@ -244,6 +243,7 @@ async function handleMessage(request: any, connection: SlackConnection) {
     console.error('Invalid message payload');
     return;
   }
+  console.log('SlackMessageData:', messageData);
 
   // Set any file upload data
   const fileUploadTokens: string[] | undefined = request.zendeskFileTokens;
@@ -489,11 +489,16 @@ async function handleThreadReply(
     `${zendeskCredentials.zendeskEmail}/token:${zendeskCredentials.zendeskApiKey}`
   );
 
+  let htmlBody = messageData.text;
+  if (!htmlBody || htmlBody === '') {
+    htmlBody = '<i>(Empty message)</i>';
+  }
+
   // Create a comment in ticket
   let commentData: any = {
     ticket: {
       comment: {
-        html_body: messageData.text,
+        html_body: htmlBody,
         public: true,
         author_id: authorId
       },
@@ -518,13 +523,13 @@ async function handleThreadReply(
     }
   );
 
+  const responseData = await response.json();
+  console.log('Ticket comment response data:', responseData);
+
   if (!response.ok) {
     console.error('Error updating ticket comment:', response);
     throw new Error('Error creating comment');
   }
-
-  const responseData = await response.json();
-  console.log('Ticket comment updated:', responseData);
 
   // TODO: - Update last message ID conversation
 }
@@ -559,6 +564,11 @@ async function handleNewConversation(
     console.warn(`No channel name found, continuing: ${channelInfo}`);
   }
 
+  let htmlBody = messageData.text;
+  if (!htmlBody || htmlBody === '') {
+    htmlBody = '<i>(Empty message)</i>';
+  }
+
   // Create a ticket in Zendesk
   // TODO: - Add assignee_email
   let ticketData: any = {
@@ -567,7 +577,7 @@ async function handleNewConversation(
         messageData.text?.substring(0, 69) ?? ''
       }...`,
       comment: {
-        html_body: messageData.text,
+        html_body: htmlBody,
         public: true
       },
       requester_id: authorId,

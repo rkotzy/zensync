@@ -20,7 +20,8 @@ const eventHandlers: Record<
   member_joined_channel: handleChannelJoined,
   channel_left: handleChannelLeft,
   message: handleMessage,
-  file_share: handleFileUpload
+  file_share: handleFileUpload,
+  message_changed: handleMessageEdit
   // Add more event handlers as needed
 };
 
@@ -230,7 +231,20 @@ async function handleFileUpload(request: any, connection: SlackConnection) {
   }
 }
 
-async function handleMessage(request: any, connection: SlackConnection) {
+async function handleMessageEdit(request: any, connection: SlackConnection) {
+  if (request.event?.message?.text) {
+    request.event.message.text = request.event.message.text.append(
+      '\n\n<strong>(Edited)</strong>\n\n'
+    );
+  }
+  return await handleMessage(request, connection, false);
+}
+
+async function handleMessage(
+  request: any,
+  connection: SlackConnection,
+  isPublic: boolean = true
+) {
   // We should only have this code in one place but might want
   // To introduce it here too
   // if (!isPayloadEligibleForTicket(request, connection)) {
@@ -297,7 +311,8 @@ async function handleMessage(request: any, connection: SlackConnection) {
         messageData.channel,
         parentMessageId,
         zendeskUserId,
-        fileUploadTokens
+        fileUploadTokens,
+        isPublic
       );
     } catch (error) {
       console.error('Error handling thread reply:', error);
@@ -322,7 +337,8 @@ async function handleMessage(request: any, connection: SlackConnection) {
       zendeskCredentials,
       messageData.channel,
       zendeskUserId,
-      fileUploadTokens
+      fileUploadTokens,
+      isPublic
     );
   } catch (error) {
     console.error('Error creating new conversation:', error);
@@ -460,7 +476,8 @@ async function handleThreadReply(
   channelId: string,
   slackParentMessageId: string,
   authorId: number,
-  fileUploadTokens: string[] | undefined
+  fileUploadTokens: string[] | undefined,
+  isPublic: boolean
 ) {
   // get conversation from database
   const conversationInfo = await db
@@ -499,7 +516,7 @@ async function handleThreadReply(
     ticket: {
       comment: {
         html_body: htmlBody,
-        public: true,
+        public: isPublic,
         author_id: authorId
       },
       status: 'open'
@@ -539,7 +556,8 @@ async function handleNewConversation(
   zendeskCredentials: ZendeskConnection,
   channelId: string,
   authorId: number,
-  fileUploadTokens: string[] | undefined
+  fileUploadTokens: string[] | undefined,
+  isPublic: boolean
 ) {
   // Fetch channel info
   const channelInfo = await db.query.channel.findFirst({
@@ -578,7 +596,7 @@ async function handleNewConversation(
       }...`,
       comment: {
         html_body: htmlBody,
-        public: true
+        public: isPublic
       },
       requester_id: authorId,
       external_id: conversationUuid,

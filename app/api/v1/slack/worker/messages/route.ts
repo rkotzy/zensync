@@ -233,9 +233,7 @@ async function handleFileUpload(request: any, connection: SlackConnection) {
 
 async function handleMessageEdit(request: any, connection: SlackConnection) {
   if (request.event?.message?.text) {
-    request.event.message.text = request.event.message.text.append(
-      '\n\n<strong>(Edited)</strong>\n\n'
-    );
+    request.event.message.text = `\n\n<strong>(Edited)</strong>\n\n${request.event.message.text}`;
   }
   return await handleMessage(request, connection, false);
 }

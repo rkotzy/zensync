@@ -236,12 +236,10 @@ async function handleFileUpload(
 }
 
 async function handleMessageEdit(request: any, connection: SlackConnection) {
-  // TODO: - these edits come through at a different level than a regular message handler.
-  // Need to rebuild the request object to match the regular message handler and
-  // start by running it through the handleFileUpload function to set any file attachments
-  // that may have been added.
-
-  if (request.event?.message) {
+  if (request.event?.message?.text === request.event?.previous_message?.text) {
+    console.log('Message edit was not a change to text, ignoring');
+    return;
+  } else if (request.event?.message) {
     console.log('Handling message edit');
 
     // Merge the message data into the event object
@@ -253,8 +251,8 @@ async function handleMessageEdit(request: any, connection: SlackConnection) {
 
     return await handleFileUpload(request, connection, false);
   } else {
-    console.log('Unknown message edit type:', request);
-    return await handleMessage(request, connection, false);
+    console.warn('Unhandled message edit type:', request);
+    return;
   }
 }
 

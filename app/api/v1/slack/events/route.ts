@@ -182,11 +182,13 @@ function isPayloadEligibleForTicket(
     return false;
   }
 
+  // Shouldn't need this if we explicitly check for message subtype
+  // for example 'message_changed' is hidden but still needs processing
   // Ignore hidden messages
-  if (eventData.hidden) {
-    console.log('Ignoring hidden message');
-    return false;
-  }
+  // if (eventData.hidden) {
+  //   console.log('Ignoring hidden message');
+  //   return false;
+  // }
 
   // Ignore subtypes that are not processable
   // by the message handler

@@ -263,7 +263,7 @@ async function handleMessageDeleted(request: any, connection: SlackConnection) {
     request.event = {
       ...request.event,
       ...request.event.previous_message,
-      text: `<strong>(Deleted)</strong>\n\n${request.event.message.text}`
+      text: `<strong>(Deleted)</strong>\n\n${request.event.previous_message.text}`
     };
 
     return await handleMessage(request, connection, false);

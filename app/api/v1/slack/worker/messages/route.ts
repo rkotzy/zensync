@@ -202,7 +202,7 @@ async function handleFileUpload(request: any, connection: SlackConnection) {
   } else {
     console.log('Need to handle file fallback');
 
-    const files = request.eventBody.event.files;
+    const files = request.event.files;
 
     // Check if there are files
     if (!files || files.length === 0) {
@@ -221,7 +221,8 @@ async function handleFileUpload(request: any, connection: SlackConnection) {
     // Close the paragraph tag
     htmlOutput += '</p>';
 
-    request.eventBody.event.text += htmlOutput;
+    request.event.text += htmlOutput;
+    console.log(`Updated request: ${JSON.stringify(request, null, 2)}`);
     return await handleMessage(request, connection);
   }
 }

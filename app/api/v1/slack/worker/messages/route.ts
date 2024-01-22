@@ -375,10 +375,12 @@ async function getOrCreateZendeskUser(
     `${zendeskCredentials.zendeskEmail}/token:${zendeskCredentials.zendeskApiKey}`
   );
 
+  console.log('Creating zendesk user with data:', messageData);
+
   const slackChannelId = messageData.channel;
 
   if (!messageData.user) {
-    console.error(`No slack user found: ${messageData}`);
+    console.error('No slack user found:', messageData);
     throw new Error('No message user found');
   }
 

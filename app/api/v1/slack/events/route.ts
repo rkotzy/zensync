@@ -78,7 +78,10 @@ export async function POST(request: NextRequest) {
       await qstash.publishJSON({
         url: 'https://zensync.vercel.app/api/v1/slack/worker/files',
         body: { eventBody: requestBody, connectionDetails: connectionDetails },
-        contentBasedDeduplication: true
+        contentBasedDeduplication: true,
+        retries: 1,
+        failureCallback:
+          'https://zensync.vercel.app/api/v1/slack/worker/messages'
       });
     } catch (error) {
       console.error('Error publishing to qstash:', error);

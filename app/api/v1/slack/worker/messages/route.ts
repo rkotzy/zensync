@@ -28,13 +28,16 @@ export const POST = verifySignatureEdge(handler);
 async function handler(request: NextRequest) {
   let requestJson = await request.json();
   console.log(JSON.stringify(requestJson, null, 2));
-  // if (request.headers.get('User-Agent') === 'Upstash-QStash') {
-  //   console.log(
-  //     `Qstash callback detected: ${JSON.stringify(requestJson, null, 2)}`
-  //   );
-  //   requestJson = parseQstashCallback(requestJson);
-  // }
+
+  // This checks for a case where the request is a callback from Qstash
+  if (request.headers.get('User-Agent') === 'Upstash-QStash' && request.body) {
+    console.log(
+      `Qstash callback detected: ${JSON.stringify(requestJson, null, 2)}`
+    );
+    requestJson = parseQstashCallback(requestJson);
+  }
   // Log the request body
+  console.log(JSON.stringify(requestJson, null, 2));
 
   const requestBody = requestJson.eventBody;
   const connectionDetails = requestJson.connectionDetails;
@@ -69,7 +72,7 @@ async function handler(request: NextRequest) {
 
 function parseQstashCallback(request: any): any {
   if (!request.body) {
-    console.log('No qstach body');
+    console.log('No qstash body');
     return request;
   }
 

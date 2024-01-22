@@ -21,7 +21,8 @@ const eventHandlers: Record<
   channel_left: handleChannelLeft,
   message: handleMessage,
   file_share: handleFileUpload,
-  message_changed: handleMessageEdit
+  message_changed: handleMessageEdit,
+  message_deleted: handleMessageDeleted
   // Add more event handlers as needed
 };
 
@@ -199,14 +200,10 @@ async function handleChannelLeft(request: any, connection: SlackConnection) {
   }
 }
 
-async function handleFileUpload(
-  request: any,
-  connection: SlackConnection,
-  isPublic: boolean = true
-) {
+async function handleFileUpload(request: any, connection: SlackConnection) {
   if (request.zendeskFileTokens) {
     console.log('File upload handled successfully');
-    return await handleMessage(request, connection, isPublic);
+    return await handleMessage(request, connection);
   } else {
     console.log('Need to handle file fallback');
 
@@ -215,7 +212,7 @@ async function handleFileUpload(
     // Check if there are files
     if (!files || files.length === 0) {
       console.log('No files found in fallback');
-      return await handleMessage(request, connection, isPublic);
+      return await handleMessage(request, connection);
     }
 
     // Start building the HTML output
@@ -231,11 +228,12 @@ async function handleFileUpload(
 
     request.event.text += htmlOutput;
     console.log(`Updated request: ${JSON.stringify(request, null, 2)}`);
-    return await handleMessage(request, connection, isPublic);
+    return await handleMessage(request, connection);
   }
 }
 
 async function handleMessageEdit(request: any, connection: SlackConnection) {
+  // TODO: - I can do this check in the event handler to avoid a worker call
   if (request.event?.message?.text === request.event?.previous_message?.text) {
     console.log('Message edit was not a change to text, ignoring');
     return;
@@ -249,9 +247,28 @@ async function handleMessageEdit(request: any, connection: SlackConnection) {
       text: `<strong>(Edited)</strong>\n\n${request.event.message.text}`
     };
 
-    return await handleFileUpload(request, connection, false);
+    // Since files can't be added/removed in an edit, we can just use the message handler
+    return await handleMessage(request, connection, false);
   } else {
     console.warn('Unhandled message edit type:', request);
+    return;
+  }
+}
+
+async function handleMessageDeleted(request: any, connection: SlackConnection) {
+  if (request.event?.previous_message) {
+    console.log('Handling message deletion');
+
+    // Merge the message data into the event object
+    request.event = {
+      ...request.event,
+      ...request.event.previous_message,
+      text: `<strong>(Deleted)</strong>\n\n${request.event.message.text}`
+    };
+
+    return await handleMessage(request, connection, false);
+  } else {
+    console.warn('Unhandled message deletion:', request);
     return;
   }
 }

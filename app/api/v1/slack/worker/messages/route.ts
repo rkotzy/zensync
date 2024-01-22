@@ -1,6 +1,6 @@
 import { NextResponse, NextRequest } from 'next/server';
 import { db } from '@/lib/drizzle';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, is } from 'drizzle-orm';
 import {
   channel,
   SlackConnection,
@@ -206,7 +206,7 @@ async function handleFileUpload(
 ) {
   if (request.zendeskFileTokens) {
     console.log('File upload handled successfully');
-    return await handleMessage(request, connection);
+    return await handleMessage(request, connection, isPublic);
   } else {
     console.log('Need to handle file fallback');
 
@@ -215,7 +215,7 @@ async function handleFileUpload(
     // Check if there are files
     if (!files || files.length === 0) {
       console.log('No files found in fallback');
-      return await handleMessage(request, connection);
+      return await handleMessage(request, connection, isPublic);
     }
 
     // Start building the HTML output
@@ -501,6 +501,12 @@ async function handleThreadReply(
   fileUploadTokens: string[] | undefined,
   isPublic: boolean
 ) {
+  console.log(
+    `Fetching conversationInfo for ${channelId} ${slackParentMessageId} ${organizationId} with messageData ${JSON.stringify(
+      messageData
+    )}`
+  );
+
   // get conversation from database
   const conversationInfo = await db
     .select({
@@ -516,6 +522,8 @@ async function handleThreadReply(
       )
     )
     .limit(1);
+
+  console.log('Conversation info fetched:', conversationInfo);
 
   if (conversationInfo.length === 0 || !conversationInfo[0].zendeskTicketId) {
     console.error('No conversation found');

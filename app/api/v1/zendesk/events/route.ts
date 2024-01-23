@@ -11,11 +11,19 @@ export async function POST(request: NextRequest) {
   console.log(JSON.stringify(requestBody, null, 2));
 
   // Save some database calls if it's a message from Zensync
+
+  // Ignore messages from Zensync
   if (
     typeof requestBody.current_user_external_id === 'string' &&
     requestBody.current_user_external_id.startsWith('zensync')
   ) {
     console.log('Message from Zensync, skipping');
+    return new NextResponse('Ok', { status: 200 });
+  }
+
+  // Ignore messages if last_updated_at === created_at
+  if (requestBody.last_updated_at === requestBody.created_at) {
+    console.log('Message is not an update, skipping');
     return new NextResponse('Ok', { status: 200 });
   }
 

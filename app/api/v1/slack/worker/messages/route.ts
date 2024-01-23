@@ -266,8 +266,9 @@ async function handleMessageDeleted(request: any, connection: SlackConnection) {
       text: `<strong>(Deleted)</strong>\n\n${request.event.previous_message.text}`
     };
 
+    // If the parent message was deleted, close the ticket
     let status = 'open';
-    if (getParentMessageId(request.event as SlackMessageData)) {
+    if (!getParentMessageId(request.event as SlackMessageData)) {
       console.log('Deleted parent message, closing ticket');
       status = 'closed';
     }

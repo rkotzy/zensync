@@ -266,7 +266,13 @@ async function handleMessageDeleted(request: any, connection: SlackConnection) {
       text: `<strong>(Deleted)</strong>\n\n${request.event.previous_message.text}`
     };
 
-    return await handleMessage(request, connection, false);
+    let status = 'open';
+    if (getParentMessageId(request.event as SlackMessageData)) {
+      console.log('Deleted parent message, closing ticket');
+      status = 'closed';
+    }
+
+    return await handleMessage(request, connection, false, status);
   } else {
     console.warn('Unhandled message deletion:', request);
     return;
@@ -276,7 +282,8 @@ async function handleMessageDeleted(request: any, connection: SlackConnection) {
 async function handleMessage(
   request: any,
   connection: SlackConnection,
-  isPublic: boolean = true
+  isPublic: boolean = true,
+  status: string = 'open'
 ) {
   // We should only have this code in one place but might want
   // To introduce it here too
@@ -345,7 +352,8 @@ async function handleMessage(
         parentMessageId ?? messageData.ts,
         zendeskUserId,
         fileUploadTokens,
-        isPublic
+        isPublic,
+        status
       );
     } catch (error) {
       console.error('Error handling thread reply:', error);
@@ -519,7 +527,8 @@ async function handleThreadReply(
   slackParentMessageId: string,
   authorId: number,
   fileUploadTokens: string[] | undefined,
-  isPublic: boolean
+  isPublic: boolean,
+  status: string = 'open'
 ) {
   console.log(
     `Fetching conversationInfo for ${channelId} ${slackParentMessageId} ${organizationId} with messageData ${JSON.stringify(
@@ -569,7 +578,7 @@ async function handleThreadReply(
         public: isPublic,
         author_id: authorId
       },
-      status: 'open'
+      status: status
     }
   };
 

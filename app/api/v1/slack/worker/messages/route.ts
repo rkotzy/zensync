@@ -628,9 +628,12 @@ async function handleThreadReply(
 }
 
 function hasClosedStatusError(responseJson: any): boolean {
-  if (responseJson.error === 'RecordInvalid' && responseJson.details?.status) {
+
+  if (responseJson.error === 'RecordInvalid' && responseJson.details?.status) { // Handles updates on closed tickets
     const statusDetails = responseJson.details.status.find((d: any) => d.description.includes('Status: closed prevents ticket update'));
     return !!statusDetails;
+  } else if (responseJson.error === 'RecordNotFound') { // Handles replies to deleted tickets
+    return true;
   }
   return false;
 }
@@ -642,7 +645,7 @@ async function handleNewConversation(
   authorId: number,
   fileUploadTokens: string[] | undefined,
   isPublic: boolean,
-  followUpTicketId: string = "0"
+  followUpTicketId: string = "-1"
 ) {
   // Fetch channel info
   const channelInfo = await db.query.channel.findFirst({
@@ -673,7 +676,6 @@ async function handleNewConversation(
   }
 
   // Create a ticket in Zendesk
-  // TODO: - Add assignee_email
   let ticketData: any = {
     ticket: {
       subject: `${channelInfo?.name}: ${
@@ -686,7 +688,7 @@ async function handleNewConversation(
       requester_id: authorId,
       external_id: conversationUuid,
       tags: ['zensync'],
-      via_followup_source_id: followUpTicketId
+      ...(followUpTicketId !== "-1" && { via_followup_source_id: followUpTicketId })
     }
   };
 

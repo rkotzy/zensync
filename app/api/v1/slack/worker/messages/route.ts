@@ -565,6 +565,7 @@ async function handleThreadReply(
   const zendeskAuthToken = btoa(
     `${zendeskCredentials.zendeskEmail}/token:${zendeskCredentials.zendeskApiKey}`
   );
+  const zendeskTicketId = conversationInfo[0].zendeskTicketId;
 
   let htmlBody = slackMarkdownToHtml(messageData.text);
   if (!htmlBody || htmlBody === '') {
@@ -588,7 +589,7 @@ async function handleThreadReply(
   }
 
   const response = await fetch(
-    `https://${zendeskCredentials.zendeskDomain}.zendesk.com/api/v2/tickets/${conversationInfo[0].zendeskTicketId}.json`,
+    `https://${zendeskCredentials.zendeskDomain}.zendesk.com/api/v2/tickets/${zendeskTicketId}.json`,
     {
       method: 'PUT',
       headers: {
@@ -603,12 +604,35 @@ async function handleThreadReply(
   const responseData = await response.json();
   console.log('Ticket comment response data:', responseData);
 
-  if (!response.ok) {
+  if (hasClosedStatusError(responseData)) {
+    // Trying to update a public comment on closed ticket
+    if (isPublic) {
+      console.log('Creating follow-up ticket');
+      await handleNewConversation(
+        messageData,
+        zendeskCredentials,
+        messageData.channel,
+        authorId,
+        fileUploadTokens,
+        true,
+        zendeskTicketId
+      );
+    }
+
+  } else if (!response.ok) {
     console.error('Error updating ticket comment:', response);
     throw new Error('Error creating comment');
   }
 
   // TODO: - Update last message ID conversation
+}
+
+function hasClosedStatusError(responseJson: any): boolean {
+  if (responseJson.error === 'RecordInvalid' && responseJson.details?.status) {
+    const statusDetails = responseJson.details.status.find((d: any) => d.description.includes('Status: closed prevents ticket update'));
+    return !!statusDetails;
+  }
+  return false;
 }
 
 async function handleNewConversation(
@@ -617,7 +641,8 @@ async function handleNewConversation(
   channelId: string,
   authorId: number,
   fileUploadTokens: string[] | undefined,
-  isPublic: boolean
+  isPublic: boolean,
+  followUpTicketId: string = "0"
 ) {
   // Fetch channel info
   const channelInfo = await db.query.channel.findFirst({
@@ -660,7 +685,8 @@ async function handleNewConversation(
       },
       requester_id: authorId,
       external_id: conversationUuid,
-      tags: ['zensync']
+      tags: ['zensync'],
+      via_followup_source_id: followUpTicketId
     }
   };
 

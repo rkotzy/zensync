@@ -599,8 +599,7 @@ async function handleThreadReply(
   let commentData: any = {
     ticket: {
       comment: {
-        html_body:
-          htmlBody + generateHTMLPermalink(slackConnectionInfo, messageData),
+        html_body: htmlBody, // + generateHTMLPermalink(slackConnectionInfo, messageData),
         public: isPublic,
         author_id: authorId
       },
@@ -716,8 +715,7 @@ async function handleNewConversation(
         messageData.text?.substring(0, 69) ?? ''
       }...`,
       comment: {
-        html_body:
-          htmlBody + generateHTMLPermalink(slackConnectionInfo, messageData),
+        html_body: htmlBody, // + generateHTMLPermalink(slackConnectionInfo, messageData),
         public: isPublic,
         author_id: authorId
       },

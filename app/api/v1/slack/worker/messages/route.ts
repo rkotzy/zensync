@@ -403,12 +403,12 @@ function generateHTMLPermalink(
   slackConnection: SlackConnection,
   messageData: SlackMessageData
 ): string {
-  return `\n\n\n<i>(<a href="https://${
+  return `<p><i>(<a href="https://${
     slackConnection.domain
   }.slack.com/archives/${messageData.channel}/p${messageData.ts.replace(
     '.',
     ''
-  )}"View in Slack</a>)</i>`;
+  )}?ref=zensync-api"View in Slack</a>)</i></p>`;
 }
 
 async function sameSenderConversationId(): Promise<string | null> {

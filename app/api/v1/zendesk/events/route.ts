@@ -21,17 +21,23 @@ export async function POST(request: NextRequest) {
     return new NextResponse('Ok', { status: 200 });
   }
 
+  // Make sure we have the last updated ticket time
+  const ticketLastUpdatedAt = requestBody.last_updated_at;
+  if (!ticketLastUpdatedAt) {
+    console.error('Missing last_updated_at');
+    return new NextResponse('Missing last_updated_at', { status: 400 });
+  }
+
   // Ignore messages if last_updated_at === created_at
   if (requestBody.last_updated_at === requestBody.created_at) {
     console.log('Message is not an update, skipping');
     return new NextResponse('Ok', { status: 200 });
   }
 
-  // Make sure we have the last updated ticket time
-  const ticketLastUpdatedAt = requestBody.last_updated_at;
-  if (!ticketLastUpdatedAt) {
-    console.error('Missing last_updated_at');
-    return new NextResponse('Missing last_updated_at', { status: 400 });
+  // Ignore message if the text contains a slack permalink
+  if (requestBody.message.includes('ref=zensync-api')) {
+    console.log('Message contains a slack permalink, skipping');
+    return new NextResponse('Ok', { status: 200 });
   }
 
   // Authenticate the request and get organization_id

@@ -181,7 +181,8 @@ export const conversation = pgTable(
       .references(() => channel.id, { onDelete: 'cascade' }),
     zendeskTicketId: text('zendesk_ticket_id').notNull(),
     slackParentMessageId: text('slack_parent_message_id').notNull(),
-    slackAuthorUserId: text('slack_author_user_id').notNull()
+    slackAuthorUserId: text('slack_author_user_id').notNull(),
+    latestSlackMessageId: text('latest_slack_message_id')
   },
   table => ({
     conversations_channel_zendesk_ticket_unique: unique().on(

@@ -637,7 +637,7 @@ async function handleThreadReply(
         conversationId: conversationId
       };
 
-      await handleNewConversation(
+      return await handleNewConversation(
         messageData,
         zendeskCredentials,
         slackConnectionInfo,
@@ -653,7 +653,11 @@ async function handleThreadReply(
     throw new Error('Error creating comment');
   }
 
-  // TODO: - Update last message ID conversation
+  // Update last message ID conversation
+  await db
+    .update(conversation)
+    .set({ latestSlackMessageId: messageData.ts })
+    .where(eq(conversation.id, conversationId));
 }
 
 function needsFollowUpTicket(responseJson: any): boolean {
@@ -766,15 +770,14 @@ async function handleNewConversation(
     throw new Error('No ticket ID');
   }
 
-  // Create conversation
-  // TODO: - Have a last message ID column
+  // Create or update conversation
   if (followUpTicket) {
     console.log(
       `Updating conversation ${conversationUuid} to ticket ${ticketId}`
     );
     await db
       .update(conversation)
-      .set({ zendeskTicketId: ticketId })
+      .set({ zendeskTicketId: ticketId, latestSlackMessageId: messageData.ts })
       .where(eq(conversation.id, conversationUuid));
   } else {
     console.log('Creating new conversation', conversationUuid);
@@ -783,7 +786,8 @@ async function handleNewConversation(
       channelId: channelInfo.id,
       slackParentMessageId: messageData.ts,
       zendeskTicketId: ticketId,
-      slackAuthorUserId: messageData.user
+      slackAuthorUserId: messageData.user,
+      latestSlackMessageId: messageData.ts
     });
   }
 }

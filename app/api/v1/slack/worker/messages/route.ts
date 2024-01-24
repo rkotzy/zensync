@@ -718,7 +718,8 @@ async function handleNewConversation(
       comment: {
         html_body:
           htmlBody + generateHTMLPermalink(slackConnectionInfo, messageData),
-        public: isPublic
+        public: isPublic,
+        author_id: authorId
       },
       requester_id: authorId,
       external_id: conversationUuid,

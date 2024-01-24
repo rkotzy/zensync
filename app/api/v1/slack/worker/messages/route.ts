@@ -408,7 +408,7 @@ function generateHTMLPermalink(
   }.slack.com/archives/${messageData.channel}/p${messageData.ts.replace(
     '.',
     ''
-  )}?ref=zensync-api"View in Slack</a>)</i></p>`;
+  )}?ref=zensync-api">View in Slack</a>)</i></p>`;
 }
 
 async function sameSenderConversationId(): Promise<string | null> {

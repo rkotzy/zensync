@@ -1,4 +1,4 @@
 export interface FollowUpTicket {
-  ticketId: string;
+  sourceTicketId: string;
   conversationId: string;
 }

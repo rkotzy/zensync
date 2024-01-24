@@ -775,20 +775,43 @@ async function handleNewConversation(
     console.log(
       `Updating conversation ${conversationUuid} to ticket ${ticketId}`
     );
-    await db
-      .update(conversation)
-      .set({ zendeskTicketId: ticketId, latestSlackMessageId: messageData.ts })
-      .where(eq(conversation.id, conversationUuid));
+    try {
+      await db
+        .update(conversation)
+        .set({
+          zendeskTicketId: ticketId,
+          latestSlackMessageId: messageData.ts
+        })
+        .where(eq(conversation.id, conversationUuid));
+    } catch (error) {
+      console.error('Error updating conversation:', error);
+      console.error('Failed payload:', {
+        zendeskTicketId: ticketId,
+        latestSlackMessageId: messageData.ts
+      });
+    }
   } else {
     console.log('Creating new conversation', conversationUuid);
-    await db.insert(conversation).values({
-      id: conversationUuid,
-      channelId: channelInfo.id,
-      slackParentMessageId: messageData.ts,
-      zendeskTicketId: ticketId,
-      slackAuthorUserId: messageData.user,
-      latestSlackMessageId: messageData.ts
-    });
+    try {
+      await db.insert(conversation).values({
+        id: conversationUuid,
+        channelId: channelInfo.id,
+        slackParentMessageId: messageData.ts,
+        zendeskTicketId: ticketId,
+        slackAuthorUserId: messageData.user,
+        latestSlackMessageId: messageData.ts
+      });
+    } catch (error) {
+      console.error('Error creating conversation:', error);
+      console.error('Failed payload:', {
+        id: conversationUuid,
+        channelId: channelInfo.id,
+        slackParentMessageId: messageData.ts,
+        zendeskTicketId: ticketId,
+        slackAuthorUserId: messageData.user,
+        latestSlackMessageId: messageData.ts
+      });
+    }
   }
 }
 

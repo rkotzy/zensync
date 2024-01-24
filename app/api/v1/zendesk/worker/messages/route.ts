@@ -78,28 +78,6 @@ async function handler(request: NextRequest) {
   return new NextResponse('Ok', { status: 202 });
 }
 
-async function authenticateRequest(
-  request: NextRequest
-): Promise<string | null> {
-  const authorizationHeader = request.headers.get('authorization');
-  const bearerToken = authorizationHeader?.replace('Bearer ', '');
-  if (!bearerToken) {
-    console.error('Missing bearer token');
-    return null;
-  }
-
-  const connection = await db.query.zendeskConnection.findFirst({
-    where: eq(zendeskConnection.id, bearerToken)
-  });
-
-  if (!connection) {
-    console.error('Invalid bearer token');
-    return null;
-  }
-
-  return connection.organizationId;
-}
-
 async function getSlackUser(
   connection: SlackConnection,
   email: string

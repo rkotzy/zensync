@@ -9,6 +9,7 @@ import {
   conversation,
   slackConnection
 } from '@/lib/schema';
+import { FollowUpTicket } from '@/interfaces/follow-up-ticket.interface';
 import { SlackMessageData } from '@/interfaces/slack-api.interface';
 import { verifySignatureEdge } from '@upstash/qstash/dist/nextjs';
 
@@ -556,6 +557,7 @@ async function handleThreadReply(
   // get conversation from database
   const conversationInfo = await db
     .select({
+      id: conversation.id,
       zendeskTicketId: conversation.zendeskTicketId
     })
     .from(conversation)
@@ -571,7 +573,11 @@ async function handleThreadReply(
 
   console.log('Conversation info fetched:', conversationInfo);
 
-  if (conversationInfo.length === 0 || !conversationInfo[0].zendeskTicketId) {
+  if (
+    conversationInfo.length === 0 ||
+    !conversationInfo[0].zendeskTicketId ||
+    !conversationInfo[0].id
+  ) {
     console.error('No conversation found');
     throw new Error('No conversation found');
   }
@@ -582,6 +588,7 @@ async function handleThreadReply(
     `${zendeskCredentials.zendeskEmail}/token:${zendeskCredentials.zendeskApiKey}`
   );
   const zendeskTicketId = conversationInfo[0].zendeskTicketId;
+  const conversationId = conversationInfo[0].id;
 
   let htmlBody = slackMarkdownToHtml(messageData.text);
   if (!htmlBody || htmlBody === '') {
@@ -621,10 +628,16 @@ async function handleThreadReply(
   const responseData = await response.json();
   console.log('Ticket comment response data:', responseData);
 
-  if (hasClosedStatusError(responseData)) {
+  if (needsFollowUpTicket(responseData)) {
     // Trying to update a public comment on closed ticket
     if (isPublic) {
       console.log('Creating follow-up ticket');
+
+      const followUpTicket: FollowUpTicket = {
+        ticketId: zendeskTicketId,
+        conversationId: conversationId
+      };
+
       await handleNewConversation(
         messageData,
         zendeskCredentials,
@@ -633,7 +646,7 @@ async function handleThreadReply(
         authorId,
         fileUploadTokens,
         true,
-        zendeskTicketId
+        followUpTicket
       );
     }
   } else if (!response.ok) {
@@ -644,7 +657,7 @@ async function handleThreadReply(
   // TODO: - Update last message ID conversation
 }
 
-function hasClosedStatusError(responseJson: any): boolean {
+function needsFollowUpTicket(responseJson: any): boolean {
   if (responseJson.error === 'RecordInvalid' && responseJson.details?.status) {
     // Handles updates on closed tickets
     const statusDetails = responseJson.details.status.find((d: any) =>
@@ -666,7 +679,7 @@ async function handleNewConversation(
   authorId: number,
   fileUploadTokens: string[] | undefined,
   isPublic: boolean,
-  followUpTicketId: string = '-1'
+  followUpTicket: FollowUpTicket | undefined = undefined
 ) {
   // Fetch channel info
   const channelInfo = await db.query.channel.findFirst({
@@ -680,7 +693,7 @@ async function handleNewConversation(
   );
 
   // Set the primary key for the conversation
-  let conversationUuid = crypto.randomUUID();
+  let conversationUuid = followUpTicket?.conversationId ?? crypto.randomUUID();
 
   if (!channelInfo) {
     console.warn(`No channel found: ${channelId}`);
@@ -710,8 +723,8 @@ async function handleNewConversation(
       requester_id: authorId,
       external_id: conversationUuid,
       tags: ['zensync'],
-      ...(followUpTicketId !== '-1' && {
-        via_followup_source_id: followUpTicketId
+      ...(followUpTicket && {
+        via_followup_source_id: followUpTicket.ticketId
       })
     }
   };
@@ -756,13 +769,20 @@ async function handleNewConversation(
 
   // Create conversation
   // TODO: - Have a last message ID column
-  await db.insert(conversation).values({
-    id: conversationUuid,
-    channelId: channelInfo.id,
-    slackParentMessageId: messageData.ts,
-    zendeskTicketId: ticketId,
-    slackAuthorUserId: messageData.user
-  });
+  if (followUpTicket) {
+    await db
+      .update(conversation)
+      .set({ zendeskTicketId: followUpTicket.ticketId })
+      .where(eq(conversation.id, followUpTicket.conversationId));
+  } else {
+    await db.insert(conversation).values({
+      id: conversationUuid,
+      channelId: channelInfo.id,
+      slackParentMessageId: messageData.ts,
+      zendeskTicketId: ticketId,
+      slackAuthorUserId: messageData.user
+    });
+  }
 }
 
 async function fetchZendeskCredentials(

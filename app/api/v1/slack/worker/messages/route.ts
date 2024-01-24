@@ -634,7 +634,7 @@ async function handleThreadReply(
       console.log('Creating follow-up ticket');
 
       const followUpTicket: FollowUpTicket = {
-        ticketId: zendeskTicketId,
+        sourceTicketId: zendeskTicketId,
         conversationId: conversationId
       };
 
@@ -724,7 +724,7 @@ async function handleNewConversation(
       external_id: conversationUuid,
       tags: ['zensync'],
       ...(followUpTicket && {
-        via_followup_source_id: followUpTicket.ticketId
+        via_followup_source_id: followUpTicket.sourceTicketId
       })
     }
   };
@@ -770,11 +770,15 @@ async function handleNewConversation(
   // Create conversation
   // TODO: - Have a last message ID column
   if (followUpTicket) {
+    console.log(
+      `Updating conversation ${conversationUuid} to ticket ${ticketId}`
+    );
     await db
       .update(conversation)
-      .set({ zendeskTicketId: followUpTicket.ticketId })
-      .where(eq(conversation.id, followUpTicket.conversationId));
+      .set({ zendeskTicketId: ticketId })
+      .where(eq(conversation.id, conversationUuid));
   } else {
+    console.log('Creating new conversation', conversationUuid);
     await db.insert(conversation).values({
       id: conversationUuid,
       channelId: channelInfo.id,

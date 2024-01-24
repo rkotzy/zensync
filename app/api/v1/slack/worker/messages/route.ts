@@ -6,7 +6,8 @@ import {
   SlackConnection,
   zendeskConnection,
   ZendeskConnection,
-  conversation
+  conversation,
+  slackConnection
 } from '@/lib/schema';
 import { SlackMessageData } from '@/interfaces/slack-api.interface';
 import { verifySignatureEdge } from '@upstash/qstash/dist/nextjs';
@@ -348,6 +349,7 @@ async function handleMessage(
       await handleThreadReply(
         messageData,
         zendeskCredentials,
+        connection,
         connection.organizationId,
         messageData.channel,
         parentMessageId ?? messageData.ts,
@@ -377,6 +379,7 @@ async function handleMessage(
     await handleNewConversation(
       messageData,
       zendeskCredentials,
+      connection,
       messageData.channel,
       zendeskUserId,
       fileUploadTokens,
@@ -394,6 +397,18 @@ function getParentMessageId(event: SlackMessageData): string | null {
   }
 
   return null;
+}
+
+function generateHTMLPermalink(
+  slackConnection: SlackConnection,
+  messageData: SlackMessageData
+): string {
+  return `\n\n\n<i>(<a href="https://${
+    slackConnection.domain
+  }.slack.com/archives/${messageData.channel}/p${messageData.ts.replace(
+    '.',
+    ''
+  )}"View in Slack</a>)</i>`;
 }
 
 async function sameSenderConversationId(): Promise<string | null> {
@@ -523,6 +538,7 @@ async function getSlackUser(
 async function handleThreadReply(
   messageData: SlackMessageData,
   zendeskCredentials: ZendeskConnection,
+  slackConnectionInfo: SlackConnection,
   organizationId: string,
   channelId: string,
   slackParentMessageId: string,
@@ -576,7 +592,8 @@ async function handleThreadReply(
   let commentData: any = {
     ticket: {
       comment: {
-        html_body: htmlBody,
+        html_body:
+          htmlBody + generateHTMLPermalink(slackConnectionInfo, messageData),
         public: isPublic,
         author_id: authorId
       },
@@ -611,6 +628,7 @@ async function handleThreadReply(
       await handleNewConversation(
         messageData,
         zendeskCredentials,
+        slackConnectionInfo,
         messageData.channel,
         authorId,
         fileUploadTokens,
@@ -618,7 +636,6 @@ async function handleThreadReply(
         zendeskTicketId
       );
     }
-
   } else if (!response.ok) {
     console.error('Error updating ticket comment:', response);
     throw new Error('Error creating comment');
@@ -628,11 +645,14 @@ async function handleThreadReply(
 }
 
 function hasClosedStatusError(responseJson: any): boolean {
-
-  if (responseJson.error === 'RecordInvalid' && responseJson.details?.status) { // Handles updates on closed tickets
-    const statusDetails = responseJson.details.status.find((d: any) => d.description.includes('Status: closed prevents ticket update'));
+  if (responseJson.error === 'RecordInvalid' && responseJson.details?.status) {
+    // Handles updates on closed tickets
+    const statusDetails = responseJson.details.status.find((d: any) =>
+      d.description.includes('Status: closed prevents ticket update')
+    );
     return !!statusDetails;
-  } else if (responseJson.error === 'RecordNotFound') { // Handles replies to deleted tickets
+  } else if (responseJson.error === 'RecordNotFound') {
+    // Handles replies to deleted tickets
     return true;
   }
   return false;
@@ -641,11 +661,12 @@ function hasClosedStatusError(responseJson: any): boolean {
 async function handleNewConversation(
   messageData: SlackMessageData,
   zendeskCredentials: ZendeskConnection,
+  slackConnectionInfo: SlackConnection,
   channelId: string,
   authorId: number,
   fileUploadTokens: string[] | undefined,
   isPublic: boolean,
-  followUpTicketId: string = "-1"
+  followUpTicketId: string = '-1'
 ) {
   // Fetch channel info
   const channelInfo = await db.query.channel.findFirst({
@@ -682,13 +703,16 @@ async function handleNewConversation(
         messageData.text?.substring(0, 69) ?? ''
       }...`,
       comment: {
-        html_body: htmlBody,
+        html_body:
+          htmlBody + generateHTMLPermalink(slackConnectionInfo, messageData),
         public: isPublic
       },
       requester_id: authorId,
       external_id: conversationUuid,
       tags: ['zensync'],
-      ...(followUpTicketId !== "-1" && { via_followup_source_id: followUpTicketId })
+      ...(followUpTicketId !== '-1' && {
+        via_followup_source_id: followUpTicketId
+      })
     }
   };
 

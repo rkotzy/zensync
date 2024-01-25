@@ -573,13 +573,22 @@ async function handleThreadReply(
 
   console.log('Conversation info fetched:', conversationInfo);
 
+  // If no conversation found, create new ticket
   if (
     conversationInfo.length === 0 ||
     !conversationInfo[0].zendeskTicketId ||
     !conversationInfo[0].id
   ) {
-    console.error('No conversation found');
-    throw new Error('No conversation found');
+    console.error('No conversation found, creating new ticket');
+    return await handleNewConversation(
+      messageData,
+      zendeskCredentials,
+      slackConnectionInfo,
+      channelId,
+      authorId,
+      fileUploadTokens,
+      isPublic
+    );
   }
 
   // Create ticket comment indepotently using Slack message ID + channel ID?

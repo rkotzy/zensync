@@ -123,6 +123,8 @@ export const zendeskConnection = pgTable('zendesk_connections', {
   zendeskEmail: text('zendesk_email').notNull(),
   zendeskApiKey: text('zendesk_api_key').notNull(),
   oauthToken: text('oauth_token'),
+  zendeskTriggerId: text('zendesk_trigger_id'),
+  zendeskWebhookId: text('zendesk_webhook_id'),
   status: text('status')
 });
 

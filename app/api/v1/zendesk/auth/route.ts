@@ -22,6 +22,9 @@ export async function POST(request: NextRequest) {
   // Generate a UUID for the webhook token and database id
   let uuid = crypto.randomUUID();
 
+
+  let zendeskTriggerId: string;
+  let zendeskWebhookId: string;
   try {
     // Create a zendesk webhook
     const webhookPayload = JSON.stringify({
@@ -68,8 +71,8 @@ export async function POST(request: NextRequest) {
     const webhookResponseJson = await zendeskWebhookResponse.json();
     console.log('Zendesk webhook created:', webhookResponseJson);
 
-    const webhookId = webhookResponseJson.webhook.id;
-    if (!webhookId) {
+    zendeskWebhookId = webhookResponseJson.webhook.id;
+    if (!zendeskWebhookId) {
       throw new Error('Failed to find webhook id');
     }
 
@@ -92,7 +95,7 @@ export async function POST(request: NextRequest) {
           {
             field: 'notification_webhook',
             value: [
-              webhookId,
+              zendeskWebhookId,
               JSON.stringify({
                 hello: 'world'
               })
@@ -127,6 +130,7 @@ export async function POST(request: NextRequest) {
     // Parse the response body to JSON
     const triggerResponseJson = await zendeskTriggerResponse.json();
     console.log('Zendesk trigger created:', triggerResponseJson);
+    zendesktriggerId = triggerResponseJson.trigger.id ?? null;
   } catch (error) {
     console.log(error);
     return NextResponse.json(
@@ -144,7 +148,9 @@ export async function POST(request: NextRequest) {
       zendeskDomain: zendeskDomain,
       zendeskEmail: zendeskEmail,
       organizationId: '11111111-1111-1111-1111-111111111111', // TODO: Pull this from the user session
-      status: 'ACTIVE'
+      status: 'ACTIVE',
+      zendeskTriggerId: zendeskTriggerId,
+      zendeskWebhookId: zendeskWebhookId
     })
     .onConflictDoUpdate({
       target: zendeskConnection.organizationId,

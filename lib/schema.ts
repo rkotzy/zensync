@@ -125,6 +125,7 @@ export const zendeskConnection = pgTable('zendesk_connections', {
   oauthToken: text('oauth_token'),
   zendeskTriggerId: text('zendesk_trigger_id'),
   zendeskWebhookId: text('zendesk_webhook_id'),
+  webhookBearerToken: text('webhook_bearer_token').unique(),
   status: text('status')
 });
 

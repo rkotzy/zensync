@@ -74,7 +74,7 @@ async function authenticateRequest(
   }
 
   const connection = await db.query.zendeskConnection.findFirst({
-    where: eq(zendeskConnection.id, bearerToken)
+    where: eq(zendeskConnection.webhookBearerToken, bearerToken)
   });
 
   if (!connection) {

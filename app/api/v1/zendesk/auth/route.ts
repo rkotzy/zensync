@@ -161,14 +161,14 @@ export async function POST(request: NextRequest) {
   await db
     .insert(zendeskConnection)
     .values({
-      id: uuid,
       zendeskApiKey: zendeskKey,
       zendeskDomain: zendeskDomain,
       zendeskEmail: zendeskEmail,
       organizationId: '11111111-1111-1111-1111-111111111111', // TODO: Pull this from the user session
       status: 'ACTIVE',
       zendeskTriggerId: zendeskTriggerId,
-      zendeskWebhookId: zendeskWebhookId
+      zendeskWebhookId: zendeskWebhookId,
+      zendeskAuthToken: uuid
     })
     .onConflictDoUpdate({
       target: zendeskConnection.organizationId,
@@ -176,6 +176,9 @@ export async function POST(request: NextRequest) {
         zendeskApiKey: zendeskKey,
         zendeskDomain: zendeskDomain,
         zendeskEmail: zendeskEmail,
+        zendeskAuthToken: uuid,
+        zendeskTriggerId: zendeskTriggerId,
+        zendeskWebhookId: zendeskWebhookId,
         status: 'ACTIVE'
       }
     });

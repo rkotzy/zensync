@@ -168,7 +168,7 @@ export async function POST(request: NextRequest) {
       status: 'ACTIVE',
       zendeskTriggerId: zendeskTriggerId,
       zendeskWebhookId: zendeskWebhookId,
-      zendeskAuthToken: uuid
+      webhookBearerToken: uuid
     })
     .onConflictDoUpdate({
       target: zendeskConnection.organizationId,
@@ -176,7 +176,7 @@ export async function POST(request: NextRequest) {
         zendeskApiKey: zendeskKey,
         zendeskDomain: zendeskDomain,
         zendeskEmail: zendeskEmail,
-        zendeskAuthToken: uuid,
+        webhookBearerToken: uuid,
         zendeskTriggerId: zendeskTriggerId,
         zendeskWebhookId: zendeskWebhookId,
         status: 'ACTIVE'

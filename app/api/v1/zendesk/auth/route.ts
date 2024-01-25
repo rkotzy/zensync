@@ -130,7 +130,7 @@ export async function POST(request: NextRequest) {
     // Parse the response body to JSON
     const triggerResponseJson = await zendeskTriggerResponse.json();
     console.log('Zendesk trigger created:', triggerResponseJson);
-    zendesktriggerId = triggerResponseJson.trigger.id ?? null;
+    zendeskTriggerId = triggerResponseJson.trigger.id ?? null;
   } catch (error) {
     console.log(error);
     return NextResponse.json(

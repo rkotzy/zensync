@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
   // Check if 'code' and 'state' values exist
   if (!code || !state) {
     return Response.redirect(
-      'https://zensync.vercel.app/connections?slackOauth=error&message=Missing required parameters: code and state.'
+      `${process.env.ROOT_URL}/connections?slackOauth=error&message=Missing required parameters: code and state.`
     );
   }
 
@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
       600000 // 10 minutes validity
   ) {
     return Response.redirect(
-      'https://zensync.vercel.app/connections?slackOauth=error&message=Invalid or expired state.'
+      `${process.env.ROOT_URL}/connections?slackOauth=error&message=Invalid or expired state.`
     );
   }
 
@@ -58,7 +58,7 @@ export async function GET(request: NextRequest) {
 
     if (!responseData.ok) {
       return Response.redirect(
-        'https://zensync.vercel.app/connections?slackOauth=error&message=Failed to authenticate.'
+        `${process.env.ROOT_URL}/connections?slackOauth=error&message=Failed to authenticate.`
       );
     }
 
@@ -72,13 +72,13 @@ export async function GET(request: NextRequest) {
         JSON.stringify(responseData, null, 2)
       );
       return Response.redirect(
-        'https://zensync.vercel.app/connections?slackOauth=error&message=Missing access token.'
+        `${process.env.ROOT_URL}/connections?slackOauth=error&message=Missing access token.`
       );
     }
   } catch (error) {
     console.log(error);
     return Response.redirect(
-      'https://zensync.vercel.app/connections?slackOauth=error&message=Authentication failed.'
+      `${process.env.ROOT_URL}/connections?slackOauth=error&message=Authentication failed.`
     );
   }
 
@@ -134,17 +134,17 @@ export async function GET(request: NextRequest) {
     } else {
       console.log('Error fetching team info:', JSON.stringify(json, null, 2));
       return Response.redirect(
-        'https://zensync.vercel.app/connections?slackOauth=error&message=Invalid access token or permissions.'
+        `${process.env.ROOT_URL}/connections?slackOauth=error&message=Invalid access token or permissions.`
       );
     }
   } catch (error) {
     console.error(error);
     return Response.redirect(
-      'https://zensync.vercel.app/connections?slackOauth=error&message=Error saving access token.'
+      `${process.env.ROOT_URL}/connections?slackOauth=error&message=Error saving access token.`
     );
   }
 
   return Response.redirect(
-    'https://zensync.vercel.app/connections?slackOauth=success'
+    `${process.env.ROOT_URL}/connections?slackOauth=success`
   );
 }

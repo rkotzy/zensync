@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
     try {
       const qstash = new Client({ token: process.env.QSTASH_TOKEN! });
       await qstash.publishJSON({
-        url: 'https://zensync.vercel.app/api/v1/slack/worker/messages',
+        url: `${process.env.ROOT_URL}/api/v1/slack/worker/messages`,
         body: { eventBody: requestBody, connectionDetails: connectionDetails },
         contentBasedDeduplication: true
       });
@@ -76,12 +76,12 @@ export async function POST(request: NextRequest) {
     try {
       const qstash = new Client({ token: process.env.QSTASH_TOKEN! });
       await qstash.publishJSON({
-        url: 'https://zensync.vercel.app/api/v1/slack/worker/files',
+        url: `${process.env.ROOT_URL}/api/v1/slack/worker/files`,
         body: { eventBody: requestBody, connectionDetails: connectionDetails },
         contentBasedDeduplication: true,
         retries: 1,
         failureCallback:
-          'https://zensync.vercel.app/api/v1/slack/worker/messages'
+        `${process.env.ROOT_URL}/api/v1/slack/worker/messages`
       });
     } catch (error) {
       console.error('Error publishing to qstash:', error);

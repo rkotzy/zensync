@@ -7,7 +7,7 @@ const nextConfig = {
   //   return [
   //     {
   //       source: '/api/:path*',
-  //       destination: 'https://zensync.vercel.app/api/:path*' // Proxy to external API
+  //       destination: `${process.env.ROOT_URL}/api/:path*` // Proxy to external API
   //     }
   //   ];
   // }

@@ -34,11 +34,11 @@ export async function POST(request: NextRequest) {
     return new NextResponse('Ok', { status: 200 });
   }
 
-  // Ignore message if the text contains a slack permalink
-  if (requestBody.message.includes('ref=zensync-api')) {
-    console.log('Message contains a slack permalink, skipping');
-    return new NextResponse('Ok', { status: 200 });
-  }
+  // // Ignore message if the text contains a slack permalink
+  // if (requestBody.message.includes('ref=zensync-api')) {
+  //   console.log('Message contains a slack permalink, skipping');
+  //   return new NextResponse('Ok', { status: 200 });
+  // }
 
   // Authenticate the request and get organization_id
   const organizationId = await authenticateRequest(request);

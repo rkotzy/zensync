@@ -22,7 +22,6 @@ export async function POST(request: NextRequest) {
   // Generate a UUID for the webhook token and database id
   let uuid = crypto.randomUUID();
 
-
   let zendeskTriggerId: string;
   let zendeskWebhookId: string;
   try {
@@ -80,7 +79,8 @@ export async function POST(request: NextRequest) {
     const triggerPayload = JSON.stringify({
       trigger: {
         title: 'Zensync - Slack-to-Zendesk Sync [DO NOT EDIT]',
-        description: 'Two-way sync between Slack and Zendesk.',
+        description:
+          'Two-way sync between Slack and Zendesk. Contact your admin or email support@slacktozendesk.com for help.',
         active: true,
         conditions: {
           all: [
@@ -88,6 +88,26 @@ export async function POST(request: NextRequest) {
               field: 'status',
               operator: 'less_than',
               value: 'closed'
+            },
+            {
+              field: 'role',
+              operator: 'is',
+              value: 'agent'
+            },
+            {
+              field: 'current_tags',
+              operator: 'includes',
+              value: 'zensync'
+            },
+            {
+              field: 'current_via_id',
+              operator: 'is_not',
+              value: '5'
+            },
+            {
+              field: 'comment_is_public',
+              operator: 'is',
+              value: 'true'
             }
           ]
         },
@@ -96,9 +116,7 @@ export async function POST(request: NextRequest) {
             field: 'notification_webhook',
             value: [
               zendeskWebhookId,
-              JSON.stringify({
-                hello: 'world'
-              })
+              '{\n  "ticket_id": "{{ticket.id}}",\n  "external_id": "{{ticket.external_id}}",\n  "last_updated_at": "{{ticket.updated_at_with_timestamp}}",\n  "created_at": "{{ticket.created_at_with_timestamp}}",\n  "requester_email": "{{ticket.requester.email}}",\n  "requester_external_id": "{{ticket.requester.external_id}}",\n  "current_user_email": "{{current_user.email}}",\n  "current_user_name": "{{current_user.name}}",\n  "current_user_external_id": "{{current_user.external_id}}",\n  "message": "{{ticket.latest_public_comment}}",\n  "is_public": "{{ticket.latest_public_comment.is_public}}",\n  "attachments": [\n    {% for attachment in ticket.latest_public_comment.attachments %}\n    {\n      "filename": "{{attachment.filename}}",\n      "url": "{{attachment.url}}"\n    }{% if forloop.last == false %},{% endif %}\n    {% endfor %}\n  ],\n  "via": "{{ticket.via}}"\n}\n'
             ]
           }
         ]

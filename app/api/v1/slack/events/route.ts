@@ -1,6 +1,6 @@
 import { NextResponse, NextRequest } from 'next/server';
 import { db } from '@/lib/drizzle';
-import { eq } from 'drizzle-orm';
+import { eq, is } from 'drizzle-orm';
 import { slackConnection, SlackConnection } from '@/lib/schema';
 import { Client } from '@upstash/qstash';
 
@@ -53,8 +53,14 @@ export async function POST(request: NextRequest) {
   const eventType = requestBody.event?.type;
   const eventSubtype = requestBody.event?.subtype;
 
+  // Check if it's an event to handle inline.
+  if (isHomeInteractionEvent(eventType)) {
+    return handleHomeInterationEvent(eventType, requestBody.event);
+  }
+
+  // Check if it's an event to queue a message
   if (
-    isSpecificEventToHandle(eventType, eventSubtype) ||
+    isEventToQueue(eventType, eventSubtype) ||
     (eventType === 'message' &&
       isPayloadEligibleForTicket(requestBody, connectionDetails))
   ) {
@@ -80,8 +86,7 @@ export async function POST(request: NextRequest) {
         body: { eventBody: requestBody, connectionDetails: connectionDetails },
         contentBasedDeduplication: true,
         retries: 1,
-        failureCallback:
-        `${process.env.ROOT_URL}/api/v1/slack/worker/messages`
+        failureCallback: `${process.env.ROOT_URL}/api/v1/slack/worker/messages`
       });
     } catch (error) {
       console.error('Error publishing to qstash:', error);
@@ -208,13 +213,19 @@ function isPayloadEligibleForTicket(
   return false;
 }
 
-function isSpecificEventToHandle(
-  eventType: string,
-  eventSubtype: string
-): boolean {
+function isEventToQueue(eventType: string, eventSubtype: string): boolean {
   const specificEventsToHandle = ['member_joined_channel', 'channel_left'];
   return (
     specificEventsToHandle.includes(eventType) ||
     specificEventsToHandle.includes(eventSubtype)
   );
+}
+
+function isHomeInteractionEvent(eventType: string): boolean {
+  const specificEventsToHandle = ['app_home_opened'];
+  return specificEventsToHandle.includes(eventType);
+}
+
+function handleHomeInterationEvent(eventType: string, eventData: any) {
+  return new NextResponse('Ok', { status: 200 });
 }

@@ -53,14 +53,22 @@ export async function POST(request: NextRequest) {
   const eventType = requestBody.event?.type;
   const eventSubtype = requestBody.event?.subtype;
 
-  // Check if it's an event to handle inline.
   if (isHomeInteractionEvent(eventType)) {
-    return handleHomeInterationEvent(eventType, requestBody.event);
-  }
-
-  // Check if it's an event to queue a message
-  if (
-    isEventToQueue(eventType, eventSubtype) ||
+    console.log(`Sending UI event ${eventType}:${eventSubtype} to qstash`);
+    try {
+      const qstash = new Client({ token: process.env.QSTASH_TOKEN! });
+      await qstash.publishJSON({
+        url: `${process.env.ROOT_URL}/api/v1/slack/worker/dashboard`,
+        body: { eventBody: requestBody, connectionDetails: connectionDetails },
+        contentBasedDeduplication: true,
+        retries: 1
+      });
+    } catch (error) {
+      console.error('Error publishing dashboard event to qstash:', error);
+      return new Response('Internal Server Error', { status: 500 });
+    }
+  } else if (
+    isMessageToQueue(eventType, eventSubtype) ||
     (eventType === 'message' &&
       isPayloadEligibleForTicket(requestBody, connectionDetails))
   ) {
@@ -73,7 +81,7 @@ export async function POST(request: NextRequest) {
         contentBasedDeduplication: true
       });
     } catch (error) {
-      console.error('Error publishing to qstash:', error);
+      console.error('Error publishing message qstash:', error);
       return new Response('Internal Server Error', { status: 500 });
     }
   } else if (eventSubtype === 'file_share') {
@@ -89,7 +97,7 @@ export async function POST(request: NextRequest) {
         failureCallback: `${process.env.ROOT_URL}/api/v1/slack/worker/messages`
       });
     } catch (error) {
-      console.error('Error publishing to qstash:', error);
+      console.error('Error publishing file to qstash:', error);
       return new Response('Internal Server Error', { status: 500 });
     }
   } else {
@@ -213,7 +221,7 @@ function isPayloadEligibleForTicket(
   return false;
 }
 
-function isEventToQueue(eventType: string, eventSubtype: string): boolean {
+function isMessageToQueue(eventType: string, eventSubtype: string): boolean {
   const specificEventsToHandle = ['member_joined_channel', 'channel_left'];
   return (
     specificEventsToHandle.includes(eventType) ||
@@ -224,8 +232,4 @@ function isEventToQueue(eventType: string, eventSubtype: string): boolean {
 function isHomeInteractionEvent(eventType: string): boolean {
   const specificEventsToHandle = ['app_home_opened'];
   return specificEventsToHandle.includes(eventType);
-}
-
-function handleHomeInterationEvent(eventType: string, eventData: any) {
-  return new NextResponse('Ok', { status: 200 });
 }

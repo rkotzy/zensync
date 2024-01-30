@@ -7,7 +7,6 @@ import {
   SlackConnection
 } from '@/lib/schema';
 import { verifySignatureEdge } from '@upstash/qstash/dist/nextjs';
-import { Client } from '@upstash/qstash';
 
 export const runtime = 'edge';
 
@@ -25,7 +24,7 @@ async function handler(request: NextRequest) {
   console.log(JSON.stringify(requestJson, null, 2));
 
   const requestBody = requestJson.eventBody;
-  const connectionDetails: SlackConnection = requestJson.connectionDetails;
+  const connectionDetails = requestJson.connectionDetails;
   if (!connectionDetails) {
     console.error('No connection details found');
     return new NextResponse('No connection details found.', { status: 500 });
@@ -55,13 +54,15 @@ async function handler(request: NextRequest) {
   return new NextResponse('Ok', { status: 200 });
 }
 
-async function handleAppHomeOpened(requestBody: any, connection: SlackConnection) {
-
+async function handleAppHomeOpened(
+  requestBody: any,
+  connection: SlackConnection
+) {
   const slackUserId = requestBody.event?.user;
 
   if (!slackUserId) {
     console.error('No user found in event body');
-    return new NextResponse('No user found in event body.', { status: 200 });
+    return;
   }
 
   try {
@@ -109,6 +110,4 @@ async function handleAppHomeOpened(requestBody: any, connection: SlackConnection
     console.error('Error in handleAppHomeOpened:', error);
     throw error;
   }
-
-  return new NextResponse('Ok', { status: 200 });
 }

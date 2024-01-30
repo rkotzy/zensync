@@ -90,7 +90,7 @@ async function handleAppHomeOpened(
 
     console.log(`Publishing Slack View: ${body}`);
 
-    const response = await fetch('https://slack.com/api/view.publish', {
+    const response = await fetch('https://slack.com/api/views.publish', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

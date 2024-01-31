@@ -13,5 +13,5 @@ export async function POST(request: NextRequest) {
   const payload = requestBody.get('payload');
   console.log(JSON.stringify(payload, null, 2));
 
-  new NextResponse('Ok', { status: 200 });
+  return new NextResponse('Ok', { status: 200 });
 }

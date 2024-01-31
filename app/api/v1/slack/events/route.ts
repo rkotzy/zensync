@@ -2,15 +2,18 @@ import { NextResponse, NextRequest } from 'next/server';
 import { db } from '@/lib/drizzle';
 import { eq, is } from 'drizzle-orm';
 import {
-  slackConnection,
   SlackConnection,
   ZendeskConnection,
   Channel,
   channel
 } from '@/lib/schema';
 import { Client } from '@upstash/qstash';
-import { verifySlackRequest } from '@/lib/utils';
-import { fetchZendeskCredentials } from '@/lib/utils';
+import {
+  fetchZendeskCredentials,
+  findSlackConnectionByTeamId,
+  InteractivityActionId,
+  verifySlackRequest
+} from '@/lib/utils';
 
 export const runtime = 'edge';
 
@@ -112,26 +115,6 @@ export async function POST(request: NextRequest) {
   return new NextResponse('Ok', { status: 202 });
 }
 
-async function findSlackConnectionByTeamId(
-  teamId: string | undefined
-): Promise<SlackConnection | null | undefined> {
-  if (!teamId) {
-    console.error('No team_id found');
-    return undefined;
-  }
-
-  try {
-    const connection = await db.query.slackConnection.findFirst({
-      where: eq(slackConnection.slackTeamId, teamId)
-    });
-
-    return connection;
-  } catch (error) {
-    console.error('Error querying SlackConnections:', error);
-    return undefined;
-  }
-}
-
 function isPayloadEligibleForTicket(
   request: any,
   connection: SlackConnection
@@ -182,8 +165,9 @@ async function fetchHomeTabData(
   slackConnection: SlackConnection
 ): Promise<[ZendeskConnection | null, Channel[]]> {
   try {
-
-    const zendeskInfo = await fetchZendeskCredentials(slackConnection.organizationId);
+    const zendeskInfo = await fetchZendeskCredentials(
+      slackConnection.organizationId
+    );
 
     const channelInfos = await db.query.channel.findMany({
       where: eq(channel.organizationId, slackConnection.organizationId)
@@ -238,8 +222,7 @@ async function handleAppHomeOpened(
                 text: zendeskInfo?.status === 'ACTIVE' ? 'Edit' : 'Connect',
                 emoji: true
               },
-              action_id: 'configure-zendesk',
-              value: 'configure-zendesk',
+              action_id: InteractivityActionId.CONFIGURE_ZENDESK_BUTTON_TAPPED,
               // Conditionally add the style property
               ...(zendeskInfo?.status !== 'ACTIVE' && { style: 'primary' })
             }

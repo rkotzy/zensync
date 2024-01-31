@@ -2,7 +2,13 @@ import { type ClassValue, clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { db } from '@/lib/drizzle';
 import { eq } from 'drizzle-orm';
-import { zendeskConnection, ZendeskConnection } from '@/lib/schema';
+import { zendeskConnection, ZendeskConnection, slackConnection, SlackConnection } from '@/lib/schema';
+
+
+export enum InteractivityActionId {
+  CONFIGURE_ZENDESK_BUTTON_TAPPED = 'configure-zendesk'
+};
+
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -74,4 +80,24 @@ export async function fetchZendeskCredentials(
   }
 
   return zendeskCredentials;
+}
+
+export async function findSlackConnectionByTeamId(
+  teamId: string | undefined
+): Promise<SlackConnection | null | undefined> {
+  if (!teamId) {
+    console.error('No team_id found');
+    return undefined;
+  }
+
+  try {
+    const connection = await db.query.slackConnection.findFirst({
+      where: eq(slackConnection.slackTeamId, teamId)
+    });
+
+    return connection;
+  } catch (error) {
+    console.error('Error querying SlackConnections:', error);
+    return undefined;
+  }
 }

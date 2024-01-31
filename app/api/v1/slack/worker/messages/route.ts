@@ -12,6 +12,7 @@ import {
 import { FollowUpTicket } from '@/interfaces/follow-up-ticket.interface';
 import { SlackMessageData } from '@/interfaces/slack-api.interface';
 import { verifySignatureEdge } from '@upstash/qstash/dist/nextjs';
+import { fetchZendeskCredentials } from '@/lib/utils';
 
 export const runtime = 'edge';
 
@@ -822,26 +823,6 @@ async function handleNewConversation(
       });
     }
   }
-}
-
-async function fetchZendeskCredentials(
-  organizationId: string
-): Promise<ZendeskConnection | null> {
-  const zendeskCredentials = await db.query.zendeskConnection.findFirst({
-    where: eq(zendeskConnection.organizationId, organizationId)
-  });
-  const zendeskDomain = zendeskCredentials?.zendeskDomain;
-  const zendeskEmail = zendeskCredentials?.zendeskEmail;
-  const zendeskApiKey = zendeskCredentials?.zendeskApiKey;
-
-  if (!zendeskDomain || !zendeskEmail || !zendeskApiKey) {
-    console.error(
-      `Invalid Zendesk credentials found for organization ${organizationId}`
-    );
-    return null;
-  }
-
-  return zendeskCredentials;
 }
 
 function slackMarkdownToHtml(markdown: string): string {

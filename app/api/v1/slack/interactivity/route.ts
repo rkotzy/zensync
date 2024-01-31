@@ -1,13 +1,18 @@
 import { NextResponse, NextRequest } from 'next/server';
-import { db } from '@/lib/drizzle';
-import { eq, is } from 'drizzle-orm';
-import { slackConnection, SlackConnection } from '@/lib/schema';
-import { Client } from '@upstash/qstash';
+import { verifySlackRequest } from '@/lib/utils';
 
 export const runtime = 'edge';
 
 export async function POST(request: NextRequest) {
   // Parse the request body
+  const textClone = request.clone();
+
+  // Verify the Slack request
+  if (!(await verifySlackRequest(textClone))) {
+    console.warn('Slack verification failed!');
+    return new Response('Verification failed', { status: 200 });
+  }
+
   const requestBody = await request.formData();
   const payloadString = requestBody.get('payload');
 

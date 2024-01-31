@@ -72,16 +72,30 @@ async function handleAppHomeOpened(
         type: 'home',
         blocks: [
           {
+            type: 'header',
+            text: {
+              type: 'plain_text',
+              text: 'Welcome to Zensync 👋'
+            }
+          },
+          {
+            type: 'divider'
+          },
+          {
             type: 'section',
             text: {
               type: 'mrkdwn',
-              text: 'This is a Block Kit example'
+              text: '*Zendesk Connection*'
             },
             accessory: {
-              type: 'image',
-              image_url:
-                'https://api.slack.com/img/blocks/bkb_template_images/notifications.png',
-              alt_text: 'calendar thumbnail'
+              type: 'button',
+              text: {
+                type: 'plain_text',
+                text: 'Edit',
+                emoji: true
+              },
+              action_id: 'configure-zendesk',
+              value: 'configure-zendesk'
             }
           }
         ]

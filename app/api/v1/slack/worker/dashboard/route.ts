@@ -60,6 +60,7 @@ async function fetchHomeTabData(
   slackConnection: SlackConnection
 ): Promise<[ZendeskConnection | undefined, Channel[]]> {
   try {
+    // TODO: - this is really similar to fetchZendeskCredentials in worker/files/route.ts and can be refactored
     const zendeskInfo = await db.query.zendeskConnection.findFirst({
       where: eq(
         zendeskConnection.organizationId,

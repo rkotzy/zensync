@@ -2,12 +2,12 @@ import { NextResponse, NextRequest } from 'next/server';
 import { db } from '@/lib/drizzle';
 import { eq } from 'drizzle-orm';
 import {
-  zendeskConnection,
   channel,
   ZendeskConnection,
   SlackConnection,
   Channel
 } from '@/lib/schema';
+import { fetchZendeskCredentials } from '@/lib/utils';
 import { verifySignatureEdge } from '@upstash/qstash/dist/nextjs';
 
 export const runtime = 'edge';
@@ -58,15 +58,10 @@ async function handler(request: NextRequest) {
 
 async function fetchHomeTabData(
   slackConnection: SlackConnection
-): Promise<[ZendeskConnection | undefined, Channel[]]> {
+): Promise<[ZendeskConnection | null, Channel[]]> {
   try {
-    // TODO: - this is really similar to fetchZendeskCredentials in worker/files/route.ts and can be refactored
-    const zendeskInfo = await db.query.zendeskConnection.findFirst({
-      where: eq(
-        zendeskConnection.organizationId,
-        slackConnection.organizationId
-      )
-    });
+
+    const zendeskInfo = await fetchZendeskCredentials(slackConnection.organizationId);
 
     const channelInfos = await db.query.channel.findMany({
       where: eq(channel.organizationId, slackConnection.organizationId)

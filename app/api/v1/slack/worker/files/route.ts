@@ -1,12 +1,7 @@
 import { NextResponse, NextRequest } from 'next/server';
-import { db } from '@/lib/drizzle';
-import { eq } from 'drizzle-orm';
-import {
-  zendeskConnection,
-  ZendeskConnection,
-  SlackConnection
-} from '@/lib/schema';
+import { ZendeskConnection, SlackConnection } from '@/lib/schema';
 import { verifySignatureEdge } from '@upstash/qstash/dist/nextjs';
+import { fetchZendeskCredentials } from '@/lib/utils';
 import { Client } from '@upstash/qstash';
 
 export const runtime = 'edge';
@@ -111,27 +106,6 @@ async function handler(request: NextRequest) {
   }
 
   return new NextResponse('Ok', { status: 202 });
-}
-
-// TODO: - this is a duplicate of the one in zendesk/worker/messages/route.ts
-async function fetchZendeskCredentials(
-  organizationId: string
-): Promise<ZendeskConnection | null> {
-  const zendeskCredentials = await db.query.zendeskConnection.findFirst({
-    where: eq(zendeskConnection.organizationId, organizationId)
-  });
-  const zendeskDomain = zendeskCredentials?.zendeskDomain;
-  const zendeskEmail = zendeskCredentials?.zendeskEmail;
-  const zendeskApiKey = zendeskCredentials?.zendeskApiKey;
-
-  if (!zendeskDomain || !zendeskEmail || !zendeskApiKey) {
-    console.error(
-      `Invalid Zendesk credentials found for organization ${organizationId}`
-    );
-    return null;
-  }
-
-  return zendeskCredentials;
 }
 
 // Function to upload a file to Zendesk directly from a URL

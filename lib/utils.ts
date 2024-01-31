@@ -1,5 +1,8 @@
 import { type ClassValue, clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { db } from '@/lib/drizzle';
+import { eq } from 'drizzle-orm';
+import { zendeskConnection, ZendeskConnection } from '@/lib/schema';
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -51,4 +54,24 @@ function timingSafeEqual(a: string, b: string): boolean {
   }
 
   return mismatch === 0;
+}
+
+export async function fetchZendeskCredentials(
+  organizationId: string
+): Promise<ZendeskConnection | null> {
+  const zendeskCredentials = await db.query.zendeskConnection.findFirst({
+    where: eq(zendeskConnection.organizationId, organizationId)
+  });
+  const zendeskDomain = zendeskCredentials?.zendeskDomain;
+  const zendeskEmail = zendeskCredentials?.zendeskEmail;
+  const zendeskApiKey = zendeskCredentials?.zendeskApiKey;
+
+  if (!zendeskDomain || !zendeskEmail || !zendeskApiKey) {
+    console.error(
+      `Invalid Zendesk credentials found for organization ${organizationId}`
+    );
+    return null;
+  }
+
+  return zendeskCredentials;
 }

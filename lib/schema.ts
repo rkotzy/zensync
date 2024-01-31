@@ -163,6 +163,8 @@ export const channel = pgTable(
   })
 );
 
+export type Channel = InferSelectModel<typeof channel>;
+
 // This represents a link between a Slack thread and a Zendesk ticket.
 export const conversation = pgTable(
   'conversations',

@@ -3,8 +3,10 @@ import { db } from '@/lib/drizzle';
 import { eq } from 'drizzle-orm';
 import {
   zendeskConnection,
+  channel,
   ZendeskConnection,
-  SlackConnection
+  SlackConnection,
+  Channel
 } from '@/lib/schema';
 import { verifySignatureEdge } from '@upstash/qstash/dist/nextjs';
 
@@ -54,6 +56,28 @@ async function handler(request: NextRequest) {
   return new NextResponse('Ok', { status: 200 });
 }
 
+async function fetchHomeTabData(
+  slackConnection: SlackConnection
+): Promise<[ZendeskConnection | undefined, Channel[]]> {
+  try {
+    const zendeskInfo = await db.query.zendeskConnection.findFirst({
+      where: eq(
+        zendeskConnection.organizationId,
+        slackConnection.organizationId
+      )
+    });
+
+    const channelInfos = await db.query.channel.findMany({
+      where: eq(channel.organizationId, slackConnection.organizationId)
+    });
+
+    return [zendeskInfo, channelInfos];
+  } catch (error) {
+    console.error('Error fetching home tab data from database:', error);
+    throw error;
+  }
+}
+
 async function handleAppHomeOpened(
   requestBody: any,
   connection: SlackConnection
@@ -66,6 +90,8 @@ async function handleAppHomeOpened(
   }
 
   try {
+    const [zendeskInfo, channelInfos] = await fetchHomeTabData(connection);
+
     const body = JSON.stringify({
       user_id: slackUserId,
       view: {
@@ -91,9 +117,10 @@ async function handleAppHomeOpened(
               type: 'button',
               text: {
                 type: 'plain_text',
-                text: 'Edit',
+                text: zendeskInfo?.status === 'ACTIVE' ? 'Edit' : 'Connect',
                 emoji: true
               },
+              style: zendeskInfo?.status === 'ACTIVE' ? 'primary' : null,
               action_id: 'configure-zendesk',
               value: 'configure-zendesk'
             }

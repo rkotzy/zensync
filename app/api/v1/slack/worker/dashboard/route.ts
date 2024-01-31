@@ -120,7 +120,7 @@ async function handleAppHomeOpened(
                 text: zendeskInfo?.status === 'ACTIVE' ? 'Edit' : 'Connect',
                 emoji: true
               },
-              style: zendeskInfo?.status === 'ACTIVE' ? null : 'primary',
+              style: zendeskInfo?.status === 'ACTIVE' ? 'default' : 'primary',
               action_id: 'configure-zendesk',
               value: 'configure-zendesk'
             }

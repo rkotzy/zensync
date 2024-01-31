@@ -120,9 +120,10 @@ async function handleAppHomeOpened(
                 text: zendeskInfo?.status === 'ACTIVE' ? 'Edit' : 'Connect',
                 emoji: true
               },
-              style: zendeskInfo?.status === 'ACTIVE' ? 'default' : 'primary',
               action_id: 'configure-zendesk',
-              value: 'configure-zendesk'
+              value: 'configure-zendesk',
+              // Conditionally add the style property
+              ...(zendeskInfo?.status !== 'ACTIVE' && { style: 'primary' })
             }
           }
         ]
@@ -145,7 +146,7 @@ async function handleAppHomeOpened(
     const responseData = await response.json();
 
     if (!responseData.ok) {
-      throw new Error(`Error publishig view: ${responseData.error}`);
+      throw new Error(`Error publishig view: ${responseData}`);
     }
   } catch (error) {
     console.error('Error in handleAppHomeOpened:', error);

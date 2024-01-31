@@ -8,19 +8,10 @@ export const runtime = 'edge';
 
 export async function POST(request: NextRequest) {
   // Parse the request body
-  const requestBody = await request.json();
-  console.log(JSON.stringify(requestBody, null, 2));
-
-  // Check if this is a URL verification request from Slack
-  if (requestBody.type === 'url_verification') {
-    // Respond with the challenge value
-    return new Response(requestBody.challenge, {
-      status: 200,
-      headers: {
-        'Content-Type': 'text/plain'
-      }
-    });
-  }
+  const requestBody = await request.formData();
+  console.log('requestBody', requestBody);
+  const payload = requestBody.get('payload');
+  console.log(JSON.stringify(payload, null, 2));
 
   new NextResponse('Ok', { status: 200 });
 }

@@ -27,3 +27,7 @@ export async function POST(request: NextRequest) {
 
   return new NextResponse('Ok', { status: 200 });
 }
+
+async function openZendeskConfigurationModal() {
+  
+}

@@ -227,7 +227,7 @@ async function handleAppHomeOpened(
                   text:
                     zendeskInfo?.status !== 'ACTIVE'
                       ? 'Connect to Zendesk'
-                      : 'Manage Zendesk Connection',
+                      : 'Edit Zendesk Connection',
                   emoji: true
                 },
                 action_id:
@@ -243,7 +243,7 @@ async function handleAppHomeOpened(
             type: 'header',
             text: {
               type: 'plain_text',
-              text: 'Connected channels (1)',
+              text: `Connected channels (${channelInfos.length})`,
               emoji: true
             }
           },
@@ -252,47 +252,13 @@ async function handleAppHomeOpened(
             elements: [
               {
                 type: 'mrkdwn',
-                text: 'Enter `/invite @zensync` in an existing channel to sync it with Zendesk.'
+                text: 'Use command `/invite @zensync` in an existing channel to sync it with Zendesk.'
               }
             ]
           }
         ]
       }
     });
-
-    // {
-    //   type: 'home',
-    //   blocks: [
-    //     {
-    //       type: 'header',
-    //       text: {
-    //         type: 'plain_text',
-    //         text: 'Welcome to Zensync 👋'
-    //       }
-    //     },
-    //     {
-    //       type: 'divider'
-    //     },
-    //     {
-    //       type: 'section',
-    //       text: {
-    //         type: 'mrkdwn',
-    //         text: '*Zendesk Connection*'
-    //       },
-    //       accessory: {
-    //         type: 'button',
-    //         text: {
-    //           type: 'plain_text',
-    //           text: zendeskInfo?.status === 'ACTIVE' ? 'Edit' : 'Connect',
-    //           emoji: true
-    //         },
-    //         action_id: InteractivityActionId.CONFIGURE_ZENDESK_BUTTON_TAPPED,
-    //         // Conditionally add the style property
-    //         ...(zendeskInfo?.status !== 'ACTIVE' && { style: 'primary' })
-    //       }
-    //     }
-    //   ]
-    // }
 
     console.log(`Publishing Slack View: ${body}`);
 

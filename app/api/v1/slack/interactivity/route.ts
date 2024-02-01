@@ -107,12 +107,12 @@ async function openZendeskConfigurationModal(
             },
             label: {
               type: 'plain_text',
-              text: 'Zendesk Domain',
+              text: 'Zendesk Domain Prefix',
               emoji: true
             },
             hint: {
               type: 'plain_text',
-              text: 'Example: yourcompany.zendesk.com. More info [here](https://yourdocumentationlink.com).'
+              text: 'For example, if your Zendesk domain is yourcompany.zendesk.com, you would just enter "yourcompany" here. More info <https://yourdocumentationlink.com|here>.'
             }
           },
           {
@@ -134,7 +134,7 @@ async function openZendeskConfigurationModal(
             },
             hint: {
               type: 'plain_text',
-              text: 'Enter the email address of the Zendesk admin that created the API key. More info [here](https://yourdocumentationlink.com).'
+              text: 'Enter the email address of the Zendesk admin that created the API key. More info <https://yourdocumentationlink.com|here>.'
             }
           },
           {
@@ -155,7 +155,7 @@ async function openZendeskConfigurationModal(
             },
             hint: {
               type: 'plain_text',
-              text: 'A Zendesk API key. Have an admin create this. More info on creating API keys can be found in our docs [here](https://yourdocumentationlink.com).'
+              text: 'A Zendesk API key. Have an admin create this. More info on creating API keys can be found in our docs <https://yourdocumentationlink.com|here>.'
             }
           }
         ]

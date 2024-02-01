@@ -90,7 +90,7 @@ async function openZendeskConfigurationModal(
             type: 'section',
             text: {
               type: 'mrkdwn',
-              text: "We'll use the details below to authenticate with Zendesk. More information about these fields and Zendesk authentication can be found in our <https://slacktozendesk.com/docs|documentation>."
+              text: 'Visit our <https://slacktozendesk.com/docs|documentation> for any questions or help connecting to Zendesk.'
             }
           },
           {

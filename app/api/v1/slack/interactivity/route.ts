@@ -2,7 +2,8 @@ import { NextResponse, NextRequest } from 'next/server';
 import {
   verifySlackRequest,
   findSlackConnectionByTeamId,
-  InteractivityActionId
+  InteractivityActionId,
+  fetchZendeskCredentials
 } from '@/lib/utils';
 import { SlackConnection } from '@/lib/schema';
 
@@ -62,31 +63,99 @@ async function openZendeskConfigurationModal(
     return;
   }
 
+  const zendeskInfo = await fetchZendeskCredentials(connection.organizationId);
+
   try {
     const body = JSON.stringify({
       trigger_id: triggerId,
       view: {
         type: 'modal',
-        callback_id: 'modal-identifier',
         title: {
           type: 'plain_text',
-          text: 'Just a modal'
+          text: 'Zendesk Credentials',
+          emoji: true
+        },
+        submit: {
+          type: 'plain_text',
+          text: 'Connect',
+          emoji: true
+        },
+        close: {
+          type: 'plain_text',
+          text: 'Cancel',
+          emoji: true
         },
         blocks: [
           {
             type: 'section',
-            block_id: 'section-identifier',
             text: {
               type: 'mrkdwn',
-              text: '*Welcome* to ~my~ Block Kit _modal_!'
-            },
-            accessory: {
-              type: 'button',
-              text: {
+              text: "We'll use the details below to authenticate with Zendesk."
+            }
+          },
+          {
+            type: 'input',
+            block_id: 'zendesk_domain',
+            element: {
+              type: 'plain_text_input',
+              action_id: InteractivityActionId.ZENDESK_DOMAIN_TEXT_FIELD,
+              initial_value: `${zendeskInfo?.zendeskDomain ?? ''}`,
+              placeholder: {
                 type: 'plain_text',
-                text: 'Just a button'
-              },
-              action_id: 'button-identifier'
+                text: 'slacktozendesk.zendesk.com'
+              }
+            },
+            label: {
+              type: 'plain_text',
+              text: 'Zendesk Domain',
+              emoji: true
+            },
+            hint: {
+              type: 'plain_text',
+              text: 'Example: yourcompany.zendesk.com. More info [here](https://yourdocumentationlink.com).'
+            }
+          },
+          {
+            type: 'input',
+            block_id: 'zendesk_admin_email',
+            element: {
+              type: 'plain_text_input',
+              action_id: InteractivityActionId.ZENDESK_EMAIL_TEXT_FIELD,
+              initial_value: `${zendeskInfo?.zendeskEmail ?? ''}`,
+              placeholder: {
+                type: 'plain_text',
+                text: 'ryan@slacktozendesk.com'
+              }
+            },
+            label: {
+              type: 'plain_text',
+              text: 'Zendesk Admin Email',
+              emoji: true
+            },
+            hint: {
+              type: 'plain_text',
+              text: 'Enter the email address of the Zendesk admin that created the API key. More info [here](https://yourdocumentationlink.com).'
+            }
+          },
+          {
+            type: 'input',
+            block_id: 'zendesk_api_key',
+            element: {
+              type: 'plain_text_input',
+              action_id: InteractivityActionId.ZENDESK_API_KEY_TEXT_FIELD,
+              placeholder: {
+                type: 'plain_text',
+                text: '•••••••••••••••••••••••••'
+              }
+            },
+            label: {
+              type: 'plain_text',
+              text: 'Zendesk API Key',
+              emoji: true
+            },
+            hint: {
+              type: 'plain_text',
+              text: 'A Zendesk API key. Have an admin create this. More info on creating API keys can be found in our docs [here](https://yourdocumentationlink.com).'
             }
           }
         ]

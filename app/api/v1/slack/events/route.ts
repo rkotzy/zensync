@@ -203,7 +203,8 @@ async function handleAppHomeOpened(
             type: 'header',
             text: {
               type: 'plain_text',
-              text: 'Welcome to Zensync 👋'
+              text: 'Welcome to Zensync :wave:',
+              emoji: true
             }
           },
           {
@@ -213,23 +214,85 @@ async function handleAppHomeOpened(
             type: 'section',
             text: {
               type: 'mrkdwn',
-              text: '*Zendesk Connection*'
-            },
-            accessory: {
-              type: 'button',
-              text: {
-                type: 'plain_text',
-                text: zendeskInfo?.status === 'ACTIVE' ? 'Edit' : 'Connect',
-                emoji: true
-              },
-              action_id: InteractivityActionId.CONFIGURE_ZENDESK_BUTTON_TAPPED,
-              // Conditionally add the style property
-              ...(zendeskInfo?.status !== 'ACTIVE' && { style: 'primary' })
+              text: 'Manage your connection with Zendesk through the button below. Refer to our <https://slacktozendesk.com/docs|docs> for more information.'
             }
+          },
+          {
+            type: 'actions',
+            elements: [
+              {
+                type: 'button',
+                text: {
+                  type: 'plain_text',
+                  text:
+                    zendeskInfo?.status !== 'ACTIVE'
+                      ? 'Connect to Zendesk'
+                      : 'Manage Zendesk Connection',
+                  emoji: true
+                },
+                action_id:
+                  InteractivityActionId.CONFIGURE_ZENDESK_BUTTON_TAPPED,
+                ...(zendeskInfo?.status !== 'ACTIVE' && { style: 'primary' })
+              }
+            ]
+          },
+          {
+            type: 'divider'
+          },
+          {
+            type: 'header',
+            text: {
+              type: 'plain_text',
+              text: 'Connected channels (1)',
+              emoji: true
+            }
+          },
+          {
+            type: 'context',
+            elements: [
+              {
+                type: 'mrkdwn',
+                text: 'Enter `/invite @zensync` in an existing channel to sync it with Zendesk.'
+              }
+            ]
           }
         ]
       }
     });
+
+    // {
+    //   type: 'home',
+    //   blocks: [
+    //     {
+    //       type: 'header',
+    //       text: {
+    //         type: 'plain_text',
+    //         text: 'Welcome to Zensync 👋'
+    //       }
+    //     },
+    //     {
+    //       type: 'divider'
+    //     },
+    //     {
+    //       type: 'section',
+    //       text: {
+    //         type: 'mrkdwn',
+    //         text: '*Zendesk Connection*'
+    //       },
+    //       accessory: {
+    //         type: 'button',
+    //         text: {
+    //           type: 'plain_text',
+    //           text: zendeskInfo?.status === 'ACTIVE' ? 'Edit' : 'Connect',
+    //           emoji: true
+    //         },
+    //         action_id: InteractivityActionId.CONFIGURE_ZENDESK_BUTTON_TAPPED,
+    //         // Conditionally add the style property
+    //         ...(zendeskInfo?.status !== 'ACTIVE' && { style: 'primary' })
+    //       }
+    //     }
+    //   ]
+    // }
 
     console.log(`Publishing Slack View: ${body}`);
 

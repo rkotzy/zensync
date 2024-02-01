@@ -72,7 +72,7 @@ async function openZendeskConfigurationModal(
         type: 'modal',
         title: {
           type: 'plain_text',
-          text: 'Zendesk Credentials',
+          text: 'Zendesk Connection',
           emoji: true
         },
         submit: {
@@ -90,7 +90,7 @@ async function openZendeskConfigurationModal(
             type: 'section',
             text: {
               type: 'mrkdwn',
-              text: "We'll use the details below to authenticate with Zendesk."
+              text: "We'll use the details below to authenticate with Zendesk. More information about these fields and Zendesk authentication can be found in our <https://slacktozendesk.com/docs|documentation>."
             }
           },
           {
@@ -111,8 +111,8 @@ async function openZendeskConfigurationModal(
               emoji: true
             },
             hint: {
-              type: 'mrkdwn',
-              text: 'Example: If your Zendesk domain is yourcompany.zendesk.com, you would just enter "yourcompany" here. More info <https://yourdocumentationlink.com|here>.'
+              type: 'plain_text',
+              text: 'Example: If your Zendesk domain is yourcompany.zendesk.com, you would just enter "yourcompany" here.'
             }
           },
           {
@@ -133,8 +133,8 @@ async function openZendeskConfigurationModal(
               emoji: true
             },
             hint: {
-              type: 'mrkdwn',
-              text: 'Enter the email address of the Zendesk admin that created the API key. More info <https://yourdocumentationlink.com|here>.'
+              type: 'plain_text',
+              text: 'Enter the email address of the Zendesk admin that created the API key.'
             }
           },
           {
@@ -154,8 +154,8 @@ async function openZendeskConfigurationModal(
               emoji: true
             },
             hint: {
-              type: 'mrkdwn',
-              text: 'A Zendesk API key. Have an admin create this. More info on creating API keys can be found in our docs <https://yourdocumentationlink.com|here>.'
+              type: 'plain_text',
+              text: 'The Zendesk API key your admin created.'
             }
           }
         ]

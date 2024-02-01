@@ -2,13 +2,19 @@ import { type ClassValue, clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { db } from '@/lib/drizzle';
 import { eq } from 'drizzle-orm';
-import { zendeskConnection, ZendeskConnection, slackConnection, SlackConnection } from '@/lib/schema';
-
+import {
+  zendeskConnection,
+  ZendeskConnection,
+  slackConnection,
+  SlackConnection
+} from '@/lib/schema';
 
 export enum InteractivityActionId {
-  CONFIGURE_ZENDESK_BUTTON_TAPPED = 'configure-zendesk'
-};
-
+  CONFIGURE_ZENDESK_BUTTON_TAPPED = 'configure-zendesk',
+  ZENDESK_DOMAIN_TEXT_FIELD = 'zendesk-domain-input',
+  ZENDESK_EMAIL_TEXT_FIELD = 'zendesk-email-input',
+  ZENDESK_API_KEY_TEXT_FIELD = 'zendesk-api-key-input'
+}
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));

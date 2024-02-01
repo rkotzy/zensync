@@ -252,7 +252,7 @@ async function handleAppHomeOpened(
             elements: [
               {
                 type: 'mrkdwn',
-                text: 'Use command `/invite @zensync` any channel to sync it with Zendesk.'
+                text: 'Use command `/invite @zensync` any channel to connect it with Zendesk.'
               }
             ]
           },

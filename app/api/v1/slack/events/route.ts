@@ -252,7 +252,7 @@ async function handleAppHomeOpened(
             elements: [
               {
                 type: 'mrkdwn',
-                text: 'Use command `/invite @zensync` in an existing channel to sync it with Zendesk.'
+                text: 'Use command `/invite @zensync` any channel to sync it with Zendesk.'
               }
             ]
           },
@@ -270,7 +270,7 @@ async function handleAppHomeOpened(
               text: {
                 type: 'plain_text',
                 emoji: true,
-                text: 'Edit'
+                text: 'Manage'
               }
             }
           },

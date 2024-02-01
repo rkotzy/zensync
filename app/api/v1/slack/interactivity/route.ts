@@ -111,8 +111,8 @@ async function openZendeskConfigurationModal(
               emoji: true
             },
             hint: {
-              type: 'plain_text',
-              text: 'For example, if your Zendesk domain is yourcompany.zendesk.com, you would just enter "yourcompany" here. More info <https://yourdocumentationlink.com|here>.'
+              type: 'mrkdwn',
+              text: 'Example: If your Zendesk domain is yourcompany.zendesk.com, you would just enter "yourcompany" here. More info <https://yourdocumentationlink.com|here>.'
             }
           },
           {
@@ -133,7 +133,7 @@ async function openZendeskConfigurationModal(
               emoji: true
             },
             hint: {
-              type: 'plain_text',
+              type: 'mrkdwn',
               text: 'Enter the email address of the Zendesk admin that created the API key. More info <https://yourdocumentationlink.com|here>.'
             }
           },
@@ -154,7 +154,7 @@ async function openZendeskConfigurationModal(
               emoji: true
             },
             hint: {
-              type: 'plain_text',
+              type: 'mrkdwn',
               text: 'A Zendesk API key. Have an admin create this. More info on creating API keys can be found in our docs <https://yourdocumentationlink.com|here>.'
             }
           }

@@ -255,6 +255,37 @@ async function handleAppHomeOpened(
                 text: 'Use command `/invite @zensync` in an existing channel to sync it with Zendesk.'
               }
             ]
+          },
+          {
+            type: 'divider'
+          },
+          {
+            type: 'section',
+            text: {
+              type: 'mrkdwn',
+              text: '*<fakeLink.toHotelPage.com|#customer-microsoft>*\nOwner: jacob@slacktozendesk.com\nTags: `enterprise`'
+            },
+            accessory: {
+              type: 'button',
+              text: {
+                type: 'plain_text',
+                emoji: true,
+                text: 'Edit'
+              }
+            }
+          },
+          {
+            type: 'context',
+            elements: [
+              {
+                type: 'plain_text',
+                emoji: true,
+                text: 'Last active on 2024-01-31'
+              }
+            ]
+          },
+          {
+            type: 'divider'
           }
         ]
       }

@@ -229,8 +229,7 @@ async function handleAppHomeOpened(
                     : 'Edit Zendesk Connection',
                 emoji: true
               },
-              action_id:
-                InteractivityActionId.CONFIGURE_ZENDESK_BUTTON_TAPPED,
+              action_id: InteractivityActionId.CONFIGURE_ZENDESK_BUTTON_TAPPED,
               ...(zendeskInfo?.status !== 'ACTIVE' && { style: 'primary' })
             }
           ]
@@ -260,7 +259,7 @@ async function handleAppHomeOpened(
         },
         ...createChannelSections(channelInfos)
       ]
-    }
+    };
 
     const body = JSON.stringify({
       user_id: slackUserId,
@@ -298,36 +297,38 @@ function createChannelSections(channelInfos: Channel[]) {
   }
 
   // Map over the channelInfos array to create a section for each item
-  return channelInfos.map(info => {
-    return [
-      {
-        type: 'section',
-        text: {
-          type: 'mrkdwn',
-          text: `*<fakeLink.toHotelPage.com|#${info.name}>*\nOwner: jacob@slacktozendesk.com\nTags: \`enterprise\``
-        },
-        accessory: {
-          type: 'button',
+  return channelInfos
+    .map(info => {
+      return [
+        {
+          type: 'section',
           text: {
-            type: 'plain_text',
-            emoji: true,
-            text: 'Edit'
+            type: 'mrkdwn',
+            text: `*<fakeLink.toHotelPage.com|#${info.name}>*\nOwner: ${info.defaultAssigneeEmail}\nTags: \`enterprise\``
+          },
+          accessory: {
+            type: 'button',
+            text: {
+              type: 'plain_text',
+              emoji: true,
+              text: 'Edit'
+            }
           }
+        },
+        {
+          type: 'context',
+          elements: [
+            {
+              type: 'plain_text',
+              emoji: true,
+              text: `Last active on ${info.latestActivityAt ?? info.createdAt}`
+            }
+          ]
+        },
+        {
+          type: 'divider'
         }
-      },
-      {
-        type: 'context',
-        elements: [
-          {
-            type: 'plain_text',
-            emoji: true,
-            text: 'Last active on 2024-01-31' // You might want to replace this with dynamic data as well
-          }
-        ]
-      },
-      {
-        type: 'divider'
-      }
-    ];
-  }).flat(); // Use flat() to flatten the array of arrays into a single array
+      ];
+    })
+    .flat();
 }

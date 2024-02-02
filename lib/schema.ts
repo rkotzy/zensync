@@ -153,7 +153,13 @@ export const channel = pgTable(
     type: text('type'),
     isMember: boolean('is_member'),
     name: text('name'),
-    isShared: boolean('is_shared')
+    isShared: boolean('is_shared'),
+    defaultAssigneeEmail: text('default_assignee_email'),
+    latestActivityAt: timestamp('latest_activity_at', {
+      mode: 'date',
+      withTimezone: true
+    }),
+    tags: text('tags').array()
   },
   table => ({
     channels_organization_slack_channel_unique: unique().on(

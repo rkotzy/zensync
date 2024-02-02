@@ -25,7 +25,11 @@ const eventHandlers: Record<
   message: handleMessage,
   file_share: handleFileUpload,
   message_changed: handleMessageEdit,
-  message_deleted: handleMessageDeleted
+  message_deleted: handleMessageDeleted,
+  channel_archive: handleChannelLeft,
+  channel_deleted: handleChannelLeft,
+  channel_unarchive: handleChannelUnarchive,
+  channel_rename: handleChannelNameChanged
   // Add more event handlers as needed
 };
 
@@ -199,6 +203,60 @@ async function handleChannelLeft(request: any, connection: SlackConnection) {
     console.log(`Channel ${channelId} left.`);
   } catch (error) {
     console.error('Error archiving channel in database:', error);
+    throw error;
+  }
+}
+
+async function handleChannelUnarchive(
+  request: any,
+  connection: SlackConnection
+) {
+  const eventData = request.event;
+  const channelId = eventData.channel;
+
+  try {
+    await db
+      .update(channel)
+      .set({
+        isMember: true
+      })
+      .where(
+        and(
+          eq(channel.organizationId, connection.organizationId),
+          eq(channel.slackChannelId, channelId)
+        )
+      );
+
+    console.log(`Channel ${channelId} unarchived.`);
+  } catch (error) {
+    console.error('Error unarchiving channel in database:', error);
+    throw error;
+  }
+}
+
+async function handleChannelNameChanged(
+  request: any,
+  connection: SlackConnection
+) {
+  const eventData = request.event;
+  const channelId = eventData.channel;
+
+  try {
+    await db
+      .update(channel)
+      .set({
+        name: eventData.channel.name
+      })
+      .where(
+        and(
+          eq(channel.organizationId, connection.organizationId),
+          eq(channel.slackChannelId, channelId)
+        )
+      );
+
+    console.log(`Channel ${channelId} name changed.`);
+  } catch (error) {
+    console.error('Error updating channel in database:', error);
     throw error;
   }
 }

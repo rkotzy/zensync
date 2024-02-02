@@ -154,7 +154,14 @@ function isPayloadEligibleForTicket(
 }
 
 function isMessageToQueue(eventType: string, eventSubtype: string): boolean {
-  const specificEventsToHandle = ['member_joined_channel', 'channel_left'];
+  const specificEventsToHandle = [
+    'member_joined_channel',
+    'channel_left',
+    'channel_archive',
+    'channel_unarchive',
+    'channel_deleted',
+    'channel_rename'
+  ];
   return (
     specificEventsToHandle.includes(eventType) ||
     specificEventsToHandle.includes(eventSubtype)

@@ -170,7 +170,8 @@ async function fetchHomeTabData(
     );
 
     const channelInfos = await db.query.channel.findMany({
-      where: eq(channel.organizationId, slackConnection.organizationId)
+      where: eq(channel.organizationId, slackConnection.organizationId),
+      limit: 1000 // This is artificaially set just to not blow up the home tab
     });
 
     return [zendeskInfo, channelInfos];
@@ -194,101 +195,76 @@ async function handleAppHomeOpened(
   try {
     const [zendeskInfo, channelInfos] = await fetchHomeTabData(connection);
 
-    const body = JSON.stringify({
-      user_id: slackUserId,
-      view: {
-        type: 'home',
-        blocks: [
-          {
-            type: 'header',
-            text: {
-              type: 'plain_text',
-              text: 'Welcome to Zensync :wave:',
-              emoji: true
-            }
-          },
-          {
-            type: 'divider'
-          },
-          {
-            type: 'section',
-            text: {
-              type: 'mrkdwn',
-              text: 'Manage your connection with Zendesk through the button below. Refer to our <https://slacktozendesk.com/docs|docs> for more information.'
-            }
-          },
-          {
-            type: 'actions',
-            elements: [
-              {
-                type: 'button',
-                text: {
-                  type: 'plain_text',
-                  text:
-                    zendeskInfo?.status !== 'ACTIVE'
-                      ? 'Connect to Zendesk'
-                      : 'Edit Zendesk Connection',
-                  emoji: true
-                },
-                action_id:
-                  InteractivityActionId.CONFIGURE_ZENDESK_BUTTON_TAPPED,
-                ...(zendeskInfo?.status !== 'ACTIVE' && { style: 'primary' })
-              }
-            ]
-          },
-          {
-            type: 'divider'
-          },
-          {
-            type: 'header',
-            text: {
-              type: 'plain_text',
-              text: `Connected channels (${channelInfos.length})`,
-              emoji: true
-            }
-          },
-          {
-            type: 'context',
-            elements: [
-              {
-                type: 'mrkdwn',
-                text: 'Use command `/invite @zensync` any channel to connect it with Zendesk.'
-              }
-            ]
-          },
-          {
-            type: 'divider'
-          },
-          {
-            type: 'section',
-            text: {
-              type: 'mrkdwn',
-              text: '*<fakeLink.toHotelPage.com|#customer-microsoft>*\nOwner: jacob@slacktozendesk.com\nTags: `enterprise`'
-            },
-            accessory: {
+    const viewJson = {
+      type: 'home',
+      blocks: [
+        {
+          type: 'header',
+          text: {
+            type: 'plain_text',
+            text: 'Welcome to Zensync :wave:',
+            emoji: true
+          }
+        },
+        {
+          type: 'divider'
+        },
+        {
+          type: 'section',
+          text: {
+            type: 'mrkdwn',
+            text: 'Manage your connection with Zendesk through the button below. Refer to our <https://slacktozendesk.com/docs|docs> for more information.'
+          }
+        },
+        {
+          type: 'actions',
+          elements: [
+            {
               type: 'button',
               text: {
                 type: 'plain_text',
-                emoji: true,
-                text: 'Manage'
-              }
+                text:
+                  zendeskInfo?.status !== 'ACTIVE'
+                    ? 'Connect to Zendesk'
+                    : 'Edit Zendesk Connection',
+                emoji: true
+              },
+              action_id:
+                InteractivityActionId.CONFIGURE_ZENDESK_BUTTON_TAPPED,
+              ...(zendeskInfo?.status !== 'ACTIVE' && { style: 'primary' })
             }
-          },
-          {
-            type: 'context',
-            elements: [
-              {
-                type: 'plain_text',
-                emoji: true,
-                text: 'Last active on 2024-01-31'
-              }
-            ]
-          },
-          {
-            type: 'divider'
+          ]
+        },
+        {
+          type: 'divider'
+        },
+        {
+          type: 'header',
+          text: {
+            type: 'plain_text',
+            text: `Connected channels (${channelInfos.length})`,
+            emoji: true
           }
-        ]
-      }
+        },
+        {
+          type: 'context',
+          elements: [
+            {
+              type: 'mrkdwn',
+              text: 'Use command `/invite @zensync` any channel to connect it with Zendesk.'
+            }
+          ]
+        },
+        {
+          type: 'divider'
+        },
+        ...createChannelSections(channelInfos)
+      ]
+    }
+
+    const body = JSON.stringify({
+      user_id: slackUserId,
+      view: viewJson
     });
 
     console.log(`Publishing Slack View: ${body}`);
@@ -313,4 +289,45 @@ async function handleAppHomeOpened(
     console.error('Error in handleAppHomeOpened:', error);
     throw error;
   }
+}
+
+function createChannelSections(channelInfos: Channel[]) {
+  // If the channelInfos array is empty, return an empty array
+  if (channelInfos.length === 0) {
+    return [];
+  }
+
+  // Map over the channelInfos array to create a section for each item
+  return channelInfos.map(info => {
+    return [
+      {
+        type: 'section',
+        text: {
+          type: 'mrkdwn',
+          text: `*<fakeLink.toHotelPage.com|#${info.name}>*\nOwner: jacob@slacktozendesk.com\nTags: \`enterprise\``
+        },
+        accessory: {
+          type: 'button',
+          text: {
+            type: 'plain_text',
+            emoji: true,
+            text: 'Edit'
+          }
+        }
+      },
+      {
+        type: 'context',
+        elements: [
+          {
+            type: 'plain_text',
+            emoji: true,
+            text: 'Last active on 2024-01-31' // You might want to replace this with dynamic data as well
+          }
+        ]
+      },
+      {
+        type: 'divider'
+      }
+    ];
+  }).flat(); // Use flat() to flatten the array of arrays into a single array
 }

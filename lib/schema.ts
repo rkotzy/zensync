@@ -5,7 +5,8 @@ import {
   text,
   boolean,
   pgEnum,
-  unique
+  unique,
+  index
 } from 'drizzle-orm/pg-core';
 import { InferSelectModel, relations } from 'drizzle-orm';
 
@@ -165,6 +166,10 @@ export const channel = pgTable(
     channels_organization_slack_channel_unique: unique().on(
       table.organizationId,
       table.slackChannelId
+    ),
+    idx_channels_organization_id_is_member: index().on(
+      table.organizationId,
+      table.isMember
     )
   })
 );

@@ -1,6 +1,6 @@
 import { NextResponse, NextRequest } from 'next/server';
 import { db } from '@/lib/drizzle';
-import { eq, is } from 'drizzle-orm';
+import { eq, and, desc } from 'drizzle-orm';
 import {
   SlackConnection,
   ZendeskConnection,
@@ -170,7 +170,11 @@ async function fetchHomeTabData(
     );
 
     const channelInfos = await db.query.channel.findMany({
-      where: eq(channel.organizationId, slackConnection.organizationId),
+      where: and(
+        eq(channel.organizationId, slackConnection.organizationId),
+        eq(channel.isMember, true)
+      ),
+      orderBy: [desc(channel.name)],
       limit: 1000 // This is artificaially set just to not blow up the home tab
     });
 

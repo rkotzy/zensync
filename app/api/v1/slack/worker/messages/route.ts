@@ -239,22 +239,22 @@ async function handleChannelNameChanged(
   connection: SlackConnection
 ) {
   const eventData = request.event;
-  const channelId = eventData.channel;
+  const channel = eventData.channel;
 
   try {
     await db
       .update(channel)
       .set({
-        name: eventData.channel.name
+        name: channel.name
       })
       .where(
         and(
           eq(channel.organizationId, connection.organizationId),
-          eq(channel.slackChannelId, channelId)
+          eq(channel.slackChannelId, channel.id)
         )
       );
 
-    console.log(`Channel ${channelId} name changed.`);
+    console.log(`Channel ${channel.name} name changed.`);
   } catch (error) {
     console.error('Error updating channel in database:', error);
     throw error;

@@ -241,6 +241,8 @@ async function handleChannelNameChanged(
   const eventData = request.event;
   const channel = eventData.channel;
 
+  console.log('Handling channel name change:', request);
+
   try {
     await db
       .update(channel)

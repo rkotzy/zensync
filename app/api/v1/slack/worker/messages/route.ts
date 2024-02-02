@@ -29,7 +29,8 @@ const eventHandlers: Record<
   channel_archive: handleChannelLeft,
   channel_deleted: handleChannelLeft,
   channel_unarchive: handleChannelUnarchive,
-  channel_rename: handleChannelNameChanged
+  channel_rename: handleChannelNameChanged,
+  channel_id_changed: handleChannelIdChanged
   // Add more event handlers as needed
 };
 
@@ -255,7 +256,33 @@ async function handleChannelNameChanged(
 
     console.log(`Channel ${eventData.channel.id} name changed.`);
   } catch (error) {
-    console.error('Error updating channel in database:', error);
+    console.error('Error updating channel name in database:', error);
+    throw error;
+  }
+}
+
+async function handleChannelIdChanged(
+  request: any,
+  connection: SlackConnection
+) {
+  const eventData = request.event;
+
+  try {
+    await db
+      .update(channel)
+      .set({
+        slackChannelId: eventData.new_channel_id
+      })
+      .where(
+        and(
+          eq(channel.organizationId, connection.organizationId),
+          eq(channel.slackChannelId, eventData.old_channel_id)
+        )
+      );
+
+    console.log(`Channel ${eventData.new_channel_id} ID changed.`);
+  } catch (error) {
+    console.error('Error updating channel Id in database:', error);
     throw error;
   }
 }

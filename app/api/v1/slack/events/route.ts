@@ -160,7 +160,8 @@ function isMessageToQueue(eventType: string, eventSubtype: string): boolean {
     'channel_archive',
     'channel_unarchive',
     'channel_deleted',
-    'channel_rename'
+    'channel_rename',
+    'channel_id_changed'
   ];
   return (
     specificEventsToHandle.includes(eventType) ||

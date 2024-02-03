@@ -10,40 +10,6 @@ import {
 } from 'drizzle-orm/pg-core';
 import { InferSelectModel, relations } from 'drizzle-orm';
 
-// The organization represents a company. An organization can have many
-// accounts, but a single Slack connection and Zendesk connection.
-export const organization = pgTable('organizations', {
-  id: uuid('id').defaultRandom().defaultRandom().primaryKey().notNull(),
-  createdAt: timestamp('created_at', {
-    mode: 'date',
-    withTimezone: true
-  })
-    .defaultNow()
-    .notNull(),
-  updatedAt: timestamp('updated_at', {
-    mode: 'date',
-    withTimezone: true
-  }),
-  name: text('name').notNull()
-});
-
-// An account represents a user in the system. An account can belong to
-// one or more organizations.
-export const account = pgTable('accounts', {
-  id: uuid('id').defaultRandom().primaryKey().notNull(),
-  createdAt: timestamp('created_at', {
-    mode: 'date',
-    withTimezone: true
-  })
-    .defaultNow()
-    .notNull(),
-  updatedAt: timestamp('updated_at', {
-    mode: 'date',
-    withTimezone: true
-  }),
-  name: text('name').notNull()
-});
-
 // This table stores the state parameter that is passed to the Slack OAuth.
 // This is used to prevent CSRF attacks and is a temporary value. We can
 // delete any values beyond a certain age (e.g. 10 minutes) safely.
@@ -54,13 +20,7 @@ export const slackOauthState = pgTable('slack_oauth_states', {
     withTimezone: true
   })
     .defaultNow()
-    .notNull(),
-  organizationId: uuid('organization_id')
     .notNull()
-    .references(() => organization.id, { onDelete: 'cascade' }),
-  createdBy: uuid('created_by')
-    .notNull()
-    .references(() => account.id, { onDelete: 'cascade' })
 });
 
 // A Slack connection represents a connection to a Slack workspace that
@@ -78,12 +38,6 @@ export const slackConnection = pgTable('slack_connections', {
     mode: 'date',
     withTimezone: true
   }),
-  organizationId: uuid('organization_id')
-    .notNull()
-    .unique()
-    .references(() => organization.id, {
-      onDelete: 'cascade'
-    }),
   slackTeamId: text('slack_team_id').notNull().unique(),
   name: text('name'),
   domain: text('domain'),
@@ -114,10 +68,10 @@ export const zendeskConnection = pgTable('zendesk_connections', {
     mode: 'date',
     withTimezone: true
   }),
-  organizationId: uuid('organization_id')
+  slackConnectionId: uuid('slack_connection_id')
     .notNull()
     .unique()
-    .references(() => organization.id, {
+    .references(() => slackConnection.id, {
       onDelete: 'cascade'
     }),
   zendeskDomain: text('zendesk_domain').notNull(),
@@ -147,10 +101,10 @@ export const channel = pgTable(
       mode: 'date',
       withTimezone: true
     }),
-    slackChannelId: text('slack_channel_id').notNull(),
-    organizationId: uuid('organization_id')
+    slackChannelIdentifier: text('slack_channel_identifier').notNull(),
+    slackConnectionId: uuid('slack_connection_id')
       .notNull()
-      .references(() => organization.id, { onDelete: 'cascade' }),
+      .references(() => slackConnection.id, { onDelete: 'cascade' }),
     type: text('type'),
     isMember: boolean('is_member'),
     name: text('name'),
@@ -163,12 +117,12 @@ export const channel = pgTable(
     tags: text('tags').array()
   },
   table => ({
-    channels_organization_slack_channel_unique: unique().on(
-      table.organizationId,
-      table.slackChannelId
+    channels_slack_connection_slack_channel_unique: unique().on(
+      table.slackConnectionId,
+      table.slackChannelIdentifier
     ),
-    idx_channels_organization_id_is_member: index().on(
-      table.organizationId,
+    idx_channels_slack_connection_is_member: index().on(
+      table.slackConnectionId,
       table.isMember
     )
   })

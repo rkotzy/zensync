@@ -4,7 +4,7 @@ import { slackOauthState, slackConnection } from '@/lib/schema';
 import { eq } from 'drizzle-orm';
 import { SlackTeamResponse } from '@/interfaces/slack-api.interface';
 
-export const runtime = 'edge'; // 'nodejs' is the default
+export const runtime = 'edge';
 
 export async function GET(request: NextRequest) {
   const code = request.nextUrl.searchParams.get('code');
@@ -33,10 +33,6 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  console.log(
-    `Authenticated org ID: ${slackOauthStateResponse.organizationId}`
-  );
-
   let accessToken: string;
   let authedUser: string;
   let botUserId: string;
@@ -63,7 +59,7 @@ export async function GET(request: NextRequest) {
     }
 
     accessToken = responseData.access_token;
-    authedUser = responseData.authed_user.id
+    authedUser = responseData.authed_user.id;
     botUserId = responseData.bot_user_id;
 
     if (!accessToken || !botUserId) {
@@ -102,7 +98,6 @@ export async function GET(request: NextRequest) {
       await db
         .insert(slackConnection)
         .values({
-          organizationId: slackOauthStateResponse.organizationId,
           slackTeamId: team.id,
           name: team.name,
           domain: team.domain,
@@ -116,9 +111,8 @@ export async function GET(request: NextRequest) {
           status: 'ACTIVE'
         })
         .onConflictDoUpdate({
-          target: slackConnection.organizationId,
+          target: slackConnection.slackTeamId,
           set: {
-            slackTeamId: team.id,
             name: team.name,
             domain: team.domain,
             iconUrl: team.icon.image_132,

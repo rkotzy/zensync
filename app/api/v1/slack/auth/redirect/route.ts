@@ -2,30 +2,14 @@ import { NextResponse, NextRequest } from 'next/server';
 import { db } from '@/lib/drizzle';
 import { slackOauthState } from '@/lib/schema';
 
-export const runtime = 'edge'; // 'nodejs' is the default
+export const runtime = 'edge';
 
 export async function GET(request: NextRequest) {
-  const oid = request.nextUrl.searchParams.get('oid');
-
-  // Check if 'oid' parameter exists
-  if (!oid || !isValidUUID(oid)) {
-    return new Response(JSON.stringify({ error: 'Missing oid parameter' }), {
-      status: 400,
-      headers: {
-        'Content-Type': 'application/json'
-      }
-    });
-  }
-
   const state = crypto.randomUUID();
-
-  // TODO: Verify user is a member of the organization
 
   try {
     await db.insert(slackOauthState).values({
-      id: state,
-      createdBy: '00000000-0000-0000-0000-000000000000', // TODO: Get user id from session
-      organizationId: oid
+      id: state
     });
   } catch (error) {
     console.log(error);

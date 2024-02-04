@@ -1,6 +1,7 @@
 import { NextResponse, NextRequest } from 'next/server';
 import { db } from '@/lib/drizzle';
-import { zendeskConnection } from '@/lib/schema';
+import { zendeskConnection, slackConnection } from '@/lib/schema';
+import { eq } from 'drizzle-orm';
 
 export const runtime = 'edge';
 
@@ -15,6 +16,19 @@ export async function POST(request: NextRequest) {
     .replace(/\s/g, '')
     .toLowerCase();
   const zendeskKey = requestBody.zendeskKey.replace(/\s/g, '');
+
+  // TODO: - This should come from the intereactivity body
+  const slackTeamId = requestBody.slackTeamId;
+  const slackConnectionInfo = await db.query.slackConnection.findFirst({
+    where: eq(slackConnection.slackTeamId, slackTeamId)
+  });
+
+  if (!slackConnectionInfo) {
+    return NextResponse.json(
+      { message: 'Invalid Slack Connection' },
+      { status: 400 }
+    );
+  }
 
   // Base64 encode zendeskEmail/token:zendeskKey
   const zendeskAuthToken = btoa(`${zendeskEmail}/token:${zendeskKey}`);
@@ -164,14 +178,14 @@ export async function POST(request: NextRequest) {
       zendeskApiKey: zendeskKey,
       zendeskDomain: zendeskDomain,
       zendeskEmail: zendeskEmail,
-      organizationId: '11111111-1111-1111-1111-111111111111', // TODO: Pull this from the user session
+      slackConnectionId: slackConnectionInfo.id,
       status: 'ACTIVE',
       zendeskTriggerId: zendeskTriggerId,
       zendeskWebhookId: zendeskWebhookId,
       webhookBearerToken: uuid
     })
     .onConflictDoUpdate({
-      target: zendeskConnection.organizationId,
+      target: zendeskConnection.slackConnectionId,
       set: {
         zendeskApiKey: zendeskKey,
         zendeskDomain: zendeskDomain,

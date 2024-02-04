@@ -69,10 +69,10 @@ function timingSafeEqual(a: string, b: string): boolean {
 }
 
 export async function fetchZendeskCredentials(
-  organizationId: string
+  slackConnectionId: string
 ): Promise<ZendeskConnection | null> {
   const zendeskCredentials = await db.query.zendeskConnection.findFirst({
-    where: eq(zendeskConnection.organizationId, organizationId)
+    where: eq(zendeskConnection.slackConnectionId, slackConnectionId)
   });
   const zendeskDomain = zendeskCredentials?.zendeskDomain;
   const zendeskEmail = zendeskCredentials?.zendeskEmail;
@@ -80,7 +80,7 @@ export async function fetchZendeskCredentials(
 
   if (!zendeskDomain || !zendeskEmail || !zendeskApiKey) {
     console.error(
-      `Invalid Zendesk credentials found for organization ${organizationId}`
+      `Invalid Zendesk credentials found for slack connection ${slackConnectionId}`
     );
     return null;
   }

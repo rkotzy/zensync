@@ -48,13 +48,15 @@ export async function POST(request: NextRequest) {
   // Handle events that require an organization details
   ///////////////////////////////////////
 
-  // Find the corresponding organization connection details
+  // Find the corresponding slack connection details
   const connectionDetails = await findSlackConnectionByTeamId(
     requestBody.team_id
   );
 
   if (!connectionDetails) {
-    console.warn(`No organization found for team ID: ${requestBody.team_id}.`);
+    console.warn(
+      `No slack connection found for team ID: ${requestBody.team_id}.`
+    );
     return new Response('Invalid team_id', { status: 404 });
   }
 
@@ -173,13 +175,11 @@ async function fetchHomeTabData(
   slackConnection: SlackConnection
 ): Promise<[ZendeskConnection | null, Channel[]]> {
   try {
-    const zendeskInfo = await fetchZendeskCredentials(
-      slackConnection.organizationId
-    );
+    const zendeskInfo = await fetchZendeskCredentials(slackConnection.id);
 
     const channelInfos = await db.query.channel.findMany({
       where: and(
-        eq(channel.organizationId, slackConnection.organizationId),
+        eq(channel.slackConnectionId, slackConnection.id),
         eq(channel.isMember, true)
       ),
       orderBy: [desc(channel.name)],

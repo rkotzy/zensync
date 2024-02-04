@@ -1,12 +1,7 @@
 import { NextResponse, NextRequest } from 'next/server';
 import { db } from '@/lib/drizzle';
 import { eq } from 'drizzle-orm';
-import {
-  zendeskConnection,
-  conversation,
-  SlackConnection,
-  slackConnection
-} from '@/lib/schema';
+import { conversation, SlackConnection, slackConnection } from '@/lib/schema';
 import { verifySignatureEdge } from '@upstash/qstash/dist/nextjs';
 
 export const runtime = 'edge';
@@ -19,7 +14,7 @@ async function handler(request: NextRequest) {
   console.log(JSON.stringify(requestJson, null, 2));
 
   const requestBody = requestJson.eventBody;
-  const organizationId = requestJson.organizationId;
+  const slackConnectionId = requestJson.slackConnectionId;
 
   // Get the conversation from external_id
   const conversationInfo = await db.query.conversation.findFirst({
@@ -41,21 +36,21 @@ async function handler(request: NextRequest) {
   // To be safe I should double-check the organization_id owns the channel_id
   if (
     !conversationInfo.channel ||
-    !conversationInfo.channel.slackChannelId ||
-    conversationInfo.channel.organizationId !== organizationId
+    !conversationInfo.channel.slackChannelIdentifier ||
+    conversationInfo.channel.slackConnectionId !== slackConnectionId
   ) {
-    console.warn(`Invalid Ids: ${organizationId} !== ${conversationInfo}`);
+    console.warn(`Invalid Ids: ${slackConnectionId} !== ${conversationInfo}`);
     return new NextResponse('Invalid Ids', { status: 401 });
   }
 
   // Create a Slack message in a thread from parent message id
   const slackConnectionInfo: SlackConnection | undefined =
     await db.query.slackConnection.findFirst({
-      where: eq(slackConnection.organizationId, organizationId)
+      where: eq(slackConnection.id, slackConnectionId)
     });
 
   if (!slackConnectionInfo) {
-    console.error(`No Slack connection found for org ${organizationId}`);
+    console.error(`No Slack connection found for id ${slackConnectionId}`);
     return new NextResponse('No Slack connection found', { status: 404 });
   }
 
@@ -68,7 +63,7 @@ async function handler(request: NextRequest) {
       requestBody,
       slackConnectionInfo,
       conversationInfo.slackParentMessageId,
-      conversationInfo.channel.slackChannelId
+      conversationInfo.channel.slackChannelIdentifier
     );
   } catch (error) {
     console.error(error);

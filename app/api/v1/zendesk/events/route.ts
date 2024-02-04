@@ -40,9 +40,9 @@ export async function POST(request: NextRequest) {
   //   return new NextResponse('Ok', { status: 200 });
   // }
 
-  // Authenticate the request and get organization_id
-  const organizationId = await authenticateRequest(request);
-  if (!organizationId) {
+  // Authenticate the request and get slack connection
+  const slackConnectionId = await authenticateRequest(request);
+  if (!slackConnectionId) {
     return new NextResponse('Unauthorized', { status: 401 });
   }
 
@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
     const qstash = new Client({ token: process.env.QSTASH_TOKEN! });
     await qstash.publishJSON({
       url: `${process.env.ROOT_URL}/api/v1/zendesk/worker/messages`,
-      body: { eventBody: requestBody, organizationId: organizationId },
+      body: { eventBody: requestBody, slackConnectionId: slackConnectionId },
       headers: { 'x-ticket-updated-at': ticketLastUpdatedAt },
       contentBasedDeduplication: true
     });
@@ -82,5 +82,5 @@ async function authenticateRequest(
     return null;
   }
 
-  return connection.organizationId;
+  return connection.slackConnectionId;
 }

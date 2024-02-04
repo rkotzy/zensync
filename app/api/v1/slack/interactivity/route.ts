@@ -63,7 +63,7 @@ async function openZendeskConfigurationModal(
     return;
   }
 
-  const zendeskInfo = await fetchZendeskCredentials(connection.organizationId);
+  const zendeskInfo = await fetchZendeskCredentials(connection.id);
 
   try {
     const body = JSON.stringify({

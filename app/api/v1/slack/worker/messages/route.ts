@@ -4,10 +4,8 @@ import { eq, and, is } from 'drizzle-orm';
 import {
   channel,
   SlackConnection,
-  zendeskConnection,
   ZendeskConnection,
-  conversation,
-  slackConnection
+  conversation
 } from '@/lib/schema';
 import { FollowUpTicket } from '@/interfaces/follow-up-ticket.interface';
 import { SlackMessageData } from '@/interfaces/slack-api.interface';

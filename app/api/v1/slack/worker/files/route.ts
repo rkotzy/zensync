@@ -31,9 +31,7 @@ async function handler(request: NextRequest) {
   // Fetch Zendesk credentials
   let zendeskCredentials: ZendeskConnection | null;
   try {
-    zendeskCredentials = await fetchZendeskCredentials(
-      connectionDetails.organizationId
-    );
+    zendeskCredentials = await fetchZendeskCredentials(connectionDetails.id);
   } catch (error) {
     console.error(error);
     return new NextResponse('Error fetching Zendesk credentials', {
@@ -42,7 +40,7 @@ async function handler(request: NextRequest) {
   }
   if (!zendeskCredentials) {
     console.error(
-      `No Zendesk credentials found for org: ${connectionDetails.organizationId}`
+      `No Zendesk credentials found for slack connection: ${connectionDetails.id}`
     );
     return new NextResponse('Error fetching Zendesk credentials', {
       status: 409

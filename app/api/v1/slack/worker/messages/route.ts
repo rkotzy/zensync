@@ -4,10 +4,8 @@ import { eq, and, is } from 'drizzle-orm';
 import {
   channel,
   SlackConnection,
-  zendeskConnection,
   ZendeskConnection,
-  conversation,
-  slackConnection
+  conversation
 } from '@/lib/schema';
 import { FollowUpTicket } from '@/interfaces/follow-up-ticket.interface';
 import { SlackMessageData } from '@/interfaces/slack-api.interface';
@@ -138,15 +136,15 @@ async function handleChannelJoined(request: any, connection: SlackConnection) {
     await db
       .insert(channel)
       .values({
-        organizationId: connection.organizationId,
-        slackChannelId: channelId,
+        slackConnectionId: connection.id,
+        slackChannelIdentifier: channelId,
         type: channelType,
         isMember: true,
         name: channelName,
         isShared: isShared
       })
       .onConflictDoUpdate({
-        target: [channel.organizationId, channel.slackChannelId],
+        target: [channel.slackConnectionId, channel.slackChannelIdentifier],
         set: {
           type: channelType,
           isMember: true,
@@ -156,7 +154,7 @@ async function handleChannelJoined(request: any, connection: SlackConnection) {
       });
 
     console.log(
-      `Channel ${channelId} added to the database with organization ID ${connection.organizationId}.`
+      `Channel ${channelId} added to the database with connection ID ${connection.id}.`
     );
   } catch (error) {
     console.error('Error saving channel to database:', error);
@@ -196,8 +194,8 @@ async function handleChannelLeft(request: any, connection: SlackConnection) {
       })
       .where(
         and(
-          eq(channel.organizationId, connection.organizationId),
-          eq(channel.slackChannelId, channelId)
+          eq(channel.slackConnectionId, connection.id),
+          eq(channel.slackChannelIdentifier, channelId)
         )
       );
 
@@ -223,8 +221,8 @@ async function handleChannelUnarchive(
       })
       .where(
         and(
-          eq(channel.organizationId, connection.organizationId),
-          eq(channel.slackChannelId, channelId)
+          eq(channel.slackConnectionId, connection.id),
+          eq(channel.slackChannelIdentifier, channelId)
         )
       );
 
@@ -249,8 +247,8 @@ async function handleChannelNameChanged(
       })
       .where(
         and(
-          eq(channel.organizationId, connection.organizationId),
-          eq(channel.slackChannelId, eventData.channel.id)
+          eq(channel.slackConnectionId, connection.id),
+          eq(channel.slackChannelIdentifier, eventData.channel.id)
         )
       );
 
@@ -271,12 +269,12 @@ async function handleChannelIdChanged(
     await db
       .update(channel)
       .set({
-        slackChannelId: eventData.new_channel_id
+        slackChannelIdentifier: eventData.new_channel_id
       })
       .where(
         and(
-          eq(channel.organizationId, connection.organizationId),
-          eq(channel.slackChannelId, eventData.old_channel_id)
+          eq(channel.slackConnectionId, connection.id),
+          eq(channel.slackChannelIdentifier, eventData.old_channel_id)
         )
       );
 
@@ -394,16 +392,14 @@ async function handleMessage(
   // Fetch Zendesk credentials
   let zendeskCredentials: ZendeskConnection | null;
   try {
-    zendeskCredentials = await fetchZendeskCredentials(
-      connection.organizationId
-    );
+    zendeskCredentials = await fetchZendeskCredentials(connection.id);
   } catch (error) {
     console.error(error);
     throw new Error('Error fetching Zendesk credentials');
   }
   if (!zendeskCredentials) {
     console.error(
-      `No Zendesk credentials found for org: ${connection.organizationId}`
+      `No Zendesk credentials found for slack connection: ${connection.id}`
     );
     throw new Error('No Zendesk credentials found');
   }
@@ -436,7 +432,6 @@ async function handleMessage(
         messageData,
         zendeskCredentials,
         connection,
-        connection.organizationId,
         messageData.channel,
         parentMessageId ?? messageData.ts,
         zendeskUserId,
@@ -483,18 +478,6 @@ function getParentMessageId(event: SlackMessageData): string | null {
   }
 
   return null;
-}
-
-function generateHTMLPermalink(
-  slackConnection: SlackConnection,
-  messageData: SlackMessageData
-): string {
-  return `<p><i>(<a href="https://${
-    slackConnection.domain
-  }.slack.com/archives/${messageData.channel}/p${messageData.ts.replace(
-    '.',
-    ''
-  )}?ref=zensync-api">View in Slack</a>)</i></p>`;
 }
 
 async function sameSenderConversationId(): Promise<string | null> {
@@ -625,7 +608,6 @@ async function handleThreadReply(
   messageData: SlackMessageData,
   zendeskCredentials: ZendeskConnection,
   slackConnectionInfo: SlackConnection,
-  organizationId: string,
   channelId: string,
   slackParentMessageId: string,
   authorId: number,
@@ -634,9 +616,9 @@ async function handleThreadReply(
   status: string = 'open'
 ) {
   console.log(
-    `Fetching conversationInfo for ${channelId} ${slackParentMessageId} ${organizationId} with messageData ${JSON.stringify(
-      messageData
-    )}`
+    `Fetching conversationInfo for ${channelId} ${slackParentMessageId} ${
+      slackConnectionInfo.id
+    } with messageData ${JSON.stringify(messageData)}`
   );
 
   // get conversation from database
@@ -649,9 +631,9 @@ async function handleThreadReply(
     .innerJoin(channel, eq(conversation.channelId, channel.id))
     .where(
       and(
-        eq(channel.slackChannelId, channelId),
+        eq(channel.slackChannelIdentifier, channelId),
         eq(conversation.slackParentMessageId, slackParentMessageId),
-        eq(channel.organizationId, organizationId)
+        eq(channel.slackConnectionId, slackConnectionInfo.id)
       )
     )
     .limit(1);
@@ -780,7 +762,7 @@ async function handleNewConversation(
 ) {
   // Fetch channel info
   const channelInfo = await db.query.channel.findFirst({
-    where: eq(channel.slackChannelId, channelId)
+    where: eq(channel.slackChannelIdentifier, channelId)
   });
 
   // Create Zendesk ticket indepotently using Slack message ID + channel ID?

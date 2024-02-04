@@ -171,38 +171,3 @@ export const conversationRelations = relations(conversation, ({ one }) => ({
     references: [channel.id]
   })
 }));
-
-// This represents the actual messages that are sent in either
-// Slack or Zendesk.
-export const messageTypeEnum = pgEnum('message_type_enum', [
-  'SLACK',
-  'ZENDESK'
-]);
-export const message = pgTable(
-  'messages',
-  {
-    id: uuid('id').defaultRandom().defaultRandom().primaryKey().notNull(),
-    createdAt: timestamp('created_at', {
-      mode: 'date',
-      withTimezone: true
-    })
-      .defaultNow()
-      .notNull(),
-    updatedAt: timestamp('updated_at', {
-      mode: 'date',
-      withTimezone: true
-    }),
-    conversationId: uuid('conversation_id')
-      .notNull()
-      .references(() => conversation.id, { onDelete: 'cascade' }),
-    type: messageTypeEnum('type').notNull(),
-    platformIdentifier: text('platform_identifier').notNull()
-  },
-  table => ({
-    messages_type_platform_identifier_unique: unique().on(
-      table.conversationId,
-      table.type,
-      table.platformIdentifier
-    )
-  })
-);

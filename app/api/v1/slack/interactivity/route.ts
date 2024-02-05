@@ -103,12 +103,10 @@ async function saveZendeskCredentials(
   });
 
   const zendeskDomain = extractZendeskDomain(
-    rawZendeskDomain.zendeskDomain.replace(/\s/g, '').toLowerCase()
+    rawZendeskDomain?.replace(/\s/g, '').toLowerCase()
   );
-  const zendeskEmail = rawZendeskAdminEmail.zendeskEmail
-    .replace(/\s/g, '')
-    .toLowerCase();
-  const zendeskKey = rawZendeskApiKey.zendeskKey.replace(/\s/g, '');
+  const zendeskEmail = rawZendeskAdminEmail?.replace(/\s/g, '').toLowerCase();
+  const zendeskKey = rawZendeskApiKey?.replace(/\s/g, '');
 
   console.log({
     zendeskDomain,

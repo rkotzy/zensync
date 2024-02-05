@@ -96,15 +96,19 @@ async function saveZendeskCredentials(
   const rawZendeskApiKey =
     values?.zendesk_api_key['zendesk-api-key-input']?.value;
 
-  const zendeskDomain = rawZendeskDomain.zendeskDomain
-    .replace(/\s/g, '')
-    .toLowerCase();
+  console.log({
+    rawZendeskDomain,
+    rawZendeskAdminEmail,
+    rawZendeskApiKey
+  });
+
+  const zendeskDomain = extractZendeskDomain(
+    rawZendeskDomain.zendeskDomain.replace(/\s/g, '').toLowerCase()
+  );
   const zendeskEmail = rawZendeskAdminEmail.zendeskEmail
     .replace(/\s/g, '')
     .toLowerCase();
-  const zendeskKey = extractZendeskDomain(
-    rawZendeskApiKey.zendeskKey.replace(/\s/g, '')
-  );
+  const zendeskKey = rawZendeskApiKey.zendeskKey.replace(/\s/g, '');
 
   console.log({
     zendeskDomain,

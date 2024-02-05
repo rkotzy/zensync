@@ -79,8 +79,8 @@ export async function fetchZendeskCredentials(
   const zendeskApiKey = zendeskCredentials?.zendeskApiKey;
 
   if (!zendeskDomain || !zendeskEmail || !zendeskApiKey) {
-    console.error(
-      `Invalid Zendesk credentials found for slack connection ${slackConnectionId}`
+    console.log(
+      `No Zendesk credentials found for slack connection ${slackConnectionId}`
     );
     return null;
   }

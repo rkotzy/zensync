@@ -13,7 +13,8 @@ export enum InteractivityActionId {
   CONFIGURE_ZENDESK_BUTTON_TAPPED = 'configure-zendesk',
   ZENDESK_DOMAIN_TEXT_FIELD = 'zendesk-domain-input',
   ZENDESK_EMAIL_TEXT_FIELD = 'zendesk-email-input',
-  ZENDESK_API_KEY_TEXT_FIELD = 'zendesk-api-key-input'
+  ZENDESK_API_KEY_TEXT_FIELD = 'zendesk-api-key-input',
+  ZENDESK_CONFIGURATION_MODAL_ID = 'zendesk-configuration-modal'
 }
 
 export function cn(...inputs: ClassValue[]) {

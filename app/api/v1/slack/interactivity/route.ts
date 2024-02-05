@@ -44,11 +44,38 @@ export async function POST(request: NextRequest) {
   const actionId = getFirstActionId(payload);
   console.log('Action ID:', actionId);
 
+  // Handle the configure zendesk button tap
   if (actionId === InteractivityActionId.CONFIGURE_ZENDESK_BUTTON_TAPPED) {
     await openZendeskConfigurationModal(payload, slackConnectionDetails);
   }
+  // Handle the configure zendesk modal submission
+  else if (
+    payload.type === 'view_submission' &&
+    payload.view?.callback_id ===
+      InteractivityActionId.ZENDESK_CONFIGURATION_MODAL_ID
+  ) {
+    await saveZendeskCredentials(payload, slackConnectionDetails);
+  }
 
-  return new NextResponse('Ok', { status: 200 });
+  return new NextResponse(null, { status: 200 }); // The body is intentionally empty here for Slack to close any views
+}
+
+async function saveZendeskCredentials(
+  payload: any,
+  connection: SlackConnection
+) {
+  const values = payload.view?.state.values;
+
+  const zendeskDomain = values?.zendesk_domain['zendesk-domain-input']?.value;
+  const zendeskAdminEmail =
+    values?.zendesk_admin_email['zendesk-email-input']?.value;
+  const zendeskApiKey = values?.zendesk_api_key['zendesk-api-key-input']?.value;
+
+  console.log({
+    zendeskDomain,
+    zendeskAdminEmail,
+    zendeskApiKey
+  });
 }
 
 async function openZendeskConfigurationModal(
@@ -70,6 +97,7 @@ async function openZendeskConfigurationModal(
       trigger_id: triggerId,
       view: {
         type: 'modal',
+        callback_id: InteractivityActionId.ZENDESK_CONFIGURATION_MODAL_ID,
         title: {
           type: 'plain_text',
           text: 'Zendesk Connection',

@@ -8,10 +8,23 @@ import {
 } from '@/lib/schema';
 import { SlackResponse } from '@/interfaces/slack-api.interface';
 import { ZendeskEvent } from '@/interfaces/zendesk-api.interface';
+import { Logtail } from '@logtail/edge';
+import { EdgeWithExecutionContext } from '@logtail/edge/dist/es6/edgeWithExecutionContext';
 
-export const handler = async (request: Request): Promise<Response> => {
+export interface Env {
+  // ...
+}
+
+export const baseLogger = new Logtail(BETTER_STACK_SOURCE_TOKEN);
+
+export const handler = async (
+  request: Request,
+  env: Env,
+  ctx: ExecutionContext
+): Promise<Response> => {
+  const logger = baseLogger.withExecutionContext(ctx);
   const requestBody = (await request.json()) as ZendeskEvent;
-  console.log(JSON.stringify(requestBody, null, 2));
+  logger.info(JSON.stringify(requestBody, null, 2));
 
   // Save some database calls if it's a message from Zensync
 
@@ -20,14 +33,14 @@ export const handler = async (request: Request): Promise<Response> => {
     typeof requestBody.current_user_external_id === 'string' &&
     requestBody.current_user_external_id.startsWith('zensync')
   ) {
-    console.log('Message from Zensync, skipping');
+    logger.info('Message from Zensync, skipping');
     return new Response('Ok', { status: 200 });
   }
 
   // Make sure we have the last updated ticket time
   const ticketLastUpdatedAt = requestBody.last_updated_at;
   if (!ticketLastUpdatedAt) {
-    console.error('Missing last_updated_at');
+    logger.error('Missing last_updated_at');
     return new Response('Missing last_updated_at', { status: 400 });
   }
 
@@ -35,12 +48,12 @@ export const handler = async (request: Request): Promise<Response> => {
   // WARNING: - This would ignore messages sent in same minute.
   // Should log in Sentry probably?
   if (requestBody.last_updated_at === requestBody.created_at) {
-    console.log('Message is not an update, skipping');
+    logger.info('Message is not an update, skipping');
     return new Response('Ok', { status: 200 });
   }
 
   // Authenticate the request and get slack connection Id
-  const slackConnectionId = await authenticateRequest(request);
+  const slackConnectionId = await authenticateRequest(request, logger);
   if (!slackConnectionId) {
     return new Response('Unauthorized', { status: 401 });
   }
@@ -54,11 +67,11 @@ export const handler = async (request: Request): Promise<Response> => {
   });
 
   if (!conversationInfo?.slackParentMessageId) {
-    console.error(`No conversation found for id ${requestBody.external_id}`);
+    logger.error(`No conversation found for id ${requestBody.external_id}`);
     return new Response('No conversation found', { status: 404 });
   }
 
-  console.log(
+  logger.info(
     `ConversationInfo retrieved: ${JSON.stringify(conversationInfo)}`
   );
 
@@ -68,7 +81,7 @@ export const handler = async (request: Request): Promise<Response> => {
     !conversationInfo.channel.slackChannelIdentifier ||
     conversationInfo.channel.slackConnectionId !== slackConnectionId
   ) {
-    console.warn(`Invalid Ids: ${slackConnectionId} !== ${conversationInfo}`);
+    logger.warn(`Invalid Ids: ${slackConnectionId} !== ${conversationInfo}`);
     return new Response('Invalid Ids', { status: 401 });
   }
 
@@ -78,7 +91,7 @@ export const handler = async (request: Request): Promise<Response> => {
     !conversationInfo.channel.slackChannelIdentifier ||
     conversationInfo.channel.slackConnectionId !== slackConnectionId
   ) {
-    console.warn(`Invalid Ids: ${slackConnectionId} !== ${conversationInfo}`);
+    logger.warn(`Invalid Ids: ${slackConnectionId} !== ${conversationInfo}`);
     return new Response('Invalid Ids', { status: 401 });
   }
 
@@ -89,11 +102,11 @@ export const handler = async (request: Request): Promise<Response> => {
     });
 
   if (!slackConnectionInfo) {
-    console.error(`No Slack connection found for id ${slackConnectionId}`);
+    logger.error(`No Slack connection found for id ${slackConnectionId}`);
     return new Response('No Slack connection found', { status: 404 });
   }
 
-  console.log(
+  logger.info(
     `SlackConnectionInfo retrieved: ${JSON.stringify(slackConnectionInfo)}`
   );
 
@@ -102,10 +115,11 @@ export const handler = async (request: Request): Promise<Response> => {
       requestBody,
       slackConnectionInfo,
       conversationInfo.slackParentMessageId,
-      conversationInfo.channel.slackChannelIdentifier
+      conversationInfo.channel.slackChannelIdentifier,
+      logger
     );
   } catch (error) {
-    console.error(error);
+    logger.error(error);
     return new Response('Error', { status: 500 });
   }
 
@@ -114,7 +128,8 @@ export const handler = async (request: Request): Promise<Response> => {
 
 async function getSlackUser(
   connection: SlackConnection,
-  email: string
+  email: string,
+  logger: EdgeWithExecutionContext
 ): Promise<{ username: string | undefined; imageUrl: string }> {
   try {
     const response = await fetch(
@@ -130,7 +145,7 @@ async function getSlackUser(
 
     const responseData = (await response.json()) as SlackResponse;
 
-    console.log(`Slack user response: ${JSON.stringify(responseData)}`);
+    logger.info(`Slack user response: ${JSON.stringify(responseData)}`);
 
     if (!responseData.ok) {
       throw new Error(`Error getting Slack user: ${responseData.error}`);
@@ -143,16 +158,19 @@ async function getSlackUser(
     const imageUrl = responseData.user.profile.image_192;
     return { username, imageUrl };
   } catch (error) {
-    console.error('Error in getSlackUser:', error);
+    logger.error('Error in getSlackUser:', error);
     throw error;
   }
 }
 
-async function authenticateRequest(request: Request): Promise<string | null> {
+async function authenticateRequest(
+  request: Request,
+  logger: EdgeWithExecutionContext
+): Promise<string | null> {
   const authorizationHeader = request.headers.get('authorization');
   const bearerToken = authorizationHeader?.replace('Bearer ', '');
   if (!bearerToken) {
-    console.error('Missing bearer token');
+    logger.error('Missing bearer token');
     return null;
   }
 
@@ -161,7 +179,7 @@ async function authenticateRequest(request: Request): Promise<string | null> {
   });
 
   if (!connection) {
-    console.error('Invalid bearer token');
+    logger.error('Invalid bearer token');
     return null;
   }
 
@@ -172,7 +190,8 @@ async function sendSlackMessage(
   requestBody: any,
   connection: SlackConnection,
   parentMessageId: string,
-  slackChannelId: string
+  slackChannelId: string,
+  logger: EdgeWithExecutionContext
 ) {
   let username: string | undefined;
   let imageUrl: string | undefined;
@@ -181,13 +200,14 @@ async function sendSlackMessage(
     if (requestBody.current_user_email) {
       const slackUser = await getSlackUser(
         connection,
-        requestBody.current_user_email
+        requestBody.current_user_email,
+        logger
       );
       username = slackUser.username || requestBody.current_user_name;
       imageUrl = slackUser.imageUrl;
     }
   } catch (error) {
-    console.warn('Error getting Slack user:', error);
+    logger.warn('Error getting Slack user:', error);
   }
 
   try {
@@ -199,7 +219,7 @@ async function sendSlackMessage(
       icon_url: imageUrl
     });
 
-    console.log(`Sending Slack message: ${body}`);
+    logger.info(`Sending Slack message: ${body}`);
 
     const response = await fetch('https://slack.com/api/chat.postMessage', {
       method: 'POST',
@@ -210,7 +230,7 @@ async function sendSlackMessage(
       body: body
     });
 
-    console.log(`Slack response: ${JSON.stringify(response)}`);
+    logger.info(`Slack response: ${JSON.stringify(response)}`);
 
     const responseData = (await response.json()) as SlackResponse;
 
@@ -218,9 +238,9 @@ async function sendSlackMessage(
       throw new Error(`Error posting message: ${responseData.error}`);
     }
   } catch (error) {
-    console.error('Error in sendSlackMessage:', error);
+    logger.error('Error in sendSlackMessage:', error);
     throw error;
   }
 
-  console.log('Message posted successfully');
+  logger.info('Message posted successfully');
 }

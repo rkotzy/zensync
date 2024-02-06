@@ -19,6 +19,10 @@ router.all('*', () =>
 );
 
 // Cloudflare Workers entry point
-addEventListener('fetch', event => {
-  event.respondWith(router.handle(event.request));
-});
+// addEventListener('fetch', (request, env, ctx) => {
+//   event.respondWith(router.handle(request, env, ctx));
+// });
+
+export default {
+  fetch: (request, env, ctx) => router.handle(request, env, ctx)
+};

@@ -6,3 +6,4 @@ compatibility_date = "2024-01-29"
 [vars]
 POSTGRES_URL = "postgresql://ryan:GX2H5ueKQUWs@ep-silent-credit-a56ff6g8-pooler.us-east-2.aws.neon.tech/zensyncdb?sslmode=require"
 SLACK_SIGNING_SECRET = "b34f14a1d3f265f3dfd888a00cac14a6"
+BETTER_STACK_SOURCE_TOKEN = "SLjFTitB9FSMQVZqq5ab4f5K"

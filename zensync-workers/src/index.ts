@@ -5,7 +5,7 @@ const API_PREFIX = '/api/v1';
 
 export const router = Router();
 
-router.get(`${API_PREFIX}/zendesk/events`, zendeskEventsHandler);
+router.post(`${API_PREFIX}/zendesk/events`, zendeskEventsHandler);
 
 // 404 for everything else
 router.all('*', () =>

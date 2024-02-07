@@ -1,6 +1,5 @@
 import { type ClassValue, clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
-import { db } from '@/lib/drizzle';
 import { eq } from 'drizzle-orm';
 import {
   zendeskConnection,
@@ -8,6 +7,8 @@ import {
   slackConnection,
   SlackConnection
 } from '@/lib/schema';
+import * as schema from '@/lib/schema';
+import { NeonHttpDatabase } from 'drizzle-orm/neon-http';
 
 export enum InteractivityActionId {
   CONFIGURE_ZENDESK_BUTTON_TAPPED = 'configure-zendesk',
@@ -21,8 +22,15 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-export async function verifySlackRequest(request: Request): Promise<boolean> {
-  const signingSecret = SLACK_SIGNING_SECRET;
+export interface Env {
+  SLACK_SIGNING_SECRET: string;
+}
+
+export async function verifySlackRequest(
+  request: Request,
+  env: Env
+): Promise<boolean> {
+  const signingSecret = env.SLACK_SIGNING_SECRET;
   const timestamp = request.headers.get('x-slack-request-timestamp');
   const slackSignature = request.headers.get('x-slack-signature');
   const body = await request.text();
@@ -70,7 +78,8 @@ function timingSafeEqual(a: string, b: string): boolean {
 }
 
 export async function fetchZendeskCredentials(
-  slackConnectionId: string
+  slackConnectionId: string,
+  db: NeonHttpDatabase<typeof schema>
 ): Promise<ZendeskConnection | null> {
   const zendeskCredentials = await db.query.zendeskConnection.findFirst({
     where: eq(zendeskConnection.slackConnectionId, slackConnectionId)
@@ -90,7 +99,8 @@ export async function fetchZendeskCredentials(
 }
 
 export async function findSlackConnectionByTeamId(
-  teamId: string | undefined
+  teamId: string | undefined,
+  db: NeonHttpDatabase<typeof schema>
 ): Promise<SlackConnection | null | undefined> {
   if (!teamId) {
     console.error('No team_id found');

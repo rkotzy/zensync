@@ -13,3 +13,7 @@ export interface ZendeskEvent {
   attachments?: any[];
   via?: any;
 }
+
+export interface ZendeskResponse {
+  [key: string]: any;
+}

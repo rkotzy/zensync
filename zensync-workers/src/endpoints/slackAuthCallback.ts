@@ -1,4 +1,8 @@
-import { OpenAPIRoute } from '@cloudflare/itty-router-openapi';
+import {
+  OpenAPIRoute,
+  OpenAPIRouteSchema,
+  Query
+} from '@cloudflare/itty-router-openapi';
 import { initializeDb } from '@/lib/drizzle';
 import { slackOauthState, slackConnection } from '@/lib/schema';
 import { eq } from 'drizzle-orm';
@@ -10,6 +14,13 @@ export interface Env {
 }
 
 export class SlackAuthCallback extends OpenAPIRoute {
+  static schema: OpenAPIRouteSchema = {
+    parameters: {
+      code: Query(String),
+      state: Query(String)
+    }
+  };
+
   async handle(
     request: Request,
     env: any,
@@ -26,8 +37,11 @@ export class SlackAuthCallback extends OpenAPIRoute {
 
     // Check if 'code' and 'state' values exist
     if (!code || !state) {
-      return Response.redirect(
-        `${env.ROOT_URL}/connections?slackOauth=error&message=Missing required parameters: code and state.`
+      return new Response(
+        'Missing required parameters: code and state. Try again.',
+        {
+          status: 400
+        }
       );
     }
 
@@ -44,9 +58,9 @@ export class SlackAuthCallback extends OpenAPIRoute {
         new Date(slackOauthStateResponse.createdAt).getTime() >
         600000 // 10 minutes validity
     ) {
-      return Response.redirect(
-        `${env.ROOT_URL}/connections?slackOauth=error&message=Invalid or expired state.`
-      );
+      return new Response('Invalid or expired state. Try again.', {
+        status: 401
+      });
     }
 
     let accessToken: string;
@@ -69,9 +83,7 @@ export class SlackAuthCallback extends OpenAPIRoute {
       const responseData = (await response.json()) as SlackResponse;
 
       if (!responseData.ok) {
-        return Response.redirect(
-          `${env.ROOT_URL}/connections?slackOauth=error&message=Failed to authenticate.`
-        );
+        return new Response('Failed to authenticate.', { status: 401 });
       }
 
       accessToken = responseData.access_token;
@@ -86,15 +98,11 @@ export class SlackAuthCallback extends OpenAPIRoute {
             2
           )}`
         );
-        return Response.redirect(
-          `${env.ROOT_URL}/connections?slackOauth=error&message=Missing access token.`
-        );
+        return new Response('Missing access token.', { status: 404 });
       }
     } catch (error) {
       logger.info(error);
-      return Response.redirect(
-        `${env.ROOT_URL}/connections?slackOauth=error&message=Authentication failed.`
-      );
+      return new Response('Authentication failed.', { status: 400 });
     }
 
     logger.info('Access token received');
@@ -118,9 +126,9 @@ export class SlackAuthCallback extends OpenAPIRoute {
             2
           )}`
         );
-        return Response.redirect(
-          `${env.ROOT_URL}/connections?slackOauth=error&message=Invalid access token or permissions.`
-        );
+        return new Response('Invalid access token or permissions.', {
+          status: 401
+        });
       }
 
       const team = teamInfoResponse.team;
@@ -157,11 +165,9 @@ export class SlackAuthCallback extends OpenAPIRoute {
         });
     } catch (error) {
       logger.error(error);
-      return Response.redirect(
-        `${env.ROOT_URL}/connections?slackOauth=error&message=Error saving access token.`
-      );
+      return new Response('Error saving access token.', { status: 500 });
     }
 
-    return Response.redirect(`${env.ROOT_URL}/connections?slackOauth=success`);
+    return new Response('Success', { status: 200 });
   }
 }

@@ -8,8 +8,8 @@
     "start": "wrangler dev"
   },
   "dependencies": {
-    "@logtail/edge": "^0.4.19",
-    "itty-router": "^4.0.27"
+    "@cloudflare/itty-router-openapi": "^1.0.10",
+    "@logtail/edge": "^0.4.19"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20240129.0",

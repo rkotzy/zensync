@@ -1,11 +1,9 @@
-import { Router } from 'itty-router';
-import { handler as zendeskEventsHandler } from './endpoints/zendeskEvents';
+import { OpenAPIRouter } from '@cloudflare/itty-router-openapi';
+import { ZendeskEventHandler } from './endpoints/zendeskEvents';
 
-const API_PREFIX = '/api/v1';
+export const router = OpenAPIRouter();
 
-export const router = Router();
-
-router.post(`${API_PREFIX}/zendesk/events`, zendeskEventsHandler);
+router.post(`/api/v1/zendesk/events`, ZendeskEventHandler);
 
 // 404 for everything else
 router.all('*', () =>
@@ -18,11 +16,8 @@ router.all('*', () =>
   )
 );
 
-// Cloudflare Workers entry point
-// addEventListener('fetch', (request, env, ctx) => {
-//   event.respondWith(router.handle(request, env, ctx));
-// });
-
-export default {
-  fetch: (request, env, ctx) => router.handle(request, env, ctx)
+const worker: ExportedHandler = {
+  fetch: router.handle
 };
+
+export default worker;

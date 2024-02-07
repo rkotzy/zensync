@@ -16,6 +16,7 @@ import { SlackResponse } from '@/interfaces/slack-api.interface';
 
 export interface Env {
   BETTER_STACK_SOURCE_TOKEN: string;
+  ROOT_URL: string;
 }
 
 export class SlackInteractivityHandler extends OpenAPIRoute {
@@ -90,6 +91,7 @@ export class SlackInteractivityHandler extends OpenAPIRoute {
         await saveZendeskCredentials(
           payload,
           slackConnectionDetails,
+          env,
           db,
           logger
         );
@@ -145,6 +147,7 @@ function getFirstActionId(payload: any): string | null {
 async function saveZendeskCredentials(
   payload: any,
   connection: SlackConnection,
+  env: Env,
   db: NeonHttpDatabase<typeof schema>,
   logger: EdgeWithExecutionContext
 ) {
@@ -175,7 +178,7 @@ async function saveZendeskCredentials(
     // Create a zendesk webhook
     const webhookPayload = JSON.stringify({
       webhook: {
-        endpoint: `${process.env.ROOT_URL}/api/v1/zendesk/events`,
+        endpoint: `${env.ROOT_URL}/api/v1/zendesk/events`,
         http_method: 'POST',
         name: 'Slack-to-Zendesk Sync',
         request_format: 'json',

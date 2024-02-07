@@ -51,7 +51,7 @@ export class SlackAuthRedirect extends OpenAPIRoute {
     ].join(',');
 
     const redirectUrl = `https://slack.com/oauth/v2/authorize?client_id=${
-      process.env.SLACK_CLIENT_ID
+      env.SLACK_CLIENT_ID
     }&scope=${encodeURIComponent(scopes)}&state=${state}`;
     return Response.redirect(redirectUrl);
   }

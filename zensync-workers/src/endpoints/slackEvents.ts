@@ -20,12 +20,6 @@ import { EdgeWithExecutionContext } from '@logtail/edge/dist/es6/edgeWithExecuti
 import { NeonHttpDatabase } from 'drizzle-orm/neon-http';
 import { SlackEvent, SlackResponse } from '@/interfaces/slack-api.interface';
 
-export interface Env {
-  BETTER_STACK_SOURCE_TOKEN: string;
-  QSTASH_TOKEN: string;
-  ROOT_URL: string;
-}
-
 export class SlackEventHandler extends OpenAPIRoute {
   async handle(
     request: Request,
@@ -102,7 +96,7 @@ export class SlackEventHandler extends OpenAPIRoute {
       try {
         const qstash = new Client({ token: env.QSTASH_TOKEN });
         await qstash.publishJSON({
-          url: `${env.ROOT_URL}/api/v1/slack/worker/messages`,
+          url: `https://zensync.vercel.app/api/v1/slack/worker/messages`, //TODO: use env.ROOT_URL
           body: {
             eventBody: requestBody,
             connectionDetails: connectionDetails
@@ -115,21 +109,14 @@ export class SlackEventHandler extends OpenAPIRoute {
       }
     } else if (eventSubtype === 'file_share') {
       // handle file_share messages differently by processing the file first
-      logger.info(`Publishing event ${eventType}:${eventSubtype} to qstash`);
+      logger.info(`Publishing event ${eventType}:${eventSubtype} to queue`);
       try {
-        const qstash = new Client({ token: env.QSTASH_TOKEN });
-        await qstash.publishJSON({
-          url: `${env.ROOT_URL}/api/v1/slack/worker/files`,
-          body: {
-            eventBody: requestBody,
-            connectionDetails: connectionDetails
-          },
-          contentBasedDeduplication: true,
-          retries: 1,
-          failureCallback: `${env.ROOT_URL}/api/v1/slack/worker/messages`
+        await env.UPLOAD_FILES_TO_ZENDESK_QUEUE_BINDING.send({
+          eventBody: requestBody,
+          connectionDetails: connectionDetails
         });
       } catch (error) {
-        logger.error('Error publishing file to qstash:', error);
+        logger.error('Error publishing file to queue:', error);
         return new Response('Internal Server Error', { status: 500 });
       }
     } else {

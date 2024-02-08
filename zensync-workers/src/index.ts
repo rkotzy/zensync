@@ -4,18 +4,16 @@ import { SlackInteractivityHandler } from './endpoints/slackInteractivity';
 import { SlackAuthRedirect } from './endpoints/slackAuthRedirect';
 import { SlackAuthCallback } from './endpoints/slackAuthCallback';
 import { SlackEventHandler } from './endpoints/slackEvents';
+import { QueueMessageHandler } from './queues/queueHandler';
 
 export const router = OpenAPIRouter();
+const message = new QueueMessageHandler();
 
 router.post(`/v1/zendesk/events`, ZendeskEventHandler);
 router.post(`/v1/slack/interactivity`, SlackInteractivityHandler);
 router.get(`/v1/slack/auth/redirect`, SlackAuthRedirect);
 router.get(`/v1/slack/auth/callback`, SlackAuthCallback);
 router.post(`/v1/slack/events`, SlackEventHandler);
-
-// Queue consumers
-//router.post(`/api/v1/slack/worker/files`, );
-//router.post(`/api/v1/slack/worker/messages`, );
 
 // 404 for everything else
 router.all('*', () =>
@@ -29,7 +27,8 @@ router.all('*', () =>
 );
 
 const worker: ExportedHandler = {
-  fetch: router.handle
+  fetch: router.handle,
+  queue: message.handle.bind(message)
 };
 
 export default worker;

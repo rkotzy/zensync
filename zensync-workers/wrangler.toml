@@ -1,13 +1,44 @@
 name = "zensync-workers"
 main = "src/index.ts"
 compatibility_date = "2024-01-29"
+compatibility_flags = [ "nodejs_compat" ]
 
 # Define your environment variables here
 [vars]
 POSTGRES_URL = "postgresql://ryan:GX2H5ueKQUWs@ep-silent-credit-a56ff6g8-pooler.us-east-2.aws.neon.tech/zensyncdb?sslmode=require"
 SLACK_SIGNING_SECRET = "b34f14a1d3f265f3dfd888a00cac14a6"
 BETTER_STACK_SOURCE_TOKEN = "SLjFTitB9FSMQVZqq5ab4f5K"
-ROOT_URL = "https://api.slacktozendesk.com/"
+ROOT_URL = "https://api.slacktozendesk.com"
 SLACK_CLIENT_ID = "554132358711.6385268273780"
 SLACK_CLIENT_SECRET = "bbefc408d75038bbbf37658389680163"
 QSTASH_TOKEN="eyJVc2VySUQiOiI0MWI2Y2M4MS0yYTk4LTRkZWMtYTZlMi0yZDRiNzJjMjVmNjYiLCJQYXNzd29yZCI6IjlhZjZjY2QwOWVjMjQ2YzViMTFhZTQ4N2VmNmUxOGMzIn0="
+
+
+[[queues.producers]]
+queue = "process-slack-messages"
+binding = "PROCESS_SLACK_MESSAGES_QUEUE_BINDING"
+
+[[queues.producers]]
+queue = "upload-files-to-zendesk"
+binding = "UPLOAD_FILES_TO_ZENDESK_QUEUE_BINDING"
+
+
+[[queues.consumers]]
+queue = "process-slack-messages"
+max_batch_size = 1
+max_batch_timeout = 1
+max_retries = 2
+dead_letter_queue = "dlq"
+
+[[queues.consumers]]
+queue = "upload-files-to-zendesk"
+max_batch_size = 1
+max_batch_timeout = 1
+max_retries = 2
+dead_letter_queue = "dlq"
+
+[[queues.consumers]]
+queue = "dlq"
+max_batch_size = 1
+max_batch_timeout = 1
+max_retries = 10

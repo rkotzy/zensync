@@ -1,5 +1,3 @@
-import { type ClassValue, clsx } from 'clsx';
-import { twMerge } from 'tailwind-merge';
 import { eq } from 'drizzle-orm';
 import {
   zendeskConnection,
@@ -16,10 +14,6 @@ export enum InteractivityActionId {
   ZENDESK_EMAIL_TEXT_FIELD = 'zendesk-email-input',
   ZENDESK_API_KEY_TEXT_FIELD = 'zendesk-api-key-input',
   ZENDESK_CONFIGURATION_MODAL_ID = 'zendesk-configuration-modal'
-}
-
-export function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs));
 }
 
 export interface Env {

@@ -1,7 +1,6 @@
 import { OpenAPIRoute } from '@cloudflare/itty-router-openapi';
 import { initializeDb } from '@/lib/drizzle';
 import { eq, and, desc } from 'drizzle-orm';
-import { Client } from '@upstash/qstash';
 import {
   fetchZendeskCredentials,
   findSlackConnectionByTeamId,
@@ -92,19 +91,14 @@ export class SlackEventHandler extends OpenAPIRoute {
       (eventType === 'message' &&
         isPayloadEligibleForTicket(requestBody, connectionDetails, logger))
     ) {
-      logger.info(`Publishing event ${eventType}:${eventSubtype} to qstash`);
+      logger.info(`Publishing event ${eventType}:${eventSubtype} to queue`);
       try {
-        const qstash = new Client({ token: env.QSTASH_TOKEN });
-        await qstash.publishJSON({
-          url: `https://zensync.vercel.app/api/v1/slack/worker/messages`, //TODO: use env.ROOT_URL
-          body: {
-            eventBody: requestBody,
-            connectionDetails: connectionDetails
-          },
-          contentBasedDeduplication: true
+        await env.PROCESS_SLACK_MESSAGES_QUEUE_BINDING.send({
+          eventBody: requestBody,
+          connectionDetails: connectionDetails
         });
       } catch (error) {
-        logger.error('Error publishing message qstash:', error);
+        logger.error('Error publishing message queue:', error);
         return new Response('Internal Server Error', { status: 500 });
       }
     } else if (eventSubtype === 'file_share') {

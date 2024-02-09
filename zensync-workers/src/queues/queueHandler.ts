@@ -24,7 +24,7 @@ export class QueueMessageHandler {
             break;
           case 'process-slack-messages':
             logger.info('Processing upload-files-to-zendesk queue');
-            await handleMessageFromSlack();
+            await handleMessageFromSlack(message.body, env, logger);
             break;
           case 'dlq':
             // Handle dead-letter queue messages

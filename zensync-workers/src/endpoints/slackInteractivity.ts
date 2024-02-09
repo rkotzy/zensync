@@ -178,7 +178,7 @@ async function saveZendeskCredentials(
     // Create a zendesk webhook
     const webhookPayload = JSON.stringify({
       webhook: {
-        endpoint: `${env.ROOT_URL}/api/v1/zendesk/events`,
+        endpoint: `${env.ROOT_URL}/v1/zendesk/events`,
         http_method: 'POST',
         name: 'Slack-to-Zendesk Sync',
         request_format: 'json',

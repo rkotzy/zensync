@@ -3,7 +3,6 @@ import { ZendeskResponse } from '@/interfaces/zendesk-api.interface';
 import { ZendeskConnection, SlackConnection } from '@/lib/schema';
 import { fetchZendeskCredentials } from '@/lib/utils';
 import { initializeDb } from '@/lib/drizzle';
-import { Client } from '@upstash/qstash';
 import { Env } from '@/interfaces/env.interface';
 import { EdgeWithExecutionContext } from '@logtail/edge/dist/es6/edgeWithExecutionContext';
 import { Buffer } from 'node:buffer';
@@ -80,9 +79,7 @@ export async function uploadFilesToZendesk(
       );
     } catch (error) {
       logger.error(error);
-      return new Response('Error uploading file to Zendesk', {
-        status: 409
-      });
+      throw new Error('Error uploading file to Zendesk');
     }
 
     // We intentionally fail here if a single upload token is missing and try them all again
@@ -97,18 +94,13 @@ export async function uploadFilesToZendesk(
   // Add the Zendesk upload tokens to the response
   responseJson.eventBody.zendeskFileTokens = zendeskFileTokens;
 
-  logger.info('Publishing to qstash:', responseJson);
+  logger.info('Publishing to queue:', responseJson);
 
   try {
-    const qstash = new Client({ token: env.QSTASH_TOKEN! });
-    await qstash.publishJSON({
-      url: `https://zensync.vercel.app/api/v1/slack/worker/messages`,
-      body: responseJson,
-      contentBasedDeduplication: true
-    });
+    await env.PROCESS_SLACK_MESSAGES_QUEUE_BINDING.send(responseJson);
   } catch (error) {
-    logger.error('Error publishing to qstash:', error);
-    throw new Error('Error publishing to qstash');
+    logger.error('Error publishing to queue:', error);
+    throw new Error('Error publishing to queue');
   }
 
   logger.info('Published to qstash');

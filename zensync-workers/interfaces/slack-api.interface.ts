@@ -7,6 +7,8 @@ export interface SlackResponse {
   authed_user?: any;
   bot_user_id?: string;
   file?: any;
+  channel?: any;
+  profile?: any;
 }
 
 export interface SlackTeam {

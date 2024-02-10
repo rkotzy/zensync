@@ -1,12 +1,14 @@
-import { eq } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import {
   zendeskConnection,
   ZendeskConnection,
   slackConnection,
-  SlackConnection
+  SlackConnection,
+  channel
 } from '@/lib/schema';
 import * as schema from '@/lib/schema';
 import { NeonHttpDatabase } from 'drizzle-orm/neon-http';
+import { EdgeWithExecutionContext } from '@logtail/edge/dist/es6/edgeWithExecutionContext';
 
 export enum InteractivityActionId {
   // Zendesk modal details
@@ -118,4 +120,26 @@ export async function findSlackConnectionByTeamId(
     console.error('Error querying SlackConnections:', error);
     return undefined;
   }
+}
+
+export async function updateChannelActivity(
+  slackConnection: SlackConnection,
+  channelId: string,
+  db: NeonHttpDatabase<typeof schema>,
+  logger: EdgeWithExecutionContext
+): Promise<void> {
+  const now = new Date();
+
+  await db
+    .update(channel)
+    .set({
+      updatedAt: now,
+      latestActivityAt: now
+    })
+    .where(
+      and(
+        eq(channel.slackConnectionId, slackConnection.id),
+        eq(channel.slackChannelIdentifier, channelId)
+      )
+    );
 }

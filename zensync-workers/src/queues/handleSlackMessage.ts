@@ -11,7 +11,7 @@ import {
   SlackMessageData,
   SlackResponse
 } from '@/interfaces/slack-api.interface';
-import { fetchZendeskCredentials } from '@/lib/utils';
+import { fetchZendeskCredentials, updateChannelActivity } from '@/lib/utils';
 import { Env } from '@/interfaces/env.interface';
 import { EdgeWithExecutionContext } from '@logtail/edge/dist/es6/edgeWithExecutionContext';
 import { NeonHttpDatabase } from 'drizzle-orm/neon-http';
@@ -146,6 +146,7 @@ async function handleChannelJoined(
       .onConflictDoUpdate({
         target: [channel.slackConnectionId, channel.slackChannelIdentifier],
         set: {
+          updatedAt: new Date(),
           type: channelType,
           isMember: true,
           name: channelName,
@@ -198,6 +199,7 @@ async function handleChannelLeft(
     await db
       .update(channel)
       .set({
+        updatedAt: new Date(),
         isMember: false
       })
       .where(
@@ -227,6 +229,7 @@ async function handleChannelUnarchive(
     await db
       .update(channel)
       .set({
+        updatedAt: new Date(),
         isMember: true
       })
       .where(
@@ -255,6 +258,7 @@ async function handleChannelNameChanged(
     await db
       .update(channel)
       .set({
+        updatedAt: new Date(),
         name: eventData.channel.name
       })
       .where(
@@ -283,6 +287,7 @@ async function handleChannelIdChanged(
     await db
       .update(channel)
       .set({
+        updatedAt: new Date(),
         slackChannelIdentifier: eventData.new_channel_id
       })
       .where(
@@ -772,13 +777,25 @@ async function handleThreadReply(
   } else if (!response.ok) {
     logger.error('Error updating ticket comment:', response);
     throw new Error('Error creating comment');
-  }
+  } else {
+    // Was not a follow-up ticket, and no errors, so update the conversation
+    try {
+      // Update last message ID conversation
+      await db
+        .update(conversation)
+        .set({
+          updatedAt: new Date(),
+          latestSlackMessageId: messageData.ts
+        })
+        .where(eq(conversation.id, conversationId));
 
-  // Update last message ID conversation
-  await db
-    .update(conversation)
-    .set({ latestSlackMessageId: messageData.ts })
-    .where(eq(conversation.id, conversationId));
+      // Update the channel activity
+      await updateChannelActivity(slackConnectionInfo, channelId, db, logger);
+    } catch (error) {
+      logger.error('Error updating conversation in database:', error);
+      throw new Error('Error updating conversation in database');
+    }
+  }
 }
 
 function needsFollowUpTicket(responseJson: any): boolean {
@@ -902,6 +919,7 @@ async function handleNewConversation(
       await db
         .update(conversation)
         .set({
+          updatedAt: new Date(),
           zendeskTicketId: ticketId,
           latestSlackMessageId: messageData.ts
         })
@@ -935,6 +953,14 @@ async function handleNewConversation(
         latestSlackMessageId: messageData.ts
       });
     }
+  }
+
+  // Update the channel activity
+  try {
+    await updateChannelActivity(slackConnectionInfo, channelId, db, logger);
+  } catch (error) {
+    logger.error('Error updating channel activity:', error);
+    throw error;
   }
 }
 

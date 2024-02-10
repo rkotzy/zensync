@@ -83,7 +83,7 @@ export class SlackEventHandler extends OpenAPIRoute {
       try {
         await handleAppHomeOpened(requestBody, connectionDetails, db, logger);
       } catch (error) {
-        logger.error('Error handling app_home_opened:', error);
+        logger.error(`Error handling app_home_opened: ${error.message}`);
         return new Response('Internal Server Error', { status: 500 });
       }
     } else if (
@@ -98,7 +98,7 @@ export class SlackEventHandler extends OpenAPIRoute {
           connectionDetails: connectionDetails
         });
       } catch (error) {
-        logger.error('Error publishing message queue:', error);
+        logger.error(`Error publishing message queue: ${error.message}`);
         return new Response('Internal Server Error', { status: 500 });
       }
     } else if (eventSubtype === 'file_share') {
@@ -110,7 +110,7 @@ export class SlackEventHandler extends OpenAPIRoute {
           connectionDetails: connectionDetails
         });
       } catch (error) {
-        logger.error('Error publishing file to queue:', error);
+        logger.error(`Error publishing file to queue: ${error.message}`);
         return new Response('Internal Server Error', { status: 500 });
       }
     } else {
@@ -201,7 +201,9 @@ async function fetchHomeTabData(
 
     return [zendeskInfo, channelInfos];
   } catch (error) {
-    logger.error('Error fetching home tab data from database:', error);
+    logger.error(
+      `Error fetching home tab data from database: ${error.message}`
+    );
     throw error;
   }
 }
@@ -281,7 +283,7 @@ async function handleAppHomeOpened(
           elements: [
             {
               type: 'mrkdwn',
-              text: 'Use command `/invite @zensync` any channel to connect it with Zendesk.'
+              text: 'Use command `/invite @zensync` in any channel to connect it with Zendesk.'
             }
           ]
         },
@@ -313,10 +315,11 @@ async function handleAppHomeOpened(
     const responseData = (await response.json()) as SlackResponse;
 
     if (!responseData.ok) {
-      throw new Error(`Error publishig view: ${responseData}`);
+      const errorDetails = JSON.stringify(responseData, null, 2);
+      throw new Error(`Error publishig view: ${errorDetails}`);
     }
   } catch (error) {
-    logger.error('Error in handleAppHomeOpened:', error);
+    logger.error(`Error in handleAppHomeOpened: ${error.message}`);
     throw error;
   }
 }
@@ -330,12 +333,24 @@ function createChannelSections(channelInfos: Channel[]) {
   // Map over the channelInfos array to create a section for each item
   return channelInfos
     .map(info => {
+      const activityDate = info.latestActivityAt ?? info.createdAt;
+      const latestActivityTimestamp = Math.floor(activityDate.getTime() / 1000);
+      const fallbackText = activityDate.toLocaleDateString(); // Simplified fallback text generation
+
+      const slackFormattedDate = `<!date^${latestActivityTimestamp}^{date_short} at {time}|${fallbackText}>`;
+
+      const tags = info.tags || [];
+      const tagsString =
+        tags.length > 0 ? tags.map(tag => `\`${tag}\``).join(', ') : '';
+
       return [
         {
           type: 'section',
           text: {
             type: 'mrkdwn',
-            text: `*<fakeLink.toHotelPage.com|#${info.name}>*\nOwner: ${info.defaultAssigneeEmail}\nTags: \`enterprise\``
+            text: `*<#${info.slackChannelIdentifier}|${info.name}>*\n*Owner:* ${
+              info.defaultAssigneeEmail ?? ''
+            }\n*Tags:* ${tagsString}`
           },
           accessory: {
             type: 'button',
@@ -343,16 +358,16 @@ function createChannelSections(channelInfos: Channel[]) {
               type: 'plain_text',
               emoji: true,
               text: 'Edit'
-            }
+            },
+            action_id: `${InteractivityActionId.EDIT_CHANNEL_BUTTON_TAPPED}:${info.slackChannelIdentifier}`
           }
         },
         {
           type: 'context',
           elements: [
             {
-              type: 'plain_text',
-              emoji: true,
-              text: `Last active on ${info.latestActivityAt ?? info.createdAt}`
+              type: 'mrkdwn',
+              text: `Last message on ${slackFormattedDate}`
             }
           ]
         },

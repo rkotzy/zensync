@@ -1,18 +1,20 @@
 import { OpenAPIRoute } from '@cloudflare/itty-router-openapi';
 import { initializeDb } from '@/lib/drizzle';
+import { eq, and } from 'drizzle-orm';
 import {
   verifySlackRequest,
   findSlackConnectionByTeamId,
   InteractivityActionId,
   fetchZendeskCredentials
 } from '@/lib/utils';
-import { SlackConnection, zendeskConnection } from '@/lib/schema';
+import { SlackConnection, zendeskConnection, channel } from '@/lib/schema';
 import * as schema from '@/lib/schema';
 import { Logtail } from '@logtail/edge';
 import { EdgeWithExecutionContext } from '@logtail/edge/dist/es6/edgeWithExecutionContext';
 import { NeonHttpDatabase } from 'drizzle-orm/neon-http';
 import { ZendeskResponse } from '@/interfaces/zendesk-api.interface';
 import { SlackResponse } from '@/interfaces/slack-api.interface';
+import { log } from 'console';
 
 export interface Env {
   BETTER_STACK_SOURCE_TOKEN: string;
@@ -68,8 +70,24 @@ export class SlackInteractivityHandler extends OpenAPIRoute {
     const actionId = getFirstActionId(payload);
     logger.info(`Action ID: ${actionId}`);
 
+    // Handle the edit channel button tap
+    if (actionId.startsWith(InteractivityActionId.EDIT_CHANNEL_BUTTON_TAPPED)) {
+      try {
+        await openChannelConfigurationModal(
+          actionId,
+          payload,
+          slackConnectionDetails,
+          db,
+          logger
+        );
+      } catch (error) {
+        returnGenericError(error, logger);
+      }
+    }
     // Handle the configure zendesk button tap
-    if (actionId === InteractivityActionId.CONFIGURE_ZENDESK_BUTTON_TAPPED) {
+    else if (
+      actionId === InteractivityActionId.CONFIGURE_ZENDESK_BUTTON_TAPPED
+    ) {
       try {
         await openZendeskConfigurationModal(
           payload,
@@ -105,7 +123,7 @@ export class SlackInteractivityHandler extends OpenAPIRoute {
 }
 
 function returnGenericError(error: any, logger: EdgeWithExecutionContext) {
-  logger.error('Error saving Zendesk credentials:', error);
+  logger.error(`Error: ${error.message}`);
   return Response.json(
     {
       response_action: 'errors',
@@ -334,6 +352,31 @@ async function saveZendeskCredentials(
     });
 }
 
+async function openSlackModal(
+  body: any,
+  connection: SlackConnection,
+  logger: EdgeWithExecutionContext
+) {
+  logger.info(`Opening Slack modal: ${body}`);
+
+  const response = await fetch('https://slack.com/api/views.open', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${connection.token}`
+    },
+    body: body
+  });
+
+  logger.info(`Slack response: ${JSON.stringify(response)}`);
+
+  const responseData = (await response.json()) as SlackResponse;
+
+  if (!responseData.ok) {
+    throw new Error(`Error opening modal: ${responseData}`);
+  }
+}
+
 async function openZendeskConfigurationModal(
   payload: any,
   connection: SlackConnection,
@@ -347,10 +390,9 @@ async function openZendeskConfigurationModal(
     logger.warn('No trigger_id found in payload');
     return;
   }
-
-  const zendeskInfo = await fetchZendeskCredentials(connection.id, db);
-
   try {
+    const zendeskInfo = await fetchZendeskCredentials(connection.id, db);
+
     const body = JSON.stringify({
       trigger_id: triggerId,
       view: {
@@ -410,7 +452,7 @@ async function openZendeskConfigurationModal(
               initial_value: `${zendeskInfo?.zendeskEmail ?? ''}`,
               placeholder: {
                 type: 'plain_text',
-                text: 'ryan@slacktozendesk.com'
+                text: 'admin@your-domain.com'
               }
             },
             label: {
@@ -448,26 +490,148 @@ async function openZendeskConfigurationModal(
       }
     });
 
-    logger.info(`Opening Slack modal: ${body}`);
-
-    const response = await fetch('https://slack.com/api/views.open', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${connection.token}`
-      },
-      body: body
-    });
-
-    logger.info(`Slack response: ${JSON.stringify(response)}`);
-
-    const responseData = (await response.json()) as SlackResponse;
-
-    if (!responseData.ok) {
-      throw new Error(`Error opening modal: ${responseData}`);
-    }
+    await openSlackModal(body, connection, logger);
   } catch (error) {
     logger.error('Error in openZendeskConfigurationModal:', error);
+    throw error;
+  }
+}
+
+async function openChannelConfigurationModal(
+  actionId: string,
+  payload: any,
+  connection: SlackConnection,
+  db: NeonHttpDatabase<typeof schema>,
+  logger: EdgeWithExecutionContext
+) {
+  const triggerId = payload.trigger_id;
+  if (!triggerId) {
+    logger.warn('No trigger_id found in payload');
+    return;
+  }
+
+  try {
+    // Parse out the channel ID from the payload
+    const channelId = actionId.split(':')[1];
+    if (!channelId) {
+      logger.warn('No channel ID found in action ID');
+      return;
+    }
+
+    // Fetch channel info from the database
+    const channelInfo = await db.query.channel.findFirst({
+      where: and(
+        eq(channel.slackConnectionId, connection.id),
+        eq(channel.slackChannelIdentifier, channelId)
+      )
+    });
+
+    if (!channelInfo) {
+      logger.warn(`No channel found for ID: ${channelId}`);
+      return;
+    }
+
+    const activityDate = channelInfo.latestActivityAt;
+
+    const createdAtTimestamp = Math.floor(
+      channelInfo.createdAt.getTime() / 1000
+    );
+    const fallbackText = 'No message activity';
+
+    // Initialize lastActivityString with the fallback text
+    let lastActivityString = 'No message activity';
+
+    // Only process latestActivityAt if it is not null
+    if (activityDate) {
+      const latestActivityTimestamp = Math.floor(activityDate.getTime() / 1000);
+      lastActivityString = `Last message on <!date^${latestActivityTimestamp}^{date_short} at {time}|${fallbackText}>`;
+    }
+
+    const createdAtString = `Created on <!date^${createdAtTimestamp}^{date_short} at {time}|Created at date unavailable>`;
+
+    const body = JSON.stringify({
+      trigger_id: triggerId,
+      view: {
+        type: 'modal',
+        callback_id: `${InteractivityActionId.EDIT_CHANNEL_CONFIGURATION_MODAL_ID}:${channelId}`,
+        title: {
+          type: 'plain_text',
+          text: `#${channelInfo.name}`,
+          emoji: true
+        },
+        submit: {
+          type: 'plain_text',
+          text: 'Save',
+          emoji: true
+        },
+        close: {
+          type: 'plain_text',
+          text: 'Cancel',
+          emoji: true
+        },
+        blocks: [
+          {
+            type: 'context',
+            elements: [
+              {
+                type: 'mrkdwn',
+                text: `${createdAtString}\n${lastActivityString}`
+              }
+            ]
+          },
+          {
+            type: 'input',
+            block_id: 'channel_owner',
+            element: {
+              type: 'plain_text_input',
+              action_id: InteractivityActionId.EDIT_CHANNEL_OWNER_FIELD,
+              initial_value: `${channelInfo.defaultAssigneeEmail ?? ''}`,
+              placeholder: {
+                type: 'plain_text',
+                text: 'admin@your-domain.com'
+              }
+            },
+            label: {
+              type: 'plain_text',
+              text: 'Zendesk Assignee Email',
+              emoji: true
+            },
+            hint: {
+              type: 'plain_text',
+              text: 'The email address of the Zendesk agent who should be assigned new tickets from this channel. Leave blank to handle assignment in Zendesk.'
+            }
+          },
+          {
+            type: 'input',
+            block_id: 'channel_tags',
+            element: {
+              type: 'plain_text_input',
+              action_id: InteractivityActionId.EDIT_CHANNEL_TAGS_FIELD,
+              initial_value: `${
+                channelInfo.tags ? channelInfo.tags.join(', ') : ''
+              }`,
+              placeholder: {
+                type: 'plain_text',
+                text: 'enterprise, priority'
+              }
+            },
+            label: {
+              type: 'plain_text',
+              text: 'Zendesk Tags',
+              emoji: true
+            },
+            hint: {
+              type: 'plain_text',
+              text: 'Enter a comma separated list of tags to set on Zendesk tickets created from this channel. Tags cannot contain spaces, dashes or special characters (-, #, @, !, etc.). Underscores "_" are allowed. The tag `zensync` is always automatically applied.'
+            }
+          }
+        ]
+      }
+    });
+
+    await openSlackModal(body, connection, logger);
+  } catch (error) {
+    logger.error('Error in openChannelConfigurationModal:', error);
     throw error;
   }
 }

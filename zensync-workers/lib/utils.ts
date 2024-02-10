@@ -9,11 +9,18 @@ import * as schema from '@/lib/schema';
 import { NeonHttpDatabase } from 'drizzle-orm/neon-http';
 
 export enum InteractivityActionId {
+  // Zendesk modal details
   CONFIGURE_ZENDESK_BUTTON_TAPPED = 'configure-zendesk',
+  ZENDESK_CONFIGURATION_MODAL_ID = 'zendesk-configuration-modal',
   ZENDESK_DOMAIN_TEXT_FIELD = 'zendesk-domain-input',
   ZENDESK_EMAIL_TEXT_FIELD = 'zendesk-email-input',
   ZENDESK_API_KEY_TEXT_FIELD = 'zendesk-api-key-input',
-  ZENDESK_CONFIGURATION_MODAL_ID = 'zendesk-configuration-modal'
+
+  // Edit channel modal details
+  EDIT_CHANNEL_BUTTON_TAPPED = 'edit-channel',
+  EDIT_CHANNEL_CONFIGURATION_MODAL_ID = 'edit-channel-configuration-modal',
+  EDIT_CHANNEL_OWNER_FIELD = 'edit-channel-owner-input',
+  EDIT_CHANNEL_TAGS_FIELD = 'edit-channel-tags-input'
 }
 
 export interface Env {

@@ -151,6 +151,7 @@ export class SlackAuthCallback extends OpenAPIRoute {
         .onConflictDoUpdate({
           target: slackConnection.slackTeamId,
           set: {
+            updatedAt: new Date(),
             name: team.name,
             domain: team.domain,
             iconUrl: team.icon.image_132,

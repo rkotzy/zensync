@@ -341,6 +341,7 @@ async function saveZendeskCredentials(
     .onConflictDoUpdate({
       target: zendeskConnection.slackConnectionId,
       set: {
+        updatedAt: new Date(),
         zendeskApiKey: zendeskKey,
         zendeskDomain: zendeskDomain,
         zendeskEmail: zendeskEmail,

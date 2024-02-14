@@ -8,6 +8,10 @@ import { slackOauthState, slackConnection } from '@/lib/schema';
 import { eq } from 'drizzle-orm';
 import { SlackResponse } from '@/interfaces/slack-api.interface';
 import { Logtail } from '@logtail/edge';
+import {
+  encryptData,
+  importEncryptionKeyFromEnvironment
+} from '@/lib/encryption';
 
 export interface Env {
   BETTER_STACK_SOURCE_TOKEN: string;
@@ -133,6 +137,10 @@ export class SlackAuthCallback extends OpenAPIRoute {
 
       const team = teamInfoResponse.team;
 
+      // Encrypt the access token before saving to db
+      const encryptionKey = await importEncryptionKeyFromEnvironment(env);
+      const encryptedToken = await encryptData(accessToken, encryptionKey);
+
       await db
         .insert(slackConnection)
         .values({
@@ -143,7 +151,7 @@ export class SlackAuthCallback extends OpenAPIRoute {
           emailDomain: team.email_domain,
           slackEnterpriseId: team.enterprise_id,
           slackEnterpriseName: team.enterprise_name,
-          token: accessToken,
+          encryptedToken: encryptedToken,
           authedUserId: authedUser,
           botUserId: botUserId,
           status: 'ACTIVE'
@@ -158,7 +166,7 @@ export class SlackAuthCallback extends OpenAPIRoute {
             emailDomain: team.email_domain,
             slackEnterpriseId: team.enterprise_id,
             slackEnterpriseName: team.enterprise_name,
-            token: accessToken,
+            encryptedToken: encryptedToken,
             authedUserId: authedUser,
             botUserId: botUserId,
             status: 'ACTIVE'

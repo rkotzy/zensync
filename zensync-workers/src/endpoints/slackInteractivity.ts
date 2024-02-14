@@ -14,7 +14,6 @@ import { EdgeWithExecutionContext } from '@logtail/edge/dist/es6/edgeWithExecuti
 import { NeonHttpDatabase } from 'drizzle-orm/neon-http';
 import { ZendeskResponse } from '@/interfaces/zendesk-api.interface';
 import { SlackResponse } from '@/interfaces/slack-api.interface';
-import { log } from 'console';
 
 export interface Env {
   BETTER_STACK_SOURCE_TOKEN: string;
@@ -59,7 +58,8 @@ export class SlackInteractivityHandler extends OpenAPIRoute {
     // Find the corresponding organization connection details
     const slackConnectionDetails = await findSlackConnectionByTeamId(
       payload.team?.id,
-      db
+      db,
+      env
     );
 
     if (!slackConnectionDetails) {

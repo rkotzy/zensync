@@ -723,7 +723,8 @@ async function handleThreadReply(
   let commentData: any = {
     ticket: {
       comment: {
-        html_body: htmlBody, // + generateHTMLPermalink(slackConnectionInfo, messageData),
+        html_body:
+          htmlBody + generateHTMLPermalink(slackConnectionInfo, messageData),
         public: isPublic,
         author_id: authorId
       },
@@ -859,7 +860,8 @@ async function handleNewConversation(
         messageData.text?.substring(0, 69) ?? ''
       }...`,
       comment: {
-        html_body: htmlBody, // + generateHTMLPermalink(slackConnectionInfo, messageData),
+        html_body:
+          htmlBody + generateHTMLPermalink(slackConnectionInfo, messageData),
         public: isPublic,
         author_id: authorId
       },
@@ -962,6 +964,18 @@ async function handleNewConversation(
     logger.error('Error updating channel activity:', error);
     throw error;
   }
+}
+
+function generateHTMLPermalink(
+  slackConnection: SlackConnection,
+  messageData: SlackMessageData
+): string {
+  return `<p><i>(<a href="https://${
+    slackConnection.domain
+  }.slack.com/archives/${messageData.channel}/p${messageData.ts.replace(
+    '.',
+    ''
+  )}?ref=zensync">View in Slack</a>)</i></p>`;
 }
 
 function slackMarkdownToHtml(markdown: string): string {

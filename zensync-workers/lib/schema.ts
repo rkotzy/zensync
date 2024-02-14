@@ -45,13 +45,15 @@ export const slackConnection = pgTable('slack_connections', {
   iconUrl: text('icon_url'),
   slackEnterpriseId: text('slack_enterprise_id'),
   slackEnterpriseName: text('slack_enterprise_name'),
-  token: text('token').notNull(),
+  encryptedToken: text('encrypted_token').notNull(),
   authedUserId: text('authed_user_id'),
   botUserId: text('bot_user_id').notNull(),
   status: text('status')
 });
 
-export type SlackConnection = InferSelectModel<typeof slackConnection>;
+export type SlackConnection = InferSelectModel<typeof slackConnection> & {
+  token: string;
+};
 
 // A Zendesk connection represents a connection to a Zendesk workspace that
 // is associated to an organization. It should be Oauthed by a Slack admin

@@ -13,15 +13,12 @@ import { ZendeskEvent } from '@/interfaces/zendesk-api.interface';
 import { Logtail } from '@logtail/edge';
 import { EdgeWithExecutionContext } from '@logtail/edge/dist/es6/edgeWithExecutionContext';
 import { NeonHttpDatabase } from 'drizzle-orm/neon-http';
-
-export interface Env {
-  BETTER_STACK_SOURCE_TOKEN: string;
-}
+import { Env } from '@/interfaces/env.interface';
 
 export class ZendeskEventHandler extends OpenAPIRoute {
   async handle(
     request: Request,
-    env: any,
+    env: Env,
     context: any,
     data: Record<string, any>
   ) {

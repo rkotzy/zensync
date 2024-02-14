@@ -24,7 +24,7 @@ import { importEncryptionKeyFromEnvironment } from '@/lib/encryption';
 export class SlackEventHandler extends OpenAPIRoute {
   async handle(
     request: Request,
-    env: any,
+    env: Env,
     context: any,
     data: Record<string, any>
   ) {

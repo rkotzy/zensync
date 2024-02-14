@@ -17,6 +17,7 @@ import { EdgeWithExecutionContext } from '@logtail/edge/dist/es6/edgeWithExecuti
 import { NeonHttpDatabase } from 'drizzle-orm/neon-http';
 import * as schema from '@/lib/schema';
 import { ZendeskResponse } from '@/interfaces/zendesk-api.interface';
+import { importEncryptionKeyFromEnvironment } from '@/lib/encryption';
 
 const eventHandlers: Record<
   string,
@@ -24,6 +25,8 @@ const eventHandlers: Record<
     body: any,
     connection: SlackConnection,
     db: NeonHttpDatabase<typeof schema>,
+    env: Env,
+    key: CryptoKey,
     logger: EdgeWithExecutionContext
   ) => Promise<void>
 > = {
@@ -56,6 +59,7 @@ export async function handleMessageFromSlack(
   }
 
   const db = initializeDb(env);
+  const encryptionKey = await importEncryptionKeyFromEnvironment(env);
 
   const eventType = requestBody.event?.type;
   const eventSubtype = requestBody.event?.subtype;
@@ -66,6 +70,8 @@ export async function handleMessageFromSlack(
         requestBody,
         connectionDetails,
         db,
+        env,
+        encryptionKey,
         logger
       );
     } catch (error) {
@@ -78,6 +84,8 @@ export async function handleMessageFromSlack(
         requestBody,
         connectionDetails,
         db,
+        env,
+        encryptionKey,
         logger
       );
     } catch (error) {
@@ -93,6 +101,8 @@ async function handleChannelJoined(
   request: any,
   connection: SlackConnection,
   db: NeonHttpDatabase<typeof schema>,
+  env: Env,
+  key: CryptoKey,
   logger: EdgeWithExecutionContext
 ) {
   const eventData = request.event;
@@ -190,6 +200,8 @@ async function handleChannelLeft(
   request: any,
   connection: SlackConnection,
   db: NeonHttpDatabase<typeof schema>,
+  env: Env,
+  key: CryptoKey,
   logger: EdgeWithExecutionContext
 ) {
   const eventData = request.event;
@@ -220,6 +232,8 @@ async function handleChannelUnarchive(
   request: any,
   connection: SlackConnection,
   db: NeonHttpDatabase<typeof schema>,
+  env: Env,
+  key: CryptoKey,
   logger: EdgeWithExecutionContext
 ) {
   const eventData = request.event;
@@ -250,6 +264,8 @@ async function handleChannelNameChanged(
   request: any,
   connection: SlackConnection,
   db: NeonHttpDatabase<typeof schema>,
+  env: Env,
+  key: CryptoKey,
   logger: EdgeWithExecutionContext
 ) {
   const eventData = request.event;
@@ -279,6 +295,8 @@ async function handleChannelIdChanged(
   request: any,
   connection: SlackConnection,
   db: NeonHttpDatabase<typeof schema>,
+  env: Env,
+  key: CryptoKey,
   logger: EdgeWithExecutionContext
 ) {
   const eventData = request.event;
@@ -308,11 +326,13 @@ async function handleFileUpload(
   request: any,
   connection: SlackConnection,
   db: NeonHttpDatabase<typeof schema>,
+  env: Env,
+  key: CryptoKey,
   logger: EdgeWithExecutionContext
 ) {
   if (request.zendeskFileTokens) {
     logger.info('File upload handled successfully');
-    return await handleMessage(request, connection, db, logger);
+    return await handleMessage(request, connection, db, env, key, logger);
   } else {
     logger.info('Need to handle file fallback');
 
@@ -321,7 +341,7 @@ async function handleFileUpload(
     // Check if there are files
     if (!files || files.length === 0) {
       logger.info('No files found in fallback');
-      return await handleMessage(request, connection, db, logger);
+      return await handleMessage(request, connection, db, env, key, logger);
     }
 
     // Start building the HTML output
@@ -337,7 +357,7 @@ async function handleFileUpload(
 
     request.event.text += htmlOutput;
     logger.info(`Updated request: ${JSON.stringify(request, null, 2)}`);
-    return await handleMessage(request, connection, db, logger);
+    return await handleMessage(request, connection, db, env, key, logger);
   }
 }
 
@@ -345,6 +365,8 @@ async function handleMessageEdit(
   request: any,
   connection: SlackConnection,
   db: NeonHttpDatabase<typeof schema>,
+  env: Env,
+  key: CryptoKey,
   logger: EdgeWithExecutionContext
 ) {
   // TODO: - I can do this check in the event handler to avoid a worker call
@@ -362,7 +384,15 @@ async function handleMessageEdit(
     };
 
     // Since files can't be added/removed in an edit, we can just use the message handler
-    return await handleMessage(request, connection, db, logger, false);
+    return await handleMessage(
+      request,
+      connection,
+      db,
+      env,
+      key,
+      logger,
+      false
+    );
   } else {
     logger.warn('Unhandled message edit type:', request);
     return;
@@ -373,6 +403,8 @@ async function handleMessageDeleted(
   request: any,
   connection: SlackConnection,
   db: NeonHttpDatabase<typeof schema>,
+  env: Env,
+  key: CryptoKey,
   logger: EdgeWithExecutionContext
 ) {
   if (request.event?.previous_message) {
@@ -392,7 +424,16 @@ async function handleMessageDeleted(
       status = 'closed';
     }
 
-    return await handleMessage(request, connection, db, logger, false, status);
+    return await handleMessage(
+      request,
+      connection,
+      db,
+      env,
+      key,
+      logger,
+      false,
+      status
+    );
   } else {
     logger.warn('Unhandled message deletion:', request);
     return;
@@ -403,6 +444,8 @@ async function handleMessage(
   request: any,
   connection: SlackConnection,
   db: NeonHttpDatabase<typeof schema>,
+  env: Env,
+  key: CryptoKey,
   logger: EdgeWithExecutionContext,
   isPublic: boolean = true,
   status: string = 'open'
@@ -428,7 +471,12 @@ async function handleMessage(
   // Fetch Zendesk credentials
   let zendeskCredentials: ZendeskConnection | null;
   try {
-    zendeskCredentials = await fetchZendeskCredentials(connection.id, db);
+    zendeskCredentials = await fetchZendeskCredentials(
+      connection.id,
+      db,
+      env,
+      key
+    );
   } catch (error) {
     logger.error(error);
     throw new Error('Error fetching Zendesk credentials');

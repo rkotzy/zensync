@@ -78,14 +78,17 @@ export const zendeskConnection = pgTable('zendesk_connections', {
     }),
   zendeskDomain: text('zendesk_domain').notNull(),
   zendeskEmail: text('zendesk_email').notNull(),
-  zendeskApiKey: text('zendesk_api_key').notNull(),
+  encryptedZendeskApiKey: text('encrypted_zendesk_api_key').notNull(),
   zendeskTriggerId: text('zendesk_trigger_id'),
   zendeskWebhookId: text('zendesk_webhook_id'),
-  webhookBearerToken: text('webhook_bearer_token').unique(),
+  encryptedWebhookBearerToken: text('encrypted_webhook_bearer_token').unique(),
   status: text('status')
 });
 
-export type ZendeskConnection = InferSelectModel<typeof zendeskConnection>;
+export type ZendeskConnection = InferSelectModel<typeof zendeskConnection> & {
+  zendeskApiKey: string;
+  webhookBearerToken: string;
+};
 
 // This represents a connection to a Slack channel. There can be many
 // channels associated to a single Organization.

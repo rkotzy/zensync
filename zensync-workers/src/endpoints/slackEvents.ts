@@ -18,6 +18,8 @@ import { Logtail } from '@logtail/edge';
 import { EdgeWithExecutionContext } from '@logtail/edge/dist/es6/edgeWithExecutionContext';
 import { NeonHttpDatabase } from 'drizzle-orm/neon-http';
 import { SlackEvent, SlackResponse } from '@/interfaces/slack-api.interface';
+import { Env } from '@/interfaces/env.interface';
+import { importEncryptionKeyFromEnvironment } from '@/lib/encryption';
 
 export class SlackEventHandler extends OpenAPIRoute {
   async handle(
@@ -61,12 +63,14 @@ export class SlackEventHandler extends OpenAPIRoute {
     ///////////////////////////////////////
 
     const db = initializeDb(env);
+    const encryptionKey = await importEncryptionKeyFromEnvironment(env);
 
     // Find the corresponding slack connection details
     const connectionDetails = await findSlackConnectionByTeamId(
       requestBody.team_id,
       db,
-      env
+      env,
+      encryptionKey
     );
 
     if (!connectionDetails) {
@@ -82,7 +86,14 @@ export class SlackEventHandler extends OpenAPIRoute {
     if (eventType === 'app_home_opened') {
       logger.info(`Handling app_home_opened event`);
       try {
-        await handleAppHomeOpened(requestBody, connectionDetails, db, logger);
+        await handleAppHomeOpened(
+          requestBody,
+          connectionDetails,
+          db,
+          env,
+          encryptionKey,
+          logger
+        );
       } catch (error) {
         logger.error(`Error handling app_home_opened: ${error.message}`);
         return new Response('Internal Server Error', { status: 500 });
@@ -186,10 +197,17 @@ function isMessageToQueue(eventType: string, eventSubtype: string): boolean {
 async function fetchHomeTabData(
   slackConnection: SlackConnection,
   db: NeonHttpDatabase<typeof schema>,
+  env: Env,
+  key: CryptoKey,
   logger: EdgeWithExecutionContext
 ): Promise<[ZendeskConnection | null, Channel[]]> {
   try {
-    const zendeskInfo = await fetchZendeskCredentials(slackConnection.id, db);
+    const zendeskInfo = await fetchZendeskCredentials(
+      slackConnection.id,
+      db,
+      env,
+      key
+    );
 
     const channelInfos = await db.query.channel.findMany({
       where: and(
@@ -213,6 +231,8 @@ async function handleAppHomeOpened(
   requestBody: any,
   connection: SlackConnection,
   db: NeonHttpDatabase<typeof schema>,
+  env: Env,
+  key: CryptoKey,
   logger: EdgeWithExecutionContext
 ) {
   const slackUserId = requestBody.event?.user;
@@ -226,6 +246,8 @@ async function handleAppHomeOpened(
     const [zendeskInfo, channelInfos] = await fetchHomeTabData(
       connection,
       db,
+      env,
+      key,
       logger
     );
 

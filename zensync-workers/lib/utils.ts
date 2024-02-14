@@ -80,29 +80,58 @@ function timingSafeEqual(a: string, b: string): boolean {
 
 export async function fetchZendeskCredentials(
   slackConnectionId: string,
-  db: NeonHttpDatabase<typeof schema>
-): Promise<ZendeskConnection | null> {
-  const zendeskCredentials = await db.query.zendeskConnection.findFirst({
-    where: eq(zendeskConnection.slackConnectionId, slackConnectionId)
-  });
-  const zendeskDomain = zendeskCredentials?.zendeskDomain;
-  const zendeskEmail = zendeskCredentials?.zendeskEmail;
-  const zendeskApiKey = zendeskCredentials?.zendeskApiKey;
+  db: NeonHttpDatabase<typeof schema>,
+  env: Env,
+  key?: CryptoKey
+): Promise<ZendeskConnection | null | undefined> {
+  try {
+    const zendeskCredentials = await db.query.zendeskConnection.findFirst({
+      where: eq(zendeskConnection.slackConnectionId, slackConnectionId)
+    });
+    const zendeskDomain = zendeskCredentials?.zendeskDomain;
+    const zendeskEmail = zendeskCredentials?.zendeskEmail;
+    const encryptedZendeskApiKey = zendeskCredentials?.encryptedZendeskApiKey;
 
-  if (!zendeskDomain || !zendeskEmail || !zendeskApiKey) {
-    console.log(
-      `No Zendesk credentials found for slack connection ${slackConnectionId}`
+    if (!zendeskDomain || !zendeskEmail || !encryptedZendeskApiKey) {
+      console.log(
+        `No Zendesk credentials found for slack connection ${slackConnectionId}`
+      );
+      return null;
+    }
+
+    let encryptionKey = key;
+    if (!encryptionKey) {
+      encryptionKey = await importEncryptionKeyFromEnvironment(env);
+    }
+    const decryptedApiKey = await decryptData(
+      encryptedZendeskApiKey,
+      encryptionKey
     );
-    return null;
-  }
 
-  return zendeskCredentials;
+    let decryptedWebhookBearerToken: string;
+    if (zendeskCredentials.encryptedWebhookBearerToken) {
+      decryptedWebhookBearerToken = await decryptData(
+        zendeskCredentials.encryptedWebhookBearerToken,
+        encryptionKey
+      );
+    }
+
+    return {
+      ...zendeskCredentials,
+      zendeskApiKey: decryptedApiKey,
+      webhookBearerToken: decryptedWebhookBearerToken
+    };
+  } catch (error) {
+    console.error('Error querying ZendeskConnections:', error);
+    return undefined;
+  }
 }
 
 export async function findSlackConnectionByTeamId(
   teamId: string | undefined,
   db: NeonHttpDatabase<typeof schema>,
-  env: Env
+  env: Env,
+  key?: CryptoKey
 ): Promise<SlackConnection | null | undefined> {
   if (!teamId) {
     console.error('No team_id found');
@@ -115,9 +144,12 @@ export async function findSlackConnectionByTeamId(
     });
 
     if (connection) {
-      const encryptionKey = await importEncryptionKeyFromEnvironment(env);
+      let encryptionKey = key;
+      if (!encryptionKey) {
+        encryptionKey = await importEncryptionKeyFromEnvironment(env);
+      }
       const decryptedToken = await decryptData(
-        connection?.encryptedToken,
+        connection.encryptedToken,
         encryptionKey
       );
 

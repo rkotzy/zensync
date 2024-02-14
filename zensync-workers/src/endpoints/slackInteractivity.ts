@@ -14,11 +14,11 @@ import { EdgeWithExecutionContext } from '@logtail/edge/dist/es6/edgeWithExecuti
 import { NeonHttpDatabase } from 'drizzle-orm/neon-http';
 import { ZendeskResponse } from '@/interfaces/zendesk-api.interface';
 import { SlackResponse } from '@/interfaces/slack-api.interface';
-
-export interface Env {
-  BETTER_STACK_SOURCE_TOKEN: string;
-  ROOT_URL: string;
-}
+import { Env } from '@/interfaces/env.interface';
+import {
+  importEncryptionKeyFromEnvironment,
+  encryptData
+} from '@/lib/encryption';
 
 export class SlackInteractivityHandler extends OpenAPIRoute {
   async handle(
@@ -33,6 +33,9 @@ export class SlackInteractivityHandler extends OpenAPIRoute {
 
     // Initialize the database
     const db = initializeDb(env);
+
+    // Initialize the encryption key
+    const encryptionKey = await importEncryptionKeyFromEnvironment(env);
 
     // Parse the request body
     const textClone = request.clone();
@@ -59,7 +62,8 @@ export class SlackInteractivityHandler extends OpenAPIRoute {
     const slackConnectionDetails = await findSlackConnectionByTeamId(
       payload.team?.id,
       db,
-      env
+      env,
+      encryptionKey
     );
 
     if (!slackConnectionDetails) {
@@ -93,6 +97,8 @@ export class SlackInteractivityHandler extends OpenAPIRoute {
           payload,
           slackConnectionDetails,
           db,
+          env,
+          encryptionKey,
           logger
         );
       } catch (error) {
@@ -111,6 +117,7 @@ export class SlackInteractivityHandler extends OpenAPIRoute {
           slackConnectionDetails,
           env,
           db,
+          encryptionKey,
           logger
         );
       } catch (error) {
@@ -167,6 +174,7 @@ async function saveZendeskCredentials(
   connection: SlackConnection,
   env: Env,
   db: NeonHttpDatabase<typeof schema>,
+  key: CryptoKey,
   logger: EdgeWithExecutionContext
 ) {
   const values = payload.view?.state.values;
@@ -326,31 +334,39 @@ async function saveZendeskCredentials(
   }
 
   // If the request is successful, save the credentials to the database
-  await db
-    .insert(zendeskConnection)
-    .values({
-      zendeskApiKey: zendeskKey,
-      zendeskDomain: zendeskDomain,
-      zendeskEmail: zendeskEmail,
-      slackConnectionId: connection.id,
-      status: 'ACTIVE',
-      zendeskTriggerId: zendeskTriggerId,
-      zendeskWebhookId: zendeskWebhookId,
-      webhookBearerToken: uuid
-    })
-    .onConflictDoUpdate({
-      target: zendeskConnection.slackConnectionId,
-      set: {
-        updatedAt: new Date(),
-        zendeskApiKey: zendeskKey,
+  try {
+    const encryptedApiKey = await encryptData(zendeskKey, key);
+    const encryptedWebhookBearerToken = await encryptData(uuid, key);
+
+    await db
+      .insert(zendeskConnection)
+      .values({
+        encryptedZendeskApiKey: encryptedApiKey,
         zendeskDomain: zendeskDomain,
         zendeskEmail: zendeskEmail,
-        webhookBearerToken: uuid,
+        slackConnectionId: connection.id,
+        status: 'ACTIVE',
         zendeskTriggerId: zendeskTriggerId,
         zendeskWebhookId: zendeskWebhookId,
-        status: 'ACTIVE'
-      }
-    });
+        encryptedWebhookBearerToken: encryptedWebhookBearerToken
+      })
+      .onConflictDoUpdate({
+        target: zendeskConnection.slackConnectionId,
+        set: {
+          updatedAt: new Date(),
+          encryptedZendeskApiKey: encryptedApiKey,
+          zendeskDomain: zendeskDomain,
+          zendeskEmail: zendeskEmail,
+          encryptedWebhookBearerToken: encryptedWebhookBearerToken,
+          zendeskTriggerId: zendeskTriggerId,
+          zendeskWebhookId: zendeskWebhookId,
+          status: 'ACTIVE'
+        }
+      });
+  } catch (error) {
+    logger.error(error);
+    return new Response('Error saving zendesk credentials.', { status: 500 });
+  }
 }
 
 async function openSlackModal(
@@ -382,6 +398,8 @@ async function openZendeskConfigurationModal(
   payload: any,
   connection: SlackConnection,
   db: NeonHttpDatabase<typeof schema>,
+  env: Env,
+  key: CryptoKey,
   logger: EdgeWithExecutionContext
 ) {
   logger.info('Opening Zendesk configuration modal');
@@ -392,7 +410,12 @@ async function openZendeskConfigurationModal(
     return;
   }
   try {
-    const zendeskInfo = await fetchZendeskCredentials(connection.id, db);
+    const zendeskInfo = await fetchZendeskCredentials(
+      connection.id,
+      db,
+      env,
+      key
+    );
 
     const body = JSON.stringify({
       trigger_id: triggerId,

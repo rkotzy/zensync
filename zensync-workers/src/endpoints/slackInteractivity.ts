@@ -75,7 +75,9 @@ export class SlackInteractivityHandler extends OpenAPIRoute {
     logger.info(`Action ID: ${actionId}`);
 
     // Handle the edit channel button tap
-    if (actionId.startsWith(InteractivityActionId.EDIT_CHANNEL_BUTTON_TAPPED)) {
+    if (
+      actionId?.startsWith(InteractivityActionId.EDIT_CHANNEL_BUTTON_TAPPED)
+    ) {
       try {
         await openChannelConfigurationModal(
           actionId,

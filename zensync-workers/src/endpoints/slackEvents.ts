@@ -65,7 +65,8 @@ export class SlackEventHandler extends OpenAPIRoute {
     // Find the corresponding slack connection details
     const connectionDetails = await findSlackConnectionByTeamId(
       requestBody.team_id,
-      db
+      db,
+      env
     );
 
     if (!connectionDetails) {

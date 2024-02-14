@@ -9,6 +9,8 @@ import {
 import * as schema from '@/lib/schema';
 import { NeonHttpDatabase } from 'drizzle-orm/neon-http';
 import { EdgeWithExecutionContext } from '@logtail/edge/dist/es6/edgeWithExecutionContext';
+import { Env } from '@/interfaces/env.interface';
+import { decryptData, importEncryptionKeyFromEnvironment } from './encryption';
 
 export enum InteractivityActionId {
   // Zendesk modal details
@@ -23,10 +25,6 @@ export enum InteractivityActionId {
   EDIT_CHANNEL_CONFIGURATION_MODAL_ID = 'edit-channel-configuration-modal',
   EDIT_CHANNEL_OWNER_FIELD = 'edit-channel-owner-input',
   EDIT_CHANNEL_TAGS_FIELD = 'edit-channel-tags-input'
-}
-
-export interface Env {
-  SLACK_SIGNING_SECRET: string;
 }
 
 export async function verifySlackRequest(
@@ -103,7 +101,8 @@ export async function fetchZendeskCredentials(
 
 export async function findSlackConnectionByTeamId(
   teamId: string | undefined,
-  db: NeonHttpDatabase<typeof schema>
+  db: NeonHttpDatabase<typeof schema>,
+  env: Env
 ): Promise<SlackConnection | null | undefined> {
   if (!teamId) {
     console.error('No team_id found');
@@ -115,7 +114,17 @@ export async function findSlackConnectionByTeamId(
       where: eq(slackConnection.slackTeamId, teamId)
     });
 
-    return connection;
+    if (connection) {
+      const encryptionKey = await importEncryptionKeyFromEnvironment(env);
+      const decryptedToken = await decryptData(
+        connection?.encryptedToken,
+        encryptionKey
+      );
+
+      return { ...connection, token: decryptedToken };
+    }
+
+    return null;
   } catch (error) {
     console.error('Error querying SlackConnections:', error);
     return undefined;

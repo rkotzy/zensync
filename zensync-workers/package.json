@@ -9,7 +9,8 @@
   },
   "dependencies": {
     "@cloudflare/itty-router-openapi": "^1.0.10",
-    "@logtail/edge": "^0.4.19"
+    "@logtail/edge": "^0.4.19",
+    "stripe": "^14.16.0"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20240129.0",

@@ -23,7 +23,7 @@ import {
 export class SlackInteractivityHandler extends OpenAPIRoute {
   async handle(
     request: Request,
-    env: any,
+    env: Env,
     context: any,
     data: Record<string, any>
   ) {

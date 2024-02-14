@@ -2,15 +2,12 @@ import { OpenAPIRoute } from '@cloudflare/itty-router-openapi';
 import { initializeDb } from '@/lib/drizzle';
 import { slackOauthState } from '@/lib/schema';
 import { Logtail } from '@logtail/edge';
-
-export interface Env {
-  BETTER_STACK_SOURCE_TOKEN: string;
-}
+import { Env } from '@/interfaces/env.interface';
 
 export class SlackAuthRedirect extends OpenAPIRoute {
   async handle(
     request: Request,
-    env: any,
+    env: Env,
     context: any,
     data: Record<string, any>
   ) {

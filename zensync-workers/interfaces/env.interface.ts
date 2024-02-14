@@ -3,6 +3,10 @@ export interface Env {
   ROOT_URL: string;
   PROCESS_SLACK_MESSAGES_QUEUE_BINDING: Queue<any>;
   UPLOAD_FILES_TO_ZENDESK_QUEUE_BINDING: Queue<any>;
+  SLACK_CLIENT_SECRET: string;
+  SLACK_CLIENT_ID: string;
   SLACK_SIGNING_SECRET: string;
   ENCRYPTION_KEY: string;
+  STRIPE_API_KEY: string;
+  DEFAULT_SUBSCRIPTION_PLAN_ID: string;
 }

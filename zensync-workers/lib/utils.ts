@@ -11,6 +11,7 @@ import { NeonHttpDatabase } from 'drizzle-orm/neon-http';
 import { EdgeWithExecutionContext } from '@logtail/edge/dist/es6/edgeWithExecutionContext';
 import { Env } from '@/interfaces/env.interface';
 import { decryptData, importEncryptionKeyFromEnvironment } from './encryption';
+const Stripe = require('stripe');
 
 export enum InteractivityActionId {
   // Zendesk modal details
@@ -183,4 +184,27 @@ export async function updateChannelActivity(
         eq(channel.slackChannelIdentifier, channelId)
       )
     );
+}
+
+export async function createStripeAccount(
+  name: string,
+  email: string,
+  env: Env
+) {
+  try {
+    const stripe = new Stripe(env.STRIPE_API_KEY);
+
+    const customer = await stripe.customers.create({
+      name: name,
+      email: email
+    });
+
+    const subscription = await stripe.subscriptions.create({
+      customer: customer.id,
+      items: [{ price: env.DEFAULT_SUBSCRIPTION_PLAN_ID }]
+    });
+  } catch (error) {
+    console.error('Error creating Stripe account:', error);
+    return undefined;
+  }
 }

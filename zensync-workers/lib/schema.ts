@@ -6,7 +6,8 @@ import {
   boolean,
   pgEnum,
   unique,
-  index
+  index,
+  integer
 } from 'drizzle-orm/pg-core';
 import { InferSelectModel, relations } from 'drizzle-orm';
 
@@ -48,7 +49,11 @@ export const slackConnection = pgTable('slack_connections', {
   encryptedToken: text('encrypted_token').notNull(),
   authedUserId: text('authed_user_id'),
   botUserId: text('bot_user_id').notNull(),
-  status: text('status')
+  status: text('status'),
+  subscriptionId: uuid('subscription_id').references(() => subscription.id, {
+    onDelete: 'no action'
+  }),
+  stripeCustomerId: text('stripe_customer_id')
 });
 
 export type SlackConnection = InferSelectModel<typeof slackConnection> & {
@@ -95,7 +100,7 @@ export type ZendeskConnection = InferSelectModel<typeof zendeskConnection> & {
 export const channel = pgTable(
   'channels',
   {
-    id: uuid('id').defaultRandom().defaultRandom().primaryKey().notNull(),
+    id: uuid('id').defaultRandom().primaryKey().notNull(),
     createdAt: timestamp('created_at', {
       mode: 'date',
       withTimezone: true
@@ -139,7 +144,7 @@ export type Channel = InferSelectModel<typeof channel>;
 export const conversation = pgTable(
   'conversations',
   {
-    id: uuid('id').defaultRandom().defaultRandom().primaryKey().notNull(),
+    id: uuid('id').defaultRandom().primaryKey().notNull(),
     createdAt: timestamp('created_at', {
       mode: 'date',
       withTimezone: true
@@ -176,3 +181,51 @@ export const conversationRelations = relations(conversation, ({ one }) => ({
     references: [channel.id]
   })
 }));
+
+export const subscription = pgTable('subscriptions', {
+  id: uuid('id').defaultRandom().primaryKey().notNull(),
+  createdAt: timestamp('created_at', {
+    mode: 'date',
+    withTimezone: true
+  })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp('updated_at', {
+    mode: 'date',
+    withTimezone: true
+  }),
+  stripeSubscriptionId: text('stripe_subscription_id').notNull(),
+  subscriptionPlanId: uuid('subscription_plan_id')
+    .notNull()
+    .references(() => subscriptionPlan.id, {
+      onDelete: 'no action'
+    }),
+  startedAt: timestamp('started_at', {
+    mode: 'date',
+    withTimezone: true
+  }),
+  endsAt: timestamp('started_at', {
+    mode: 'date',
+    withTimezone: true
+  }),
+  canceledAt: timestamp('canceled_at', {
+    mode: 'date',
+    withTimezone: true
+  })
+});
+
+export const subscriptionPlan = pgTable('subscription_plans', {
+  id: uuid('id').defaultRandom().primaryKey().notNull(),
+  createdAt: timestamp('created_at', {
+    mode: 'date',
+    withTimezone: true
+  })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp('updated_at', {
+    mode: 'date',
+    withTimezone: true
+  }),
+  stripeProductId: text('stripe_product_id').notNull(),
+  numberOfChannels: integer('number_of_channels').notNull()
+});

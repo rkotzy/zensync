@@ -4,7 +4,11 @@ import {
   Query
 } from '@cloudflare/itty-router-openapi';
 import { initializeDb } from '@/lib/drizzle';
-import { slackOauthState, slackConnection } from '@/lib/schema';
+import {
+  slackOauthState,
+  slackConnection,
+  SlackConnection
+} from '@/lib/schema';
 import { eq } from 'drizzle-orm';
 import { SlackResponse } from '@/interfaces/slack-api.interface';
 import { Logtail } from '@logtail/edge';
@@ -138,7 +142,7 @@ export class SlackAuthCallback extends OpenAPIRoute {
       const encryptionKey = await importEncryptionKeyFromEnvironment(env);
       const encryptedToken = await encryptData(accessToken, encryptionKey);
 
-      await db
+      const connectionInfo = await db
         .insert(slackConnection)
         .values({
           slackTeamId: team.id,
@@ -168,9 +172,23 @@ export class SlackAuthCallback extends OpenAPIRoute {
             botUserId: botUserId,
             status: 'ACTIVE'
           }
-        });
+        })
+        .returning();
 
-      // TODO: - Send to a customer updated queue to create a Stripe account
+      // Send to a customer created queue to create a Stripe account
+      if (connectionInfo && connectionInfo.length === 0) {
+        const fullConnectionInfo: SlackConnection = {
+          ...connectionInfo[0],
+          token: accessToken
+        };
+
+        // Only send to queue if the connection created not updated
+        if (!fullConnectionInfo.updatedAt) {
+          await env.SLACK_CONNECTION_CREATED_QUEUE_BINDING.send({
+            connectionDetails: fullConnectionInfo
+          });
+        }
+      }
     } catch (error) {
       logger.error(error);
       return new Response('Error saving access token.', { status: 500 });

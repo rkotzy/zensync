@@ -212,20 +212,28 @@ export async function createStripeAccount(
   name: string,
   email: string,
   env: Env,
-  indepotentcyKey: string
+  idempotencyKey: string
 ) {
   try {
     const stripe = new Stripe(env.STRIPE_API_KEY);
 
-    const customer = await stripe.customers.create({
-      name: name,
-      email: email
-    });
+    const customer = await stripe.customers.create(
+      {
+        name: name,
+        email: email
+      },
+      { idempotencyKey: idempotencyKey }
+    );
 
-    const subscription = await stripe.subscriptions.create({
-      customer: customer.id,
-      items: [{ price: env.DEFAULT_SUBSCRIPTION_PLAN_ID }]
-    });
+    const subscription = await stripe.subscriptions.create(
+      {
+        customer: customer.id,
+        items: [{ price: env.DEFAULT_SUBSCRIPTION_PLAN_ID }]
+      },
+      { idempotencyKey: idempotencyKey }
+    );
+
+    return { customer.id, subscription };
   } catch (error) {
     console.error('Error creating Stripe account:', error);
     return undefined;

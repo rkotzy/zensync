@@ -36,7 +36,8 @@ export async function uploadFilesToZendesk(
   try {
     zendeskCredentials = await fetchZendeskCredentials(
       connectionDetails.id,
-      db
+      db,
+      env
     );
   } catch (error) {
     logger.error(error);

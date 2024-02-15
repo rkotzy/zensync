@@ -164,6 +164,38 @@ export async function findSlackConnectionByTeamId(
   }
 }
 
+export async function getSlackConnection(
+  connectionId: string,
+  db: NeonHttpDatabase<typeof schema>,
+  env: Env,
+  key?: CryptoKey
+): Promise<SlackConnection | null | undefined> {
+
+  try {
+    const connection = await db.query.slackConnection.findFirst({
+      where: eq(slackConnection.id, connectionId)
+    });
+
+    if (connection) {
+      let encryptionKey = key;
+      if (!encryptionKey) {
+        encryptionKey = await importEncryptionKeyFromEnvironment(env);
+      }
+      const decryptedToken = await decryptData(
+        connection.encryptedToken,
+        encryptionKey
+      );
+
+      return { ...connection, token: decryptedToken };
+    }
+
+    return null;
+  } catch (error) {
+    console.error('Error finding SlackConnection:', error);
+    return undefined;
+  }
+}
+
 export async function updateChannelActivity(
   slackConnection: SlackConnection,
   channelId: string,

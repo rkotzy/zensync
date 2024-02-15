@@ -15,6 +15,7 @@ import { EdgeWithExecutionContext } from '@logtail/edge/dist/es6/edgeWithExecuti
 import { NeonHttpDatabase } from 'drizzle-orm/neon-http';
 import { Env } from '@/interfaces/env.interface';
 import { getSlackConnection } from '@/lib/utils';
+import bcrypt from 'bcryptjs';
 
 export class ZendeskEventHandler extends OpenAPIRoute {
   async handle(
@@ -176,23 +177,44 @@ async function authenticateRequest(
   db: NeonHttpDatabase<typeof schema>,
   logger: EdgeWithExecutionContext
 ): Promise<string | null> {
-  const authorizationHeader = request.headers.get('authorization');
-  const bearerToken = authorizationHeader?.replace('Bearer ', '');
-  if (!bearerToken) {
-    logger.error('Missing bearer token');
+  try {
+    const authorizationHeader = request.headers.get('authorization');
+    const bearerToken = authorizationHeader?.replace('Bearer ', '');
+
+    if (!bearerToken) {
+      logger.error('Missing bearer token');
+      return null;
+    }
+
+    const url = new URL(request.url);
+    const publicId = url.searchParams.get('id');
+
+    if (!publicId) {
+      logger.error('Missing id');
+      return null;
+    }
+
+    const connection = await db.query.zendeskConnection.findFirst({
+      where: eq(zendeskConnection.webhookPublicId, publicId)
+    });
+
+    if (!connection) {
+      logger.error('Invalid public Id');
+      return null;
+    }
+
+    const hashedToken = connection.hashedWebhookBearerToken;
+    const isValid = await bcrypt.compare(bearerToken, hashedToken);
+    if (!isValid) {
+      logger.error('Invalid bearer token');
+      return null;
+    }
+
+    return connection.slackConnectionId;
+  } catch (error) {
+    logger.error('Error in authenticateRequest:', error);
     return null;
   }
-
-  const connection = await db.query.zendeskConnection.findFirst({
-    where: eq(zendeskConnection.webhookBearerToken, bearerToken)
-  });
-
-  if (!connection) {
-    logger.error('Invalid bearer token');
-    return null;
-  }
-
-  return connection.slackConnectionId;
 }
 
 async function sendSlackMessage(

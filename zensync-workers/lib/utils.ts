@@ -109,18 +109,9 @@ export async function fetchZendeskCredentials(
       encryptionKey
     );
 
-    let decryptedWebhookBearerToken: string;
-    if (zendeskCredentials.encryptedWebhookBearerToken) {
-      decryptedWebhookBearerToken = await decryptData(
-        zendeskCredentials.encryptedWebhookBearerToken,
-        encryptionKey
-      );
-    }
-
     return {
       ...zendeskCredentials,
-      zendeskApiKey: decryptedApiKey,
-      webhookBearerToken: decryptedWebhookBearerToken
+      zendeskApiKey: decryptedApiKey
     };
   } catch (error) {
     console.error('Error querying ZendeskConnections:', error);
@@ -170,7 +161,6 @@ export async function getSlackConnection(
   env: Env,
   key?: CryptoKey
 ): Promise<SlackConnection | null | undefined> {
-
   try {
     const connection = await db.query.slackConnection.findFirst({
       where: eq(slackConnection.id, connectionId)

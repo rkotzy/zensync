@@ -19,6 +19,9 @@ import {
   importEncryptionKeyFromEnvironment,
   encryptData
 } from '@/lib/encryption';
+import bcrypt from 'bcryptjs';
+import { nanoid } from 'nanoid';
+import { customAlphabet } from 'nanoid';
 
 export class SlackInteractivityHandler extends OpenAPIRoute {
   async handle(
@@ -197,8 +200,16 @@ async function saveZendeskCredentials(
   // Base64 encode zendeskEmail/token:zendeskKey
   const zendeskAuthToken = btoa(`${zendeskEmail}/token:${zendeskKey}`);
 
-  // Generate a UUID for the webhook token and database id
-  let uuid = crypto.randomUUID();
+  // Generate a UUID for the webhook token
+  let webhookToken = crypto.randomUUID();
+
+  const nanoid = customAlphabet(
+    '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz',
+    12
+  );
+
+  // Generate a path ID for the webhook URL
+  let pathId = nanoid();
 
   let zendeskTriggerId: string;
   let zendeskWebhookId: string;
@@ -215,7 +226,7 @@ async function saveZendeskCredentials(
         authentication: {
           type: 'bearer_token',
           data: {
-            token: uuid
+            token: webhookToken
           },
           add_position: 'header'
         }
@@ -223,7 +234,7 @@ async function saveZendeskCredentials(
     });
 
     const zendeskWebhookResponse = await fetch(
-      `https://${zendeskDomain}.zendesk.com/api/v2/webhooks`,
+      `https://${zendeskDomain}.zendesk.com/api/v2/webhooks?id=${pathId}`,
       {
         method: 'POST',
         headers: {
@@ -338,7 +349,9 @@ async function saveZendeskCredentials(
   // If the request is successful, save the credentials to the database
   try {
     const encryptedApiKey = await encryptData(zendeskKey, key);
-    const encryptedWebhookBearerToken = await encryptData(uuid, key);
+
+    const salt = await bcrypt.genSalt(10);
+    const hashedWebhookToken = await bcrypt.hash(webhookToken, salt);
 
     await db
       .insert(zendeskConnection)
@@ -350,7 +363,8 @@ async function saveZendeskCredentials(
         status: 'ACTIVE',
         zendeskTriggerId: zendeskTriggerId,
         zendeskWebhookId: zendeskWebhookId,
-        encryptedWebhookBearerToken: encryptedWebhookBearerToken
+        hashedWebhookBearerToken: hashedWebhookToken,
+        webhookPublicId: pathId
       })
       .onConflictDoUpdate({
         target: zendeskConnection.slackConnectionId,
@@ -359,7 +373,8 @@ async function saveZendeskCredentials(
           encryptedZendeskApiKey: encryptedApiKey,
           zendeskDomain: zendeskDomain,
           zendeskEmail: zendeskEmail,
-          encryptedWebhookBearerToken: encryptedWebhookBearerToken,
+          hashedWebhookBearerToken: hashedWebhookToken,
+          webhookPublicId: pathId,
           zendeskTriggerId: zendeskTriggerId,
           zendeskWebhookId: zendeskWebhookId,
           status: 'ACTIVE'

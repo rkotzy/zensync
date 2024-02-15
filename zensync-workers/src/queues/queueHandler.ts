@@ -1,5 +1,6 @@
 import { uploadFilesToZendesk } from './uploadFiles';
 import { handleMessageFromSlack } from './handleSlackMessage';
+import { slackConnectionCreated } from './slackConnectionCreated';
 import { Env } from '@/interfaces/env.interface';
 import { Logtail } from '@logtail/edge';
 
@@ -25,6 +26,10 @@ export class QueueMessageHandler {
           case 'process-slack-messages':
             logger.info('Processing upload-files-to-zendesk queue');
             await handleMessageFromSlack(message.body, env, logger);
+            break;
+          case 'slack-connection-created':
+            logger.info('Processing slack-connection-created queue');
+            await slackConnectionCreated(message.body, env, logger);
             break;
           case 'dlq':
             // Handle dead-letter queue messages

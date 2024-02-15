@@ -44,7 +44,7 @@ dead_letter_queue = "dlq"
 queue = "slack-connection-created"
 max_batch_size = 1
 max_batch_timeout = 1
-max_retries = 10
+max_retries = 4
 dead_letter_queue = "dlq"
 
 [[queues.consumers]]

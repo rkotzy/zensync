@@ -50,9 +50,11 @@ export const slackConnection = pgTable('slack_connections', {
   authedUserId: text('authed_user_id'),
   botUserId: text('bot_user_id').notNull(),
   status: text('status'),
-  subscriptionId: uuid('subscription_id').references(() => subscription.id, {
-    onDelete: 'no action'
-  }),
+  subscriptionId: uuid('subscription_id')
+    .unique()
+    .references(() => subscription.id, {
+      onDelete: 'no action'
+    }),
   stripeCustomerId: text('stripe_customer_id')
 });
 
@@ -194,7 +196,7 @@ export const subscription = pgTable('subscriptions', {
     mode: 'date',
     withTimezone: true
   }),
-  stripeSubscriptionId: text('stripe_subscription_id').notNull(),
+  stripeSubscriptionId: text('stripe_subscription_id').unique().notNull(),
   subscriptionPlanId: uuid('subscription_plan_id')
     .notNull()
     .references(() => subscriptionPlan.id, {
@@ -204,7 +206,7 @@ export const subscription = pgTable('subscriptions', {
     mode: 'date',
     withTimezone: true
   }),
-  endsAt: timestamp('started_at', {
+  endsAt: timestamp('ends_at', {
     mode: 'date',
     withTimezone: true
   }),

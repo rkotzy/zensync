@@ -11,7 +11,7 @@ import { NeonHttpDatabase } from 'drizzle-orm/neon-http';
 import { EdgeWithExecutionContext } from '@logtail/edge/dist/es6/edgeWithExecutionContext';
 import { Env } from '@/interfaces/env.interface';
 import { decryptData, importEncryptionKeyFromEnvironment } from './encryption';
-const Stripe = require('stripe');
+import Stripe from 'stripe';
 
 export enum InteractivityActionId {
   // Zendesk modal details
@@ -210,32 +210,48 @@ export async function updateChannelActivity(
 
 export async function createStripeAccount(
   name: string,
-  email: string,
+  email: string | undefined,
   env: Env,
-  idempotencyKey: string
-) {
+  idempotencyKey: string,
+  logger: EdgeWithExecutionContext
+): Promise<{
+  customerId: string;
+  subscriptionId: string;
+  currentPeriodEnd: number;
+  currentPeriodStart: number;
+}> {
   try {
     const stripe = new Stripe(env.STRIPE_API_KEY);
 
-    const customer = await stripe.customers.create(
+    const customer: Stripe.Customer = await stripe.customers.create(
       {
         name: name,
-        email: email
+        ...(email ? { email: email } : {})
       },
-      { idempotencyKey: idempotencyKey }
+      { idempotencyKey: `customer-${idempotencyKey}` }
     );
 
-    const subscription = await stripe.subscriptions.create(
+    const subscription: Stripe.Subscription = await stripe.subscriptions.create(
       {
         customer: customer.id,
-        items: [{ price: env.DEFAULT_SUBSCRIPTION_PLAN_ID }]
+        items: [{ price: 'price_1OjpyEDlJlwKmwDWreiHLSAY' }] // Default free plan
       },
-      { idempotencyKey: idempotencyKey }
+      { idempotencyKey: `subscription-${idempotencyKey}` }
     );
 
-    return { customer.id, subscription };
+    if (!customer || !subscription) {
+      logger.error('Empty objects creating Stripe account');
+      return undefined;
+    }
+
+    return {
+      customerId: customer.id,
+      subscriptionId: subscription.id,
+      currentPeriodEnd: subscription.current_period_end,
+      currentPeriodStart: subscription.current_period_start
+    };
   } catch (error) {
-    console.error('Error creating Stripe account:', error);
+    logger.error('Error creating Stripe account:', error);
     return undefined;
   }
 }

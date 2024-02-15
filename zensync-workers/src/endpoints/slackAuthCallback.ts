@@ -176,7 +176,7 @@ export class SlackAuthCallback extends OpenAPIRoute {
         .returning();
 
       // Send to a customer created queue to create a Stripe account
-      if (connectionInfo && connectionInfo.length === 0) {
+      if (connectionInfo && connectionInfo.length === 1) {
         const fullConnectionInfo: SlackConnection = {
           ...connectionInfo[0],
           token: accessToken
@@ -185,7 +185,8 @@ export class SlackAuthCallback extends OpenAPIRoute {
         // Only send to queue if the connection created not updated
         if (!fullConnectionInfo.updatedAt) {
           await env.SLACK_CONNECTION_CREATED_QUEUE_BINDING.send({
-            connectionDetails: fullConnectionInfo
+            connectionDetails: fullConnectionInfo,
+            idempotencyKey: crypto.randomUUID()
           });
         }
       }

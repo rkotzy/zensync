@@ -211,7 +211,8 @@ export async function updateChannelActivity(
 export async function createStripeAccount(
   name: string,
   email: string,
-  env: Env
+  env: Env,
+  indepotentcyKey: string
 ) {
   try {
     const stripe = new Stripe(env.STRIPE_API_KEY);

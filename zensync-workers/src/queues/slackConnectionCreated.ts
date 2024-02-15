@@ -1,7 +1,7 @@
 import { Env } from '@/interfaces/env.interface';
 import { EdgeWithExecutionContext } from '@logtail/edge/dist/es6/edgeWithExecutionContext';
 
-export async function uploadFilesToZendesk(
+export async function slackConnectionCreated(
   requestJson: any,
   env: Env,
   logger: EdgeWithExecutionContext

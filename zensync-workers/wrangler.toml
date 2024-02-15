@@ -22,6 +22,9 @@ binding = "PROCESS_SLACK_MESSAGES_QUEUE_BINDING"
 queue = "upload-files-to-zendesk"
 binding = "UPLOAD_FILES_TO_ZENDESK_QUEUE_BINDING"
 
+[[queues.producers]]
+queue = "slack-connection-created"
+binding = "SLACK_CONNECTION_CREATED_QUEUE_BINDING"
 
 [[queues.consumers]]
 queue = "process-slack-messages"
@@ -35,6 +38,13 @@ queue = "upload-files-to-zendesk"
 max_batch_size = 1
 max_batch_timeout = 1
 max_retries = 2
+dead_letter_queue = "dlq"
+
+[[queues.consumers]]
+queue = "slack-connection-created"
+max_batch_size = 1
+max_batch_timeout = 1
+max_retries = 10
 dead_letter_queue = "dlq"
 
 [[queues.consumers]]

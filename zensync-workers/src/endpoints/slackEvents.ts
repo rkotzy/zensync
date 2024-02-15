@@ -313,7 +313,25 @@ async function handleAppHomeOpened(
         {
           type: 'divider'
         },
-        ...createChannelSections(channelInfos)
+        ...createChannelSections(channelInfos),
+        {
+          type: 'divider'
+        },
+        {
+          type: 'actions',
+          elements: [
+            {
+              type: 'button',
+              text: {
+                type: 'plain_text',
+                text: 'Account Details',
+                emoji: true
+              },
+              action_id:
+                InteractivityActionId.OPEN_ACCOUNT_SETTINGS_BUTTON_TAPPED
+            }
+          ]
+        }
       ]
     };
 

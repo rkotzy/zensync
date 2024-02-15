@@ -22,6 +22,7 @@ import {
 import bcrypt from 'bcryptjs';
 import { nanoid } from 'nanoid';
 import { customAlphabet } from 'nanoid';
+import Stripe from 'stripe';
 
 export class SlackInteractivityHandler extends OpenAPIRoute {
   async handle(
@@ -123,6 +124,22 @@ export class SlackInteractivityHandler extends OpenAPIRoute {
           env,
           db,
           encryptionKey,
+          logger
+        );
+      } catch (error) {
+        returnGenericError(error, logger);
+      }
+    }
+
+    // Handle the open account settings button tap
+    else if (
+      actionId === InteractivityActionId.OPEN_ACCOUNT_SETTINGS_BUTTON_TAPPED
+    ) {
+      try {
+        await openAccountSettings(
+          payload,
+          slackConnectionDetails,
+          env,
           logger
         );
       } catch (error) {
@@ -408,6 +425,82 @@ async function openSlackModal(
 
   if (!responseData.ok) {
     throw new Error(`Error opening modal: ${responseData}`);
+  }
+}
+
+async function openAccountSettings(
+  payload: any,
+  connection: SlackConnection,
+  env: Env,
+  logger: EdgeWithExecutionContext
+) {
+  logger.info('Opening Billing portal modal');
+  const triggerId = payload.trigger_id;
+
+  if (!triggerId) {
+    logger.warn('No trigger_id found in payload');
+    return;
+  }
+
+  try {
+    // TODO: - handle this more gracefully on the client
+    if (!connection.stripeCustomerId) {
+      logger.warn('No stripeCustomerId found in connection');
+      throw new Error('No stripe customer found in connection');
+    }
+
+    const stripe = new Stripe(env.STRIPE_API_KEY);
+    const session: Stripe.BillingPortal.Session =
+      await stripe.billingPortal.sessions.create({
+        customer: connection.stripeCustomerId,
+        return_url: `https://${connection.domain}.slack.com`
+      });
+
+    const portalUrl = session.url;
+    if (!portalUrl) {
+      logger.warn('No portal URL found');
+      throw new Error('No portal URL found');
+    }
+
+    const body = JSON.stringify({
+      trigger_id: triggerId,
+      view: {
+        type: 'modal',
+        title: {
+          type: 'plain_text',
+          text: 'Account Details',
+          emoji: true
+        },
+        blocks: [
+          {
+            type: 'section',
+            text: {
+              type: 'mrkdwn',
+              text: `Click the button below to access your billing portal.`
+            }
+          },
+          {
+            type: 'actions',
+            elements: [
+              {
+                type: 'button',
+                text: {
+                  type: 'plain_text',
+                  text: 'Open Billing Portal :credit_card:',
+                  emoji: true
+                },
+                url: portalUrl
+              }
+            ]
+          }
+        ]
+      }
+    });
+
+    await openSlackModal(body, connection, logger);
+  } catch (error) {
+    logger.error('Error in openBillingPortal:', error);
+    throw error;
   }
 }
 

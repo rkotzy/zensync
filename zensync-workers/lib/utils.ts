@@ -25,7 +25,10 @@ export enum InteractivityActionId {
   EDIT_CHANNEL_BUTTON_TAPPED = 'edit-channel',
   EDIT_CHANNEL_CONFIGURATION_MODAL_ID = 'edit-channel-configuration-modal',
   EDIT_CHANNEL_OWNER_FIELD = 'edit-channel-owner-input',
-  EDIT_CHANNEL_TAGS_FIELD = 'edit-channel-tags-input'
+  EDIT_CHANNEL_TAGS_FIELD = 'edit-channel-tags-input',
+
+  // Account settings modal details
+  OPEN_ACCOUNT_SETTINGS_BUTTON_TAPPED = 'open-account-settings'
 }
 
 export async function verifySlackRequest(

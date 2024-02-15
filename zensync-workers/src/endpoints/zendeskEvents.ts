@@ -135,7 +135,7 @@ export class ZendeskEventHandler extends OpenAPIRoute {
   }
 }
 
-async function getSlackUser(
+async function getSlackUserByEmail(
   connection: SlackConnection,
   email: string,
   logger: EdgeWithExecutionContext
@@ -161,13 +161,13 @@ async function getSlackUser(
     }
 
     const username =
-      responseData.user.profile.display_name ||
-      responseData.user.profile.real_name ||
+      responseData.user.profile?.display_name ||
+      responseData.user.profile?.real_name ||
       undefined;
     const imageUrl = responseData.user.profile.image_192;
     return { username, imageUrl };
   } catch (error) {
-    logger.error('Error in getSlackUser:', error);
+    logger.error('Error in getSlackUserByEmail:', error);
     throw error;
   }
 }
@@ -229,7 +229,7 @@ async function sendSlackMessage(
 
   try {
     if (requestBody.current_user_email) {
-      const slackUser = await getSlackUser(
+      const slackUser = await getSlackUserByEmail(
         connection,
         requestBody.current_user_email,
         logger

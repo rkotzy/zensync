@@ -138,7 +138,7 @@ export class SlackAuthCallback extends OpenAPIRoute {
       const encryptionKey = await importEncryptionKeyFromEnvironment(env);
       const encryptedToken = await encryptData(accessToken, encryptionKey);
 
-      await db
+      const stripeConnectionInfo = await db
         .insert(slackConnection)
         .values({
           slackTeamId: team.id,
@@ -168,7 +168,12 @@ export class SlackAuthCallback extends OpenAPIRoute {
             botUserId: botUserId,
             status: 'ACTIVE'
           }
+        })
+        .returning({
+          stripeCustomerId: slackConnection.stripeCustomerId,
+          subscriptionId: slackConnection.subscriptionId
         });
+
     } catch (error) {
       logger.error(error);
       return new Response('Error saving access token.', { status: 500 });

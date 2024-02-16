@@ -4,6 +4,7 @@ import { SlackInteractivityHandler } from './endpoints/slackInteractivity';
 import { SlackAuthRedirect } from './endpoints/slackAuthRedirect';
 import { SlackAuthCallback } from './endpoints/slackAuthCallback';
 import { SlackEventHandler } from './endpoints/slackEvents';
+import { StripeEventHandler } from './endpoints/stripeEvents';
 import { QueueMessageHandler } from './queues/queueHandler';
 
 export const router = OpenAPIRouter();
@@ -14,6 +15,7 @@ router.post(`/v1/slack/interactivity`, SlackInteractivityHandler);
 router.get(`/v1/slack/auth/redirect`, SlackAuthRedirect);
 router.get(`/v1/slack/auth/callback`, SlackAuthCallback);
 router.post(`/v1/slack/events`, SlackEventHandler);
+router.post(`/v1/stripe/events`, StripeEventHandler);
 
 // 404 for everything else
 router.all('*', () =>

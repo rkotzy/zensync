@@ -1,25 +1,13 @@
 import { OpenAPIRoute } from '@cloudflare/itty-router-openapi';
 import { initializeDb } from '@/lib/drizzle';
-import { eq, and, desc } from 'drizzle-orm';
-import {
-  fetchZendeskCredentials,
-  findSlackConnectionByTeamId,
-  InteractivityActionId,
-  verifySlackRequest
-} from '@/lib/utils';
-import {
-  SlackConnection,
-  ZendeskConnection,
-  Channel,
-  channel
-} from '@/lib/schema';
-import * as schema from '@/lib/schema';
+import { findSlackConnectionByTeamId, verifySlackRequest } from '@/lib/utils';
+import { SlackConnection } from '@/lib/schema';
 import { Logtail } from '@logtail/edge';
 import { EdgeWithExecutionContext } from '@logtail/edge/dist/es6/edgeWithExecutionContext';
-import { NeonHttpDatabase } from 'drizzle-orm/neon-http';
-import { SlackEvent, SlackResponse } from '@/interfaces/slack-api.interface';
+import { SlackEvent } from '@/interfaces/slack-api.interface';
 import { Env } from '@/interfaces/env.interface';
 import { importEncryptionKeyFromEnvironment } from '@/lib/encryption';
+import { handleAppHomeOpened } from '@/views/homeTab';
 
 export class SlackEventHandler extends OpenAPIRoute {
   async handle(
@@ -84,19 +72,25 @@ export class SlackEventHandler extends OpenAPIRoute {
     const eventSubtype = requestBody.event?.subtype;
 
     if (eventType === 'app_home_opened') {
-      logger.info(`Handling app_home_opened event`);
-      try {
-        await handleAppHomeOpened(
-          requestBody,
-          connectionDetails,
-          db,
-          env,
-          encryptionKey,
-          logger
-        );
-      } catch (error) {
-        logger.error(`Error handling app_home_opened: ${error.message}`);
-        return new Response('Internal Server Error', { status: 500 });
+      const slackUserId = requestBody.event?.user;
+
+      if (slackUserId) {
+        logger.info(`Handling app_home_opened event`);
+        try {
+          await handleAppHomeOpened(
+            slackUserId,
+            connectionDetails,
+            db,
+            env,
+            encryptionKey,
+            logger
+          );
+        } catch (error) {
+          logger.error(`Error handling app_home_opened: ${error.message}`);
+          return new Response('Internal Server Error', { status: 500 });
+        }
+      } else {
+        logger.error('No slackUserId found in app_home_opened event');
       }
     } else if (
       isMessageToQueue(eventType, eventSubtype) ||
@@ -192,230 +186,4 @@ function isMessageToQueue(eventType: string, eventSubtype: string): boolean {
     specificEventsToHandle.includes(eventType) ||
     specificEventsToHandle.includes(eventSubtype)
   );
-}
-
-async function fetchHomeTabData(
-  slackConnection: SlackConnection,
-  db: NeonHttpDatabase<typeof schema>,
-  env: Env,
-  key: CryptoKey,
-  logger: EdgeWithExecutionContext
-): Promise<[ZendeskConnection | null, Channel[]]> {
-  try {
-    const zendeskInfo = await fetchZendeskCredentials(
-      slackConnection.id,
-      db,
-      env,
-      key
-    );
-
-    const channelInfos = await db.query.channel.findMany({
-      where: and(
-        eq(channel.slackConnectionId, slackConnection.id),
-        eq(channel.isMember, true)
-      ),
-      orderBy: [desc(channel.name)],
-      limit: 1000 // This is artificaially set just to not blow up the home tab
-    });
-
-    return [zendeskInfo, channelInfos];
-  } catch (error) {
-    logger.error(
-      `Error fetching home tab data from database: ${error.message}`
-    );
-    throw error;
-  }
-}
-
-async function handleAppHomeOpened(
-  requestBody: any,
-  connection: SlackConnection,
-  db: NeonHttpDatabase<typeof schema>,
-  env: Env,
-  key: CryptoKey,
-  logger: EdgeWithExecutionContext
-) {
-  const slackUserId = requestBody.event?.user;
-
-  if (!slackUserId) {
-    logger.error('No user found in event body');
-    return;
-  }
-
-  try {
-    const [zendeskInfo, channelInfos] = await fetchHomeTabData(
-      connection,
-      db,
-      env,
-      key,
-      logger
-    );
-
-    const viewJson = {
-      type: 'home',
-      blocks: [
-        {
-          type: 'header',
-          text: {
-            type: 'plain_text',
-            text: 'Welcome to Zensync :wave:',
-            emoji: true
-          }
-        },
-        {
-          type: 'divider'
-        },
-        {
-          type: 'section',
-          text: {
-            type: 'mrkdwn',
-            text: 'Manage your connection with Zendesk through the button below. Refer to our <https://slacktozendesk.com/docs|docs> for more information.'
-          }
-        },
-        {
-          type: 'actions',
-          elements: [
-            {
-              type: 'button',
-              text: {
-                type: 'plain_text',
-                text:
-                  zendeskInfo?.status !== 'ACTIVE'
-                    ? 'Connect to Zendesk'
-                    : 'Edit Zendesk Connection',
-                emoji: true
-              },
-              action_id: InteractivityActionId.CONFIGURE_ZENDESK_BUTTON_TAPPED,
-              ...(zendeskInfo?.status !== 'ACTIVE' && { style: 'primary' })
-            }
-          ]
-        },
-        {
-          type: 'divider'
-        },
-        {
-          type: 'header',
-          text: {
-            type: 'plain_text',
-            text: `Connected channels (${channelInfos.length})`,
-            emoji: true
-          }
-        },
-        {
-          type: 'context',
-          elements: [
-            {
-              type: 'mrkdwn',
-              text: 'Use command `/invite @zensync` in any channel to connect it with Zendesk.'
-            }
-          ]
-        },
-        {
-          type: 'divider'
-        },
-        ...createChannelSections(channelInfos),
-        {
-          type: 'divider'
-        },
-        {
-          type: 'actions',
-          elements: [
-            {
-              type: 'button',
-              text: {
-                type: 'plain_text',
-                text: 'Account Details',
-                emoji: true
-              },
-              action_id:
-                InteractivityActionId.OPEN_ACCOUNT_SETTINGS_BUTTON_TAPPED
-            }
-          ]
-        }
-      ]
-    };
-
-    const body = JSON.stringify({
-      user_id: slackUserId,
-      view: viewJson
-    });
-
-    logger.info(`Publishing Slack View: ${body}`);
-
-    const response = await fetch('https://slack.com/api/views.publish', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${connection.token}`
-      },
-      body: body
-    });
-
-    logger.info(`Slack response: ${JSON.stringify(response)}`);
-
-    const responseData = (await response.json()) as SlackResponse;
-
-    if (!responseData.ok) {
-      const errorDetails = JSON.stringify(responseData, null, 2);
-      throw new Error(`Error publishig view: ${errorDetails}`);
-    }
-  } catch (error) {
-    logger.error(`Error in handleAppHomeOpened: ${error.message}`);
-    throw error;
-  }
-}
-
-function createChannelSections(channelInfos: Channel[]) {
-  // If the channelInfos array is empty, return an empty array
-  if (channelInfos.length === 0) {
-    return [];
-  }
-
-  // Map over the channelInfos array to create a section for each item
-  return channelInfos
-    .map(info => {
-      const activityDate = info.latestActivityAt ?? info.createdAt;
-      const latestActivityTimestamp = Math.floor(activityDate.getTime() / 1000);
-      const fallbackText = activityDate.toLocaleDateString(); // Simplified fallback text generation
-
-      const slackFormattedDate = `<!date^${latestActivityTimestamp}^{date_short} at {time}|${fallbackText}>`;
-
-      const tags = info.tags || [];
-      const tagsString =
-        tags.length > 0 ? tags.map(tag => `\`${tag}\``).join(', ') : '';
-
-      return [
-        {
-          type: 'section',
-          text: {
-            type: 'mrkdwn',
-            text: `*<#${info.slackChannelIdentifier}|${info.name}>*\n*Owner:* ${
-              info.defaultAssigneeEmail ?? ''
-            }\n*Tags:* ${tagsString}`
-          },
-          accessory: {
-            type: 'button',
-            text: {
-              type: 'plain_text',
-              emoji: true,
-              text: 'Edit'
-            },
-            action_id: `${InteractivityActionId.EDIT_CHANNEL_BUTTON_TAPPED}:${info.slackChannelIdentifier}`
-          }
-        },
-        {
-          type: 'context',
-          elements: [
-            {
-              type: 'mrkdwn',
-              text: `Last message on ${slackFormattedDate}`
-            }
-          ]
-        },
-        {
-          type: 'divider'
-        }
-      ];
-    })
-    .flat();
 }

@@ -23,6 +23,7 @@ import bcrypt from 'bcryptjs';
 import { nanoid } from 'nanoid';
 import { customAlphabet } from 'nanoid';
 import Stripe from 'stripe';
+import { handleAppHomeOpened } from '@/views/homeTab';
 
 export class SlackInteractivityHandler extends OpenAPIRoute {
   async handle(
@@ -136,12 +137,7 @@ export class SlackInteractivityHandler extends OpenAPIRoute {
       actionId === InteractivityActionId.OPEN_ACCOUNT_SETTINGS_BUTTON_TAPPED
     ) {
       try {
-        await openAccountSettings(
-          payload,
-          slackConnectionDetails,
-          env,
-          logger
-        );
+        await openAccountSettings(payload, slackConnectionDetails, env, logger);
       } catch (error) {
         returnGenericError(error, logger);
       }
@@ -397,6 +393,11 @@ async function saveZendeskCredentials(
           status: 'ACTIVE'
         }
       });
+
+    const slackUserId = payload.user?.id;
+    if (slackUserId) {
+      await handleAppHomeOpened(slackUserId, connection, db, env, key, logger);
+    }
   } catch (error) {
     logger.error(error);
     return new Response('Error saving zendesk credentials.', { status: 500 });

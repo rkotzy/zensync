@@ -580,6 +580,27 @@ async function openZendeskConfigurationModal(
           },
           {
             type: 'input',
+            block_id: 'zendesk_api_key',
+            element: {
+              type: 'plain_text_input',
+              action_id: InteractivityActionId.ZENDESK_API_KEY_TEXT_FIELD,
+              placeholder: {
+                type: 'plain_text',
+                text: '•••••••••••••••••••••••••'
+              }
+            },
+            label: {
+              type: 'plain_text',
+              text: 'Zendesk API Key',
+              emoji: true
+            },
+            hint: {
+              type: 'plain_text',
+              text: 'The Zendesk API key your admin created.'
+            }
+          },
+          {
+            type: 'input',
             block_id: 'zendesk_admin_email',
             element: {
               type: 'plain_text_input',
@@ -598,27 +619,6 @@ async function openZendeskConfigurationModal(
             hint: {
               type: 'plain_text',
               text: 'Enter the email address of the Zendesk admin that created the API key.'
-            }
-          },
-          {
-            type: 'input',
-            block_id: 'zendesk_api_key',
-            element: {
-              type: 'plain_text_input',
-              action_id: InteractivityActionId.ZENDESK_API_KEY_TEXT_FIELD,
-              placeholder: {
-                type: 'plain_text',
-                text: '•••••••••••••••••••••••••'
-              }
-            },
-            label: {
-              type: 'plain_text',
-              text: 'Zendesk API Key',
-              emoji: true
-            },
-            hint: {
-              type: 'plain_text',
-              text: 'The Zendesk API key your admin created.'
             }
           }
         ]

@@ -10,4 +10,5 @@ export interface Env {
   ENCRYPTION_KEY: string;
   STRIPE_API_KEY: string;
   DEFAULT_SUBSCRIPTION_PLAN_ID: string;
+  STRIPE_ENDPOINT_SECRET: string;
 }

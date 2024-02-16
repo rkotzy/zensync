@@ -202,11 +202,11 @@ export const subscription = pgTable('subscriptions', {
     .references(() => subscriptionPlan.id, {
       onDelete: 'no action'
     }),
-  startedAt: timestamp('started_at', {
+  periodStart: timestamp('period_start', {
     mode: 'date',
     withTimezone: true
   }),
-  endsAt: timestamp('ends_at', {
+  periodEnd: timestamp('period_end', {
     mode: 'date',
     withTimezone: true
   }),
@@ -231,3 +231,10 @@ export const subscriptionPlan = pgTable('subscription_plans', {
   stripeProductId: text('stripe_product_id').notNull(),
   numberOfChannels: integer('number_of_channels').notNull()
 });
+
+export const subscriptionRelations = relations(subscription, ({ one }) => ({
+  subscriptionPlan: one(subscriptionPlan, {
+    fields: [subscription.subscriptionPlanId],
+    references: [subscriptionPlan.id]
+  })
+}));

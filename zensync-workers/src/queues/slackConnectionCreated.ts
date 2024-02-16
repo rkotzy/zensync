@@ -49,11 +49,11 @@ export async function slackConnectionCreated(
         subscriptionPlanId: env.DEFAULT_SUBSCRIPTION_PLAN_ID,
         // Conditionally include startedAt only if currentPeriodStart exists
         ...(stripeAccount.currentPeriodStart
-          ? { startedAt: new Date(stripeAccount.currentPeriodStart * 1000) }
+          ? { periodStart: new Date(stripeAccount.currentPeriodStart * 1000) }
           : {}),
         // Conditionally include endsAt only if currentPeriodEnd exists
         ...(stripeAccount.currentPeriodEnd
-          ? { endsAt: new Date(stripeAccount.currentPeriodEnd * 1000) }
+          ? { periodEnd: new Date(stripeAccount.currentPeriodEnd * 1000) }
           : {})
       })
       .onConflictDoNothing()

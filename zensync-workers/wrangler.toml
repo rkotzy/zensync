@@ -2,6 +2,7 @@ name = "zensync-workers"
 main = "src/index.ts"
 compatibility_date = "2024-01-29"
 compatibility_flags = [ "nodejs_compat" ]
+logpush = true
 
 # Define your environment variables here
 [vars]

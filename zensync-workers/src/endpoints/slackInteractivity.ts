@@ -24,6 +24,7 @@ import { nanoid } from 'nanoid';
 import { customAlphabet } from 'nanoid';
 import Stripe from 'stripe';
 import { handleAppHomeOpened } from '@/views/homeTab';
+import { responseWithLogging } from '@/lib/logger';
 
 export class SlackInteractivityHandler extends OpenAPIRoute {
   async handle(
@@ -61,7 +62,6 @@ export class SlackInteractivityHandler extends OpenAPIRoute {
 
     // Parse the JSON string into an object
     const payload = JSON.parse(payloadString);
-    logger.info(JSON.stringify(payload, null, 2));
 
     // Find the corresponding organization connection details
     const slackConnectionDetails = await findSlackConnectionByTeamId(
@@ -73,7 +73,13 @@ export class SlackInteractivityHandler extends OpenAPIRoute {
 
     if (!slackConnectionDetails) {
       logger.warn(`No organization found for team ID: ${payload.team?.id}.`);
-      return new Response('Invalid team_id', { status: 404 });
+      return responseWithLogging(
+        request,
+        payload,
+        'Invalid team_id',
+        404,
+        logger
+      );
     }
 
     const actionId = getFirstActionId(payload);
@@ -92,7 +98,7 @@ export class SlackInteractivityHandler extends OpenAPIRoute {
           logger
         );
       } catch (error) {
-        returnGenericError(error, logger);
+        return returnGenericError(error, logger);
       }
     }
     // Handle the configure zendesk button tap
@@ -109,7 +115,7 @@ export class SlackInteractivityHandler extends OpenAPIRoute {
           logger
         );
       } catch (error) {
-        returnGenericError(error, logger);
+        return returnGenericError(error, logger);
       }
     }
     // Handle the configure zendesk modal submission
@@ -128,7 +134,7 @@ export class SlackInteractivityHandler extends OpenAPIRoute {
           logger
         );
       } catch (error) {
-        returnGenericError(error, logger);
+        return returnGenericError(error, logger);
       }
     }
 
@@ -139,15 +145,19 @@ export class SlackInteractivityHandler extends OpenAPIRoute {
       try {
         await openAccountSettings(payload, slackConnectionDetails, env, logger);
       } catch (error) {
-        returnGenericError(error, logger);
+        return returnGenericError(error, logger);
       }
     }
 
-    return new Response(null, { status: 200 }); // The body is intentionally empty here for Slack to close any views
+    // The body is intentionally empty here for Slack to close any views
+    return responseWithLogging(request, payload, null, 200, logger);
   }
 }
 
-function returnGenericError(error: any, logger: EdgeWithExecutionContext) {
+function returnGenericError(
+  error: any,
+  logger: EdgeWithExecutionContext
+): Response {
   logger.error(`Error: ${error.message}`);
   return Response.json(
     {
@@ -194,7 +204,7 @@ async function saveZendeskCredentials(
   db: NeonHttpDatabase<typeof schema>,
   key: CryptoKey,
   logger: EdgeWithExecutionContext
-) {
+): Promise<void> {
   const values = payload.view?.state.values;
 
   const rawZendeskDomain =
@@ -353,10 +363,7 @@ async function saveZendeskCredentials(
     zendeskTriggerId = triggerResponseJson.trigger.id ?? null;
   } catch (error) {
     logger.info(error);
-    return Response.json(
-      { message: 'Invalid Zendesk Credentials' },
-      { status: 400 }
-    );
+    throw error;
   }
 
   // If the request is successful, save the credentials to the database
@@ -400,7 +407,7 @@ async function saveZendeskCredentials(
     }
   } catch (error) {
     logger.error(error);
-    return new Response('Error saving zendesk credentials.', { status: 500 });
+    throw error;
   }
 }
 

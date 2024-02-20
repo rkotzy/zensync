@@ -49,17 +49,17 @@ function buildMetadataFromHeaders(headers) {
   return metadata;
 }
 
-export function logJsonWithId(
-  request: Request,
-  requestJson: any,
-  logger: EdgeWithExecutionContext
-) {
-  const eventBody = {
-    ...requestJson,
-    request_id: request.headers.get('X-Request-ID')
-  };
-  logger.info(JSON.stringify(eventBody));
-}
+// export function logJsonWithId(
+//   request: Request,
+//   requestJson: any,
+//   logger: EdgeWithExecutionContext
+// ) {
+//   const eventBody = {
+//     ...requestJson,
+//     request_id: request.headers.get('X-Request-ID')
+//   };
+//   logger.info(JSON.stringify(eventBody));
+// }
 
 export function responseWithLogging(
   request: Request,

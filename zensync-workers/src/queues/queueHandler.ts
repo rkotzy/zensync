@@ -14,33 +14,28 @@ export class QueueMessageHandler {
     const baseLogger = new Logtail(env.BETTER_STACK_SOURCE_TOKEN);
     const logger = baseLogger.withExecutionContext(ctx);
 
-    logger.info('Queue consumer started!');
     try {
       for (const message of batch.messages) {
         // MessageBatch has a `queue` property we can switch on
         switch (batch.queue) {
           case 'upload-files-to-zendesk':
-            logger.info('Processing upload-files-to-zendesk queue');
             await uploadFilesToZendesk(message.body, env, logger);
             break;
           case 'process-slack-messages':
-            logger.info('Processing upload-files-to-zendesk queue');
             await handleMessageFromSlack(message.body, env, logger);
             break;
           case 'slack-connection-created':
-            logger.info('Processing slack-connection-created queue');
             await slackConnectionCreated(message.body, env, logger);
             break;
           case 'dlq':
             // Handle dead-letter queue messages
             break;
           default:
-            logger.info(`Unknown queue: ${batch.queue}`);
+            logger.warn(`Unknown queue: ${batch.queue}`);
         }
       }
     } catch (e) {
-      logger.info(`Error processing queue message on ${batch.queue}`);
-      logger.error(e);
+      logger.error(`Error processing queue message on ${batch.queue}`);
       throw e;
     }
   }

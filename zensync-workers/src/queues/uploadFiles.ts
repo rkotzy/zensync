@@ -13,7 +13,6 @@ export async function uploadFilesToZendesk(
   logger: EdgeWithExecutionContext
 ) {
   let responseJson = requestJson;
-  logger.info(JSON.stringify(requestJson, null, 2));
 
   const slackRequestBody = requestJson.eventBody;
   const connectionDetails: SlackConnection = requestJson.connectionDetails;
@@ -37,7 +36,8 @@ export async function uploadFilesToZendesk(
     zendeskCredentials = await fetchZendeskCredentials(
       connectionDetails.id,
       db,
-      env
+      env,
+      logger
     );
   } catch (error) {
     logger.error(error);
@@ -57,15 +57,12 @@ export async function uploadFilesToZendesk(
     // Fetch Slack Connect file if needed
     // https://api.slack.com/apis/channels-between-orgs#check_file_info
     if (slackFile.id && slackFile.file_access === 'check_file_info') {
-      logger.info('Fetching file info from Slack');
       slackFile = await getFileInfoFromSlack(
         connectionDetails,
         slackFile.id,
         logger
       );
     }
-
-    logger.info('Slack file to upload:', slackFile);
 
     // Upload the file to Zendesk
     let uploadToken: string;
@@ -95,16 +92,12 @@ export async function uploadFilesToZendesk(
   // Add the Zendesk upload tokens to the response
   responseJson.eventBody.zendeskFileTokens = zendeskFileTokens;
 
-  logger.info('Publishing to queue:', responseJson);
-
   try {
     await env.PROCESS_SLACK_MESSAGES_QUEUE_BINDING.send(responseJson);
   } catch (error) {
     logger.error('Error publishing to queue:', error);
     throw new Error('Error publishing to queue');
   }
-
-  logger.info('Published to qstash');
 }
 
 // Function to upload a file to Zendesk directly from a URL
@@ -136,9 +129,6 @@ async function uploadFileFromUrlToZendesk(
     `${zendeskCredentials.zendeskEmail}/token:${zendeskCredentials.zendeskApiKey}`
   );
 
-  logger.info(`Buffer size: ${fileBuffer.length} bytes`);
-  logger.info(`preparing to upload file type ${mimetype} to ${url}`);
-
   const response = await fetch(url, {
     method: 'POST',
     headers: {
@@ -154,7 +144,6 @@ async function uploadFileFromUrlToZendesk(
   }
 
   const data = (await response.json()) as ZendeskResponse;
-  logger.info('Uploaded to Zendesk:', data);
   return data.upload.token;
 }
 
@@ -177,14 +166,13 @@ async function getFileInfoFromSlack(
 
     const responseData = (await response.json()) as SlackResponse;
 
-    logger.info(`Slack file info response: ${JSON.stringify(responseData)}`);
-
     if (!responseData.ok) {
+      logger.error(`Error getting Slack file info: ${responseData.error}`);
       throw new Error(`Error getting Slack file info: ${responseData.error}`);
     }
     return responseData.file;
   } catch (error) {
-    logger.error('Error in getFileInfoFromSlack:', error);
+    logger.error(`Error in getFileInfoFromSlack: ${error}`);
     throw error;
   }
 }

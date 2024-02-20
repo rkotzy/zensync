@@ -68,6 +68,7 @@ export class SlackInteractivityHandler extends OpenAPIRoute {
       payload.team?.id,
       db,
       env,
+      logger,
       encryptionKey
     );
 
@@ -83,7 +84,6 @@ export class SlackInteractivityHandler extends OpenAPIRoute {
     }
 
     const actionId = getFirstActionId(payload);
-    logger.info(`Action ID: ${actionId}`);
 
     // Handle the edit channel button tap
     if (
@@ -280,7 +280,6 @@ async function saveZendeskCredentials(
     // Parse the response body to JSON
     const webhookResponseJson =
       (await zendeskWebhookResponse.json()) as ZendeskResponse;
-    logger.info('Zendesk webhook created:', webhookResponseJson);
 
     zendeskWebhookId = webhookResponseJson.webhook.id;
     if (!zendeskWebhookId) {
@@ -359,10 +358,9 @@ async function saveZendeskCredentials(
     // Parse the response body to JSON
     const triggerResponseJson =
       (await zendeskTriggerResponse.json()) as ZendeskResponse;
-    logger.info('Zendesk trigger created:', triggerResponseJson);
     zendeskTriggerId = triggerResponseJson.trigger.id ?? null;
   } catch (error) {
-    logger.info(error);
+    logger.error(error);
     throw error;
   }
 
@@ -416,8 +414,6 @@ async function openSlackModal(
   connection: SlackConnection,
   logger: EdgeWithExecutionContext
 ) {
-  logger.info(`Opening Slack modal: ${body}`);
-
   const response = await fetch('https://slack.com/api/views.open', {
     method: 'POST',
     headers: {
@@ -427,11 +423,10 @@ async function openSlackModal(
     body: body
   });
 
-  logger.info(`Slack response: ${JSON.stringify(response)}`);
-
   const responseData = (await response.json()) as SlackResponse;
 
   if (!responseData.ok) {
+    logger.error(`Error opening modal: ${body}`);
     throw new Error(`Error opening modal: ${responseData}`);
   }
 }
@@ -442,7 +437,6 @@ async function openAccountSettings(
   env: Env,
   logger: EdgeWithExecutionContext
 ) {
-  logger.info('Opening Billing portal modal');
   const triggerId = payload.trigger_id;
 
   if (!triggerId) {
@@ -507,7 +501,7 @@ async function openAccountSettings(
 
     await openSlackModal(body, connection, logger);
   } catch (error) {
-    logger.error('Error in openBillingPortal:', error);
+    logger.error(`Error in openBillingPortal: ${error}`);
     throw error;
   }
 }
@@ -520,7 +514,6 @@ async function openZendeskConfigurationModal(
   key: CryptoKey,
   logger: EdgeWithExecutionContext
 ) {
-  logger.info('Opening Zendesk configuration modal');
   const triggerId = payload.trigger_id;
 
   if (!triggerId) {
@@ -532,6 +525,7 @@ async function openZendeskConfigurationModal(
       connection.id,
       db,
       env,
+      logger,
       key
     );
 
@@ -634,7 +628,7 @@ async function openZendeskConfigurationModal(
 
     await openSlackModal(body, connection, logger);
   } catch (error) {
-    logger.error('Error in openZendeskConfigurationModal:', error);
+    logger.error(`Error in openZendeskConfigurationModal: ${error}`);
     throw error;
   }
 }
@@ -773,7 +767,7 @@ async function openChannelConfigurationModal(
 
     await openSlackModal(body, connection, logger);
   } catch (error) {
-    logger.error('Error in openChannelConfigurationModal:', error);
+    logger.error(`Error in openChannelConfigurationModal: ${error}`);
     throw error;
   }
 }

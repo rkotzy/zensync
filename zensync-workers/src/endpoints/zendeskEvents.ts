@@ -97,10 +97,6 @@ export class ZendeskEventHandler extends OpenAPIRoute {
       );
     }
 
-    logger.info(
-      `ConversationInfo retrieved: ${JSON.stringify(conversationInfo)}`
-    );
-
     // To be safe I should double-check the organization_id owns the channel_id
     if (
       !conversationInfo.channel ||
@@ -137,7 +133,8 @@ export class ZendeskEventHandler extends OpenAPIRoute {
     const slackConnectionInfo = await getSlackConnection(
       slackConnectionId,
       db,
-      env
+      env,
+      logger
     );
 
     if (!slackConnectionInfo) {
@@ -150,10 +147,6 @@ export class ZendeskEventHandler extends OpenAPIRoute {
         logger
       );
     }
-
-    logger.info(
-      `SlackConnectionInfo retrieved: ${JSON.stringify(slackConnectionInfo)}`
-    );
 
     try {
       await sendSlackMessage(
@@ -191,8 +184,6 @@ async function getSlackUserByEmail(
 
     const responseData = (await response.json()) as SlackResponse;
 
-    logger.info(`Slack user response: ${JSON.stringify(responseData)}`);
-
     if (!responseData.ok) {
       throw new Error(`Error getting Slack user: ${responseData.error}`);
     }
@@ -204,7 +195,7 @@ async function getSlackUserByEmail(
     const imageUrl = responseData.user.profile.image_192;
     return { username, imageUrl };
   } catch (error) {
-    logger.error('Error in getSlackUserByEmail:', error);
+    logger.error(`Error in getSlackUserByEmail: ${error}`, error);
     throw error;
   }
 }
@@ -275,7 +266,7 @@ async function sendSlackMessage(
       imageUrl = slackUser.imageUrl;
     }
   } catch (error) {
-    logger.warn('Error getting Slack user:', error);
+    logger.warn(`Error getting Slack user: ${error}`);
   }
 
   try {
@@ -287,8 +278,6 @@ async function sendSlackMessage(
       icon_url: imageUrl
     });
 
-    logger.info(`Sending Slack message: ${body}`);
-
     const response = await fetch('https://slack.com/api/chat.postMessage', {
       method: 'POST',
       headers: {
@@ -298,17 +287,13 @@ async function sendSlackMessage(
       body: body
     });
 
-    logger.info(`Slack response: ${JSON.stringify(response)}`);
-
     const responseData = (await response.json()) as SlackResponse;
 
     if (!responseData.ok) {
       throw new Error(`Error posting message: ${responseData.error}`);
     }
   } catch (error) {
-    logger.error('Error in sendSlackMessage:', error);
+    logger.error(`Error in sendSlackMessage: ${error}`);
     throw error;
   }
-
-  logger.info('Message posted successfully');
 }

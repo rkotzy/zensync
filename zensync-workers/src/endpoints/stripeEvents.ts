@@ -39,7 +39,7 @@ export class StripeEventHandler extends OpenAPIRoute {
           await updateCustomerSubscription(event.data.object, env, logger);
           break;
         default:
-          console.log(`Unhandled event type ${event.type}`);
+          logger.info(`Unhandled event type ${event.type}`);
       }
     } catch (err) {
       logger.error(`Error constructing Stripe event: ${err}`);

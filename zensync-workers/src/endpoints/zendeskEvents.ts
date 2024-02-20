@@ -16,6 +16,7 @@ import { NeonHttpDatabase } from 'drizzle-orm/neon-http';
 import { Env } from '@/interfaces/env.interface';
 import { getSlackConnection } from '@/lib/utils';
 import bcrypt from 'bcryptjs';
+import { responseWithLogging } from '@/lib/logger';
 
 export class ZendeskEventHandler extends OpenAPIRoute {
   async handle(
@@ -32,7 +33,7 @@ export class ZendeskEventHandler extends OpenAPIRoute {
     const db = initializeDb(env);
 
     const requestBody = (await request.json()) as ZendeskEvent;
-    logger.info(JSON.stringify(requestBody, null, 2));
+
     // Save some database calls if it's a message from Zensync
 
     // Ignore messages from Zensync
@@ -41,14 +42,20 @@ export class ZendeskEventHandler extends OpenAPIRoute {
       requestBody.current_user_external_id.startsWith('zensync')
     ) {
       logger.info('Message from Zensync, skipping');
-      return new Response('Ok', { status: 200 });
+      return responseWithLogging(request, requestBody, 'Ok', 200, logger);
     }
 
     // Make sure we have the last updated ticket time
     const ticketLastUpdatedAt = requestBody.last_updated_at;
     if (!ticketLastUpdatedAt) {
       logger.error('Missing last_updated_at');
-      return new Response('Missing last_updated_at', { status: 400 });
+      return responseWithLogging(
+        request,
+        requestBody,
+        'Missing last_updated_at',
+        400,
+        logger
+      );
     }
 
     // Ignore messages if last_updated_at === created_at
@@ -56,13 +63,19 @@ export class ZendeskEventHandler extends OpenAPIRoute {
     // Should log in Sentry probably?
     if (requestBody.last_updated_at === requestBody.created_at) {
       logger.info('Message is not an update, skipping');
-      return new Response('Ok', { status: 200 });
+      return responseWithLogging(request, requestBody, 'Ok', 200, logger);
     }
 
     // Authenticate the request and get slack connection Id
     const slackConnectionId = await authenticateRequest(request, db, logger);
     if (!slackConnectionId) {
-      return new Response('Unauthorized', { status: 401 });
+      return responseWithLogging(
+        request,
+        requestBody,
+        'Unauthorized',
+        401,
+        logger
+      );
     }
 
     // Get the conversation from external_id
@@ -75,7 +88,13 @@ export class ZendeskEventHandler extends OpenAPIRoute {
 
     if (!conversationInfo?.slackParentMessageId) {
       logger.error(`No conversation found for id ${requestBody.external_id}`);
-      return new Response('No conversation found', { status: 404 });
+      return responseWithLogging(
+        request,
+        requestBody,
+        'No conversation found',
+        404,
+        logger
+      );
     }
 
     logger.info(
@@ -89,7 +108,13 @@ export class ZendeskEventHandler extends OpenAPIRoute {
       conversationInfo.channel.slackConnectionId !== slackConnectionId
     ) {
       logger.warn(`Invalid Ids: ${slackConnectionId} !== ${conversationInfo}`);
-      return new Response('Invalid Ids', { status: 401 });
+      return responseWithLogging(
+        request,
+        requestBody,
+        'Invalid Ids',
+        401,
+        logger
+      );
     }
 
     // To be safe I should double-check the organization_id owns the channel_id
@@ -99,7 +124,13 @@ export class ZendeskEventHandler extends OpenAPIRoute {
       conversationInfo.channel.slackConnectionId !== slackConnectionId
     ) {
       logger.warn(`Invalid Ids: ${slackConnectionId} !== ${conversationInfo}`);
-      return new Response('Invalid Ids', { status: 401 });
+      return responseWithLogging(
+        request,
+        requestBody,
+        'Invalid Ids',
+        401,
+        logger
+      );
     }
 
     // Get the full slack connection info
@@ -111,7 +142,13 @@ export class ZendeskEventHandler extends OpenAPIRoute {
 
     if (!slackConnectionInfo) {
       logger.error(`No Slack connection found for id ${slackConnectionId}`);
-      return new Response('No Slack connection found', { status: 404 });
+      return responseWithLogging(
+        request,
+        requestBody,
+        'No Slack connection found',
+        404,
+        logger
+      );
     }
 
     logger.info(
@@ -128,10 +165,10 @@ export class ZendeskEventHandler extends OpenAPIRoute {
       );
     } catch (error) {
       logger.error(error);
-      return new Response('Error', { status: 500 });
+      return responseWithLogging(request, requestBody, 'Error', 500, logger);
     }
 
-    return new Response('Ok', { status: 202 });
+    return responseWithLogging(request, requestBody, 'Ok', 202, logger);
   }
 }
 

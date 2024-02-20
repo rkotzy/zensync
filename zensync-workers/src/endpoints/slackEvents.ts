@@ -8,6 +8,7 @@ import { SlackEvent } from '@/interfaces/slack-api.interface';
 import { Env } from '@/interfaces/env.interface';
 import { importEncryptionKeyFromEnvironment } from '@/lib/encryption';
 import { handleAppHomeOpened } from '@/views/homeTab';
+import { responseWithLogging } from '@/lib/logger';
 
 export class SlackEventHandler extends OpenAPIRoute {
   async handle(
@@ -27,23 +28,28 @@ export class SlackEventHandler extends OpenAPIRoute {
 
     // Parse the request body
     const requestBody = (await jsonClone.json()) as SlackEvent;
-    logger.info(JSON.stringify(requestBody, null, 2));
 
     // Check if this is a URL verification request from Slack
-    if (requestBody.type === 'url_verification') {
-      // Respond with the challenge value
-      return new Response(requestBody.challenge, {
-        status: 200,
-        headers: {
-          'Content-Type': 'text/plain'
-        }
-      });
-    }
+    // if (requestBody.type === 'url_verification') {
+    //   // Respond with the challenge value
+    //   return new Response(requestBody.challenge, {
+    //     status: 200,
+    //     headers: {
+    //       'Content-Type': 'text/plain'
+    //     }
+    //   });
+    // }
 
     // Verify the Slack request
     if (!(await verifySlackRequest(textClone, env))) {
       logger.warn('Slack verification failed!');
-      return new Response('Verification failed', { status: 200 });
+      return responseWithLogging(
+        request,
+        requestBody,
+        'Verification failed',
+        200,
+        logger
+      );
     }
 
     ///////////////////////////////////////
@@ -65,7 +71,13 @@ export class SlackEventHandler extends OpenAPIRoute {
       logger.warn(
         `No slack connection found for team ID: ${requestBody.team_id}.`
       );
-      return new Response('Invalid team_id', { status: 404 });
+      return responseWithLogging(
+        request,
+        requestBody,
+        'Invalid team_id',
+        404,
+        logger
+      );
     }
 
     const eventType = requestBody.event?.type;
@@ -87,7 +99,13 @@ export class SlackEventHandler extends OpenAPIRoute {
           );
         } catch (error) {
           logger.error(`Error handling app_home_opened: ${error.message}`);
-          return new Response('Internal Server Error', { status: 500 });
+          return responseWithLogging(
+            request,
+            requestBody,
+            'Internal Server Error',
+            500,
+            logger
+          );
         }
       } else {
         logger.error('No slackUserId found in app_home_opened event');
@@ -105,7 +123,13 @@ export class SlackEventHandler extends OpenAPIRoute {
         });
       } catch (error) {
         logger.error(`Error publishing message queue: ${error.message}`);
-        return new Response('Internal Server Error', { status: 500 });
+        return responseWithLogging(
+          request,
+          requestBody,
+          'Internal Server Error',
+          500,
+          logger
+        );
       }
     } else if (eventSubtype === 'file_share') {
       // handle file_share messages differently by processing the file first
@@ -117,7 +141,13 @@ export class SlackEventHandler extends OpenAPIRoute {
         });
       } catch (error) {
         logger.error(`Error publishing file to queue: ${error.message}`);
-        return new Response('Internal Server Error', { status: 500 });
+        return responseWithLogging(
+          request,
+          requestBody,
+          'Internal Server Error',
+          500,
+          logger
+        );
       }
     } else {
       logger.info(
@@ -129,7 +159,7 @@ export class SlackEventHandler extends OpenAPIRoute {
       );
     }
 
-    return new Response('Ok', { status: 202 });
+    return responseWithLogging(request, requestBody, 'Ok', 202, logger);
   }
 }
 

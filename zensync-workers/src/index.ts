@@ -40,7 +40,7 @@ async function handleWithLogging(request, env, ctx) {
 
   newRequest.headers.set('X-Request-ID', requestId);
 
-  const response = await router.handle(newRequest);
+  const response = await router.handle(newRequest, env, ctx);
 
   const duration = Date.now() - startTime;
 

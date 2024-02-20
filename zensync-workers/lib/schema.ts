@@ -229,7 +229,7 @@ export const subscriptionPlan = pgTable('subscription_plans', {
     withTimezone: true
   }),
   stripeProductId: text('stripe_product_id').notNull(),
-  numberOfChannels: integer('number_of_channels').notNull()
+  numberOfChannels: integer('number_of_channels')
 });
 
 export const subscriptionRelations = relations(subscription, ({ one }) => ({

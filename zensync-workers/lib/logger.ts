@@ -71,6 +71,7 @@ export function responseWithLogging(
   try {
     const requestMetadata = buildMetadataFromHeaders(request.headers);
     const eventBody = {
+      request_id: request.headers.get('X-Request-ID'),
       dt: new Date().toISOString(),
       metadata: {
         response: {

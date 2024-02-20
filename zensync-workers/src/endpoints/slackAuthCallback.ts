@@ -96,7 +96,7 @@ export class SlackAuthCallback extends OpenAPIRoute {
       botUserId = responseData.bot_user_id;
 
       if (!accessToken || !botUserId) {
-        logger.info(
+        logger.error(
           `Error fetching access token or bot user id: ${JSON.stringify(
             responseData,
             null,
@@ -106,11 +106,9 @@ export class SlackAuthCallback extends OpenAPIRoute {
         return new Response('Missing access token.', { status: 404 });
       }
     } catch (error) {
-      logger.info(error);
+      logger.error(error);
       return new Response('Authentication failed.', { status: 400 });
     }
-
-    logger.info('Access token received');
 
     const response = await fetch('https://slack.com/api/team.info', {
       method: 'GET',
@@ -124,7 +122,7 @@ export class SlackAuthCallback extends OpenAPIRoute {
       const teamInfoResponse = (await response.json()) as SlackResponse;
 
       if (!teamInfoResponse.ok || !teamInfoResponse.team) {
-        logger.info(
+        logger.error(
           `Error fetching team info: ${JSON.stringify(
             teamInfoResponse,
             null,

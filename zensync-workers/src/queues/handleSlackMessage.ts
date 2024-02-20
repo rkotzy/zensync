@@ -49,8 +49,6 @@ export async function handleMessageFromSlack(
   env: Env,
   logger: EdgeWithExecutionContext
 ) {
-  logger.info(JSON.stringify(requestJson, null, 2));
-
   const requestBody = requestJson.eventBody;
   const connectionDetails = requestJson.connectionDetails;
   if (!connectionDetails) {
@@ -129,7 +127,6 @@ async function handleChannelJoined(
     );
 
     const responseData = (await response.json()) as SlackResponse;
-    logger.info('Channel info recieved:', responseData);
 
     if (!responseData.ok) {
       logger.warn(`Failed to fetch channel info: ${response.statusText}`);
@@ -163,10 +160,6 @@ async function handleChannelJoined(
           isShared: isShared
         }
       });
-
-    logger.info(
-      `Channel ${channelId} added to the database with connection ID ${connection.id}.`
-    );
   } catch (error) {
     logger.error('Error saving channel to database:', error);
     throw error;
@@ -220,10 +213,8 @@ async function handleChannelLeft(
           eq(channel.slackChannelIdentifier, channelId)
         )
       );
-
-    logger.info(`Channel ${channelId} left.`);
   } catch (error) {
-    logger.error('Error archiving channel in database:', error);
+    logger.error(`Error archiving channel in database: ${error}`);
     throw error;
   }
 }
@@ -252,10 +243,8 @@ async function handleChannelUnarchive(
           eq(channel.slackChannelIdentifier, channelId)
         )
       );
-
-    logger.info(`Channel ${channelId} unarchived.`);
   } catch (error) {
-    logger.error('Error unarchiving channel in database:', error);
+    logger.error(`Error unarchiving channel in database: ${error}`);
     throw error;
   }
 }
@@ -283,10 +272,8 @@ async function handleChannelNameChanged(
           eq(channel.slackChannelIdentifier, eventData.channel.id)
         )
       );
-
-    logger.info(`Channel ${eventData.channel.id} name changed.`);
   } catch (error) {
-    logger.error('Error updating channel name in database:', error);
+    logger.error(`Error updating channel name in database: ${error}`);
     throw error;
   }
 }
@@ -314,10 +301,8 @@ async function handleChannelIdChanged(
           eq(channel.slackChannelIdentifier, eventData.old_channel_id)
         )
       );
-
-    logger.info(`Channel ${eventData.new_channel_id} ID changed.`);
   } catch (error) {
-    logger.error('Error updating channel Id in database:', error);
+    logger.error(`Error updating channel Id in database: ${error}`);
     throw error;
   }
 }
@@ -331,16 +316,15 @@ async function handleFileUpload(
   logger: EdgeWithExecutionContext
 ) {
   if (request.zendeskFileTokens) {
-    logger.info('File upload handled successfully');
     return await handleMessage(request, connection, db, env, key, logger);
   } else {
-    logger.info('Need to handle file fallback');
+    logger.warn('Need to handle file fallback');
 
     const files = request.event.files;
 
     // Check if there are files
     if (!files || files.length === 0) {
-      logger.info('No files found in fallback');
+      logger.warn('No files found in fallback');
       return await handleMessage(request, connection, db, env, key, logger);
     }
 
@@ -356,7 +340,6 @@ async function handleFileUpload(
     htmlOutput += '</p>';
 
     request.event.text += htmlOutput;
-    logger.info(`Updated request: ${JSON.stringify(request, null, 2)}`);
     return await handleMessage(request, connection, db, env, key, logger);
   }
 }
@@ -374,8 +357,6 @@ async function handleMessageEdit(
     logger.info('Message edit was not a change to text, ignoring');
     return;
   } else if (request.event?.message) {
-    logger.info('Handling message edit');
-
     // Merge the message data into the event object
     request.event = {
       ...request.event,
@@ -394,7 +375,7 @@ async function handleMessageEdit(
       false
     );
   } else {
-    logger.warn('Unhandled message edit type:', request);
+    logger.warn(`Unhandled message edit type: ${request}`);
     return;
   }
 }
@@ -408,8 +389,6 @@ async function handleMessageDeleted(
   logger: EdgeWithExecutionContext
 ) {
   if (request.event?.previous_message) {
-    logger.info('Handling message deletion');
-
     // Merge the message data into the event object
     request.event = {
       ...request.event,
@@ -420,7 +399,6 @@ async function handleMessageDeleted(
     // If the parent message was deleted, close the ticket
     let status = 'open';
     if (!getParentMessageId(request.event as SlackMessageData)) {
-      logger.info('Deleted parent message, closing ticket');
       status = 'closed';
     }
 
@@ -435,7 +413,7 @@ async function handleMessageDeleted(
       status
     );
   } else {
-    logger.warn('Unhandled message deletion:', request);
+    logger.warn(`Unhandled message deletion: ${request}`);
     return;
   }
 }
@@ -462,11 +440,9 @@ async function handleMessage(
     logger.error('Invalid message payload');
     return;
   }
-  logger.info('SlackMessageData:', messageData);
 
   // Set any file upload data
   const fileUploadTokens: string[] | undefined = request.zendeskFileTokens;
-  logger.info(`Upload tokens: ${fileUploadTokens}`);
 
   // Fetch Zendesk credentials
   let zendeskCredentials: ZendeskConnection | null;
@@ -475,6 +451,7 @@ async function handleMessage(
       connection.id,
       db,
       env,
+      logger,
       key
     );
   } catch (error) {
@@ -489,7 +466,6 @@ async function handleMessage(
   }
 
   // Get or create Zendesk user
-  logger.info('Get or create user call:', messageData);
   let zendeskUserId: number | undefined;
   try {
     zendeskUserId = await getOrCreateZendeskUser(
@@ -499,7 +475,7 @@ async function handleMessage(
       logger
     );
   } catch (error) {
-    logger.error('Error getting or creating Zendesk user:', error);
+    logger.error(`Error getting or creating Zendesk user: ${error}`);
     throw error;
   }
   if (!zendeskUserId) {
@@ -511,7 +487,6 @@ async function handleMessage(
   const parentMessageId = getParentMessageId(messageData);
   if (parentMessageId || !isPublic) {
     // Handle child message or private message
-    logger.info(`Handling child message`);
     try {
       await handleThreadReply(
         messageData,
@@ -527,7 +502,7 @@ async function handleMessage(
         status
       );
     } catch (error) {
-      logger.error('Error handling thread reply:', error);
+      logger.error(`Error handling thread reply: ${error}`);
       throw error;
     }
     return;
@@ -537,13 +512,11 @@ async function handleMessage(
   const existingConversationId = await sameSenderConversationId();
   if (existingConversationId) {
     // Add message to existing conversation
-    logger.info(`Adding message to existing conversation`);
     return;
   }
 
   // Create zendesk ticket + conversation
   try {
-    logger.info(`Creating new conversation`);
     await handleNewConversation(
       messageData,
       zendeskCredentials,
@@ -556,7 +529,7 @@ async function handleMessage(
       isPublic
     );
   } catch (error) {
-    logger.error('Error creating new conversation:', error);
+    logger.error(`Error creating new conversation: ${error}`);
     throw error;
   }
 }
@@ -586,12 +559,10 @@ async function getOrCreateZendeskUser(
     `${zendeskCredentials.zendeskEmail}/token:${zendeskCredentials.zendeskApiKey}`
   );
 
-  logger.info('Creating zendesk user with data:', messageData);
-
   const slackChannelId = messageData.channel;
 
   if (!messageData.user) {
-    logger.error('No slack user found:', messageData);
+    logger.error(`No slack user found: ${messageData}`);
     throw new Error('No message user found');
   }
 
@@ -611,8 +582,6 @@ async function getOrCreateZendeskUser(
       }
     };
 
-    logger.info(`Upserting user data: ${JSON.stringify(zendeskUserData)}`);
-
     const response = await fetch(
       `https://${zendeskCredentials.zendeskDomain}.zendesk.com/api/v2/users/create_or_update`,
       {
@@ -626,16 +595,14 @@ async function getOrCreateZendeskUser(
     );
 
     if (!response.ok) {
-      logger.error('Error updating user:', response);
       throw new Error('Error updating or creating user');
     }
 
     const responseData = (await response.json()) as ZendeskResponse;
-    logger.info('User created or updated:', responseData);
 
     return responseData.user.id;
   } catch (error) {
-    logger.error('Error creating or updating user:', error);
+    logger.error(`Error creating or updating user: ${error}`);
     throw error;
   }
 }
@@ -657,7 +624,6 @@ async function getSlackUser(
   logger: EdgeWithExecutionContext
 ): Promise<{ username: string | undefined; imageUrl: string }> {
   try {
-    logger.info(`Getting Slack user ${userId}`);
     const response = await fetch(
       `https://slack.com/api/users.profile.get?user=${userId}`,
       {
@@ -670,10 +636,6 @@ async function getSlackUser(
     );
 
     const responseData = (await response.json()) as SlackResponse;
-
-    logger.info(
-      `Slack user response: ${JSON.stringify(responseData, null, 2)}`
-    );
 
     if (!responseData.ok) {
       throw new Error(`Error getting Slack user: ${responseData.error}`);
@@ -691,7 +653,7 @@ async function getSlackUser(
     const imageUrl = slackUrl || gravatarUrl;
     return { username, imageUrl };
   } catch (error) {
-    logger.error('Error in getSlackUser:', error);
+    logger.error(`Error in getSlackUser: ${error}`);
     throw error;
   }
 }
@@ -709,12 +671,6 @@ async function handleThreadReply(
   isPublic: boolean,
   status: string = 'open'
 ) {
-  logger.info(
-    `Fetching conversationInfo for ${channelId} ${slackParentMessageId} ${
-      slackConnectionInfo.id
-    } with messageData ${JSON.stringify(messageData)}`
-  );
-
   // get conversation from database
   const conversationInfo = await db
     .select({
@@ -731,8 +687,6 @@ async function handleThreadReply(
       )
     )
     .limit(1);
-
-  logger.info('Conversation info fetched:', conversationInfo);
 
   // If no conversation found, create new ticket
   if (
@@ -798,13 +752,10 @@ async function handleThreadReply(
   );
 
   const responseData = await response.json();
-  logger.info('Ticket comment response data:', responseData);
 
   if (needsFollowUpTicket(responseData)) {
     // Trying to update a public comment on closed ticket
     if (isPublic) {
-      logger.info('Creating follow-up ticket');
-
       const followUpTicket: FollowUpTicket = {
         sourceTicketId: zendeskTicketId,
         conversationId: conversationId
@@ -824,7 +775,6 @@ async function handleThreadReply(
       );
     }
   } else if (!response.ok) {
-    logger.error('Error updating ticket comment:', response);
     throw new Error('Error creating comment');
   } else {
     // Was not a follow-up ticket, and no errors, so update the conversation
@@ -841,7 +791,7 @@ async function handleThreadReply(
       // Update the channel activity
       await updateChannelActivity(slackConnectionInfo, channelId, db, logger);
     } catch (error) {
-      logger.error('Error updating conversation in database:', error);
+      logger.error(`Error updating conversation in database: ${error}`);
       throw new Error('Error updating conversation in database');
     }
   }
@@ -942,16 +892,14 @@ async function handleNewConversation(
     );
 
     const responseData = (await response.json()) as ZendeskResponse;
-    logger.info('Ticket response data:', responseData);
 
     if (!response.ok) {
-      logger.error('Response is not okay:', response);
       throw new Error('Error creating ticket');
     }
 
     ticketId = responseData.ticket.id;
   } catch (error) {
-    logger.error('Error creating ticket:', error);
+    logger.error(`Error creating ticket: ${error}`);
     throw error;
   }
 
@@ -962,9 +910,6 @@ async function handleNewConversation(
 
   // Create or update conversation
   if (followUpTicket) {
-    logger.info(
-      `Updating conversation ${conversationUuid} to ticket ${ticketId}`
-    );
     try {
       await db
         .update(conversation)
@@ -975,14 +920,13 @@ async function handleNewConversation(
         })
         .where(eq(conversation.id, conversationUuid));
     } catch (error) {
-      logger.error('Error updating conversation:', error);
+      logger.error(`Error updating conversation: ${error}`);
       logger.error('Failed payload:', {
         zendeskTicketId: ticketId,
         latestSlackMessageId: messageData.ts
       });
     }
   } else {
-    logger.info(`Creating new conversation ${conversationUuid}`);
     try {
       await db.insert(conversation).values({
         id: conversationUuid,
@@ -993,7 +937,7 @@ async function handleNewConversation(
         latestSlackMessageId: messageData.ts
       });
     } catch (error) {
-      logger.error('Error creating conversation:', error);
+      logger.error(`Error creating conversation: ${error}`);
       logger.error('Failed payload:', {
         id: conversationUuid,
         channelId: channelInfo.id,
@@ -1009,7 +953,7 @@ async function handleNewConversation(
   try {
     await updateChannelActivity(slackConnectionInfo, channelId, db, logger);
   } catch (error) {
-    logger.error('Error updating channel activity:', error);
+    logger.error(`Error updating channel activity: ${error}`);
     throw error;
   }
 }

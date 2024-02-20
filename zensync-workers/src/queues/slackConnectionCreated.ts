@@ -11,8 +11,6 @@ export async function slackConnectionCreated(
   env: Env,
   logger: EdgeWithExecutionContext
 ) {
-  logger.info(JSON.stringify(requestJson, null, 2));
-
   const connectionDetails: SlackConnection = requestJson.connectionDetails;
   if (!connectionDetails) {
     logger.error('No connection details found');
@@ -74,6 +72,7 @@ export async function slackConnectionCreated(
       .where(eq(slackConnection.id, connectionDetails.id));
   } catch (error) {
     logger.error('Error in slackConnectionCreated:', error);
+    throw new Error('Error in slackConnectionCreated');
   }
 }
 
@@ -95,15 +94,13 @@ async function getAuthedConnectionUserEmail(
 
     const responseData = (await response.json()) as SlackResponse;
 
-    logger.info(`Slack user.info response: ${JSON.stringify(responseData)}`);
-
     if (!responseData.ok) {
       return undefined;
     }
 
     return responseData.user.profile?.email || undefined;
   } catch (error) {
-    logger.error('Error in getSlackUserEmail:', error);
+    logger.error(`Error in getSlackUserEmail: ${error}`);
     throw error;
   }
 }

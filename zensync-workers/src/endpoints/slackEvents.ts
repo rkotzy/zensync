@@ -64,6 +64,7 @@ export class SlackEventHandler extends OpenAPIRoute {
       requestBody.team_id,
       db,
       env,
+      logger,
       encryptionKey
     );
 
@@ -87,7 +88,6 @@ export class SlackEventHandler extends OpenAPIRoute {
       const slackUserId = requestBody.event?.user;
 
       if (slackUserId) {
-        logger.info(`Handling app_home_opened event`);
         try {
           await handleAppHomeOpened(
             slackUserId,
@@ -115,7 +115,6 @@ export class SlackEventHandler extends OpenAPIRoute {
       (eventType === 'message' &&
         isPayloadEligibleForTicket(requestBody, connectionDetails, logger))
     ) {
-      logger.info(`Publishing event ${eventType}:${eventSubtype} to queue`);
       try {
         await env.PROCESS_SLACK_MESSAGES_QUEUE_BINDING.send({
           eventBody: requestBody,
@@ -133,7 +132,6 @@ export class SlackEventHandler extends OpenAPIRoute {
       }
     } else if (eventSubtype === 'file_share') {
       // handle file_share messages differently by processing the file first
-      logger.info(`Publishing event ${eventType}:${eventSubtype} to queue`);
       try {
         await env.UPLOAD_FILES_TO_ZENDESK_QUEUE_BINDING.send({
           eventBody: requestBody,

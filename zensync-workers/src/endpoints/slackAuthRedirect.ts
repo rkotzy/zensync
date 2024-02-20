@@ -23,7 +23,7 @@ export class SlackAuthRedirect extends OpenAPIRoute {
         id: state
       });
     } catch (error) {
-      logger.log(error);
+      logger.error(error);
       return new Response(JSON.stringify({ error: 'Error saving state.' }), {
         status: 500,
         headers: {

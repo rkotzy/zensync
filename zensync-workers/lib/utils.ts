@@ -86,6 +86,7 @@ export async function fetchZendeskCredentials(
   slackConnectionId: string,
   db: NeonHttpDatabase<typeof schema>,
   env: Env,
+  logger: EdgeWithExecutionContext,
   key?: CryptoKey
 ): Promise<ZendeskConnection | null | undefined> {
   try {
@@ -97,7 +98,7 @@ export async function fetchZendeskCredentials(
     const encryptedZendeskApiKey = zendeskCredentials?.encryptedZendeskApiKey;
 
     if (!zendeskDomain || !zendeskEmail || !encryptedZendeskApiKey) {
-      console.log(
+      logger.error(
         `No Zendesk credentials found for slack connection ${slackConnectionId}`
       );
       return null;
@@ -117,7 +118,7 @@ export async function fetchZendeskCredentials(
       zendeskApiKey: decryptedApiKey
     };
   } catch (error) {
-    console.error('Error querying ZendeskConnections:', error);
+    logger.error(`Error querying ZendeskConnections: ${error}`);
     return undefined;
   }
 }
@@ -126,10 +127,11 @@ export async function findSlackConnectionByTeamId(
   teamId: string | undefined,
   db: NeonHttpDatabase<typeof schema>,
   env: Env,
+  logger: EdgeWithExecutionContext,
   key?: CryptoKey
 ): Promise<SlackConnection | null | undefined> {
   if (!teamId) {
-    console.error('No team_id found');
+    logger.error('No team_id found');
     return undefined;
   }
 
@@ -153,7 +155,7 @@ export async function findSlackConnectionByTeamId(
 
     return null;
   } catch (error) {
-    console.error('Error querying SlackConnections:', error);
+    logger.error(`Error querying SlackConnections: ${error}`);
     return undefined;
   }
 }
@@ -162,6 +164,7 @@ export async function getSlackConnection(
   connectionId: string,
   db: NeonHttpDatabase<typeof schema>,
   env: Env,
+  logger: EdgeWithExecutionContext,
   key?: CryptoKey
 ): Promise<SlackConnection | null | undefined> {
   try {
@@ -184,7 +187,7 @@ export async function getSlackConnection(
 
     return null;
   } catch (error) {
-    console.error('Error finding SlackConnection:', error);
+    logger.error(`Error finding SlackConnection: ${error}`);
     return undefined;
   }
 }

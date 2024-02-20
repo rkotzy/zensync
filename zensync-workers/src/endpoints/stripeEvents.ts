@@ -19,7 +19,6 @@ export class StripeEventHandler extends OpenAPIRoute {
     const logger = baseLogger.withExecutionContext(context);
 
     const body = await request.text();
-    logger.info(`Stripe event received: ${body}`);
     const stripe = new Stripe(env.STRIPE_API_KEY);
     const sig = request.headers.get('stripe-signature');
 
@@ -82,10 +81,6 @@ async function updateCustomerSubscription(
 
     let newPlanId: string;
     if (productId !== subscriptionInfo.subscriptionPlan.stripeProductId) {
-      logger.info(
-        `Product id does not match ${productId} !== ${subscriptionInfo.subscriptionPlan.stripeProductId}`
-      );
-
       const newPlan = await db.query.subscriptionPlan.findFirst({
         where: eq(subscriptionPlan.stripeProductId, productId)
       });
@@ -95,7 +90,6 @@ async function updateCustomerSubscription(
         throw new Error('Plan not found');
       }
       newPlanId = newPlan.id;
-      logger.info(`Updating to new plan id: ${newPlanId}`);
     }
 
     const currentPeriodEnd = new Date(data.current_period_end * 1000);

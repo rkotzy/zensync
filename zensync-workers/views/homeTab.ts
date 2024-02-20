@@ -118,8 +118,6 @@ export async function handleAppHomeOpened(
       view: viewJson
     });
 
-    logger.info(`Publishing Slack View: ${body}`);
-
     const response = await fetch('https://slack.com/api/views.publish', {
       method: 'POST',
       headers: {
@@ -129,11 +127,10 @@ export async function handleAppHomeOpened(
       body: body
     });
 
-    logger.info(`Slack response: ${JSON.stringify(response)}`);
-
     const responseData = (await response.json()) as SlackResponse;
 
     if (!responseData.ok) {
+      logger.info(`Error publishing Slack View: ${body}`);
       const errorDetails = JSON.stringify(responseData, null, 2);
       throw new Error(`Error publishig view: ${errorDetails}`);
     }
@@ -155,6 +152,7 @@ async function fetchHomeTabData(
       slackConnection.id,
       db,
       env,
+      logger,
       key
     );
 

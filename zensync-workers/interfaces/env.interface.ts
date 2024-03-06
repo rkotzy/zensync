@@ -9,6 +9,6 @@ export interface Env {
   SLACK_SIGNING_SECRET: string;
   ENCRYPTION_KEY: string;
   STRIPE_API_KEY: string;
-  DEFAULT_SUBSCRIPTION_PLAN_ID: string;
+  DEFAULT_STRIPE_PRODUCT_ID: string;
   STRIPE_ENDPOINT_SECRET: string;
 }

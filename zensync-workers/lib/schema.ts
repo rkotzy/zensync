@@ -10,6 +10,7 @@ import {
   integer
 } from 'drizzle-orm/pg-core';
 import { InferSelectModel, relations } from 'drizzle-orm';
+import { Env } from '@/interfaces/env.interface';
 
 // This table stores the state parameter that is passed to the Slack OAuth.
 // This is used to prevent CSRF attacks and is a temporary value. We can
@@ -198,11 +199,7 @@ export const subscription = pgTable('subscriptions', {
     withTimezone: true
   }),
   stripeSubscriptionId: text('stripe_subscription_id').unique().notNull(),
-  subscriptionPlanId: uuid('subscription_plan_id')
-    .notNull()
-    .references(() => subscriptionPlan.id, {
-      onDelete: 'no action'
-    }),
+  stripeProductId: text('stripe_product_id').notNull(),
   periodStart: timestamp('period_start', {
     mode: 'date',
     withTimezone: true
@@ -217,9 +214,7 @@ export const subscription = pgTable('subscriptions', {
   })
 });
 
-export type Subscription = InferSelectModel<typeof subscription> & {
-  subscriptionPlan?: SubscriptionPlan;
-};
+export type Subscription = InferSelectModel<typeof subscription>;
 
 export const slackConnectionRelations = relations(
   slackConnection,
@@ -230,28 +225,3 @@ export const slackConnectionRelations = relations(
     })
   })
 );
-
-export const subscriptionPlan = pgTable('subscription_plans', {
-  id: uuid('id').defaultRandom().primaryKey().notNull(),
-  createdAt: timestamp('created_at', {
-    mode: 'date',
-    withTimezone: true
-  })
-    .defaultNow()
-    .notNull(),
-  updatedAt: timestamp('updated_at', {
-    mode: 'date',
-    withTimezone: true
-  }),
-  stripeProductId: text('stripe_product_id').notNull(),
-  numberOfChannels: integer('number_of_channels')
-});
-
-export type SubscriptionPlan = InferSelectModel<typeof subscriptionPlan>;
-
-export const subscriptionRelations = relations(subscription, ({ one }) => ({
-  subscriptionPlan: one(subscriptionPlan, {
-    fields: [subscription.subscriptionPlanId],
-    references: [subscriptionPlan.id]
-  })
-}));

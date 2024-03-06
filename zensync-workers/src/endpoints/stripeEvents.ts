@@ -1,7 +1,7 @@
 import { OpenAPIRoute } from '@cloudflare/itty-router-openapi';
 import { initializeDb } from '@/lib/drizzle';
 import { eq } from 'drizzle-orm';
-import { subscription, subscriptionPlan } from '@/lib/schema';
+import { subscription } from '@/lib/schema';
 import { Logtail } from '@logtail/edge';
 import { EdgeWithExecutionContext } from '@logtail/edge/dist/es6/edgeWithExecutionContext';
 import { Env } from '@/interfaces/env.interface';
@@ -63,10 +63,7 @@ async function updateCustomerSubscription(
     const db = initializeDb(env);
 
     const subscriptionInfo = await db.query.subscription.findFirst({
-      where: eq(subscription.stripeSubscriptionId, subscriptionId),
-      with: {
-        subscriptionPlan: true
-      }
+      where: eq(subscription.stripeSubscriptionId, subscriptionId)
     });
 
     if (!subscriptionInfo) {
@@ -77,19 +74,6 @@ async function updateCustomerSubscription(
     if (subscriptionInfo.updatedAt > new Date(data.created * 1000)) {
       logger.warn('Out of date subscription event');
       return;
-    }
-
-    let newPlanId: string;
-    if (productId !== subscriptionInfo.subscriptionPlan.stripeProductId) {
-      const newPlan = await db.query.subscriptionPlan.findFirst({
-        where: eq(subscriptionPlan.stripeProductId, productId)
-      });
-
-      if (!newPlan) {
-        logger.error(`No plan found for ${productId}`);
-        throw new Error('Plan not found');
-      }
-      newPlanId = newPlan.id;
     }
 
     const currentPeriodEnd = new Date(data.current_period_end * 1000);
@@ -105,7 +89,7 @@ async function updateCustomerSubscription(
         periodStart: currentPeriodStart,
         periodEnd: currentPeriodEnd,
         canceledAt: canceledAt,
-        ...(newPlanId ? { subscriptionPlanId: newPlanId } : {})
+        ...(productId ? { stripeProductId: productId } : {})
       })
       .where(eq(subscription.stripeSubscriptionId, subscriptionId));
   } catch (err) {

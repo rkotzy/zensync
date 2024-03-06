@@ -142,11 +142,7 @@ export async function findSlackConnectionByTeamId(
     const connection = await db.query.slackConnection.findFirst({
       where: eq(slackConnection.slackTeamId, teamId),
       with: {
-        subscription: {
-          with: {
-            subscriptionPlan: true
-          }
-        }
+        subscription: true
       }
     });
 

@@ -464,12 +464,11 @@ async function openAccountSettings(
       throw new Error('No portal URL found');
     }
 
-    const stripeProductId =
-      connection.subscription?.subscriptionPlan?.stripeProductId;
+    const stripeProductId = connection.subscription?.stripeProductId;
     let product: Stripe.Product;
     if (stripeProductId) {
       product = await stripe.products.retrieve(
-        connection.subscription?.subscriptionPlan?.stripeProductId
+        connection.subscription?.stripeProductId
       );
     }
 

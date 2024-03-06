@@ -44,7 +44,7 @@ export async function slackConnectionCreated(
       .insert(subscription)
       .values({
         stripeSubscriptionId: stripeAccount.subscriptionId,
-        subscriptionPlanId: env.DEFAULT_SUBSCRIPTION_PLAN_ID,
+        stripeProductId: env.DEFAULT_STRIPE_PRODUCT_ID,
         // Conditionally include startedAt only if currentPeriodStart exists
         ...(stripeAccount.currentPeriodStart
           ? { periodStart: new Date(stripeAccount.currentPeriodStart * 1000) }

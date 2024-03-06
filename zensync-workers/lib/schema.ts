@@ -60,6 +60,7 @@ export const slackConnection = pgTable('slack_connections', {
 
 export type SlackConnection = InferSelectModel<typeof slackConnection> & {
   token: string;
+  subscription?: Subscription;
 };
 
 // A Zendesk connection represents a connection to a Zendesk workspace that
@@ -216,6 +217,20 @@ export const subscription = pgTable('subscriptions', {
   })
 });
 
+export type Subscription = InferSelectModel<typeof subscription> & {
+  subscriptionPlan?: SubscriptionPlan;
+};
+
+export const slackConnectionRelations = relations(
+  slackConnection,
+  ({ one }) => ({
+    subscription: one(subscription, {
+      fields: [slackConnection.subscriptionId],
+      references: [subscription.id]
+    })
+  })
+);
+
 export const subscriptionPlan = pgTable('subscription_plans', {
   id: uuid('id').defaultRandom().primaryKey().notNull(),
   createdAt: timestamp('created_at', {
@@ -231,6 +246,8 @@ export const subscriptionPlan = pgTable('subscription_plans', {
   stripeProductId: text('stripe_product_id').notNull(),
   numberOfChannels: integer('number_of_channels')
 });
+
+export type SubscriptionPlan = InferSelectModel<typeof subscriptionPlan>;
 
 export const subscriptionRelations = relations(subscription, ({ one }) => ({
   subscriptionPlan: one(subscriptionPlan, {

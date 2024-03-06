@@ -28,7 +28,10 @@ export enum InteractivityActionId {
   EDIT_CHANNEL_TAGS_FIELD = 'edit-channel-tags-input',
 
   // Account settings modal details
-  OPEN_ACCOUNT_SETTINGS_BUTTON_TAPPED = 'open-account-settings'
+  OPEN_ACCOUNT_SETTINGS_BUTTON_TAPPED = 'open-account-settings',
+
+  // Get help modal details
+  GET_HELP_BUTTON_TAPPED = 'get-help'
 }
 
 export async function verifySlackRequest(
@@ -137,7 +140,14 @@ export async function findSlackConnectionByTeamId(
 
   try {
     const connection = await db.query.slackConnection.findFirst({
-      where: eq(slackConnection.slackTeamId, teamId)
+      where: eq(slackConnection.slackTeamId, teamId),
+      with: {
+        subscription: {
+          with: {
+            subscriptionPlan: true
+          }
+        }
+      }
     });
 
     if (connection) {

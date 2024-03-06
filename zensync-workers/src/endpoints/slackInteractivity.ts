@@ -464,6 +464,15 @@ async function openAccountSettings(
       throw new Error('No portal URL found');
     }
 
+    const stripeProductId =
+      connection.subscription?.subscriptionPlan?.stripeProductId;
+    let product: Stripe.Product;
+    if (stripeProductId) {
+      product = await stripe.products.retrieve(
+        connection.subscription?.subscriptionPlan?.stripeProductId
+      );
+    }
+
     const body = JSON.stringify({
       trigger_id: triggerId,
       view: {
@@ -478,8 +487,17 @@ async function openAccountSettings(
             type: 'section',
             text: {
               type: 'mrkdwn',
-              text: `Click the button below to access your billing portal.`
+              text: `*Current plan:* ${product?.name ?? ''}`
             }
+          },
+          {
+            type: 'context',
+            elements: [
+              {
+                type: 'mrkdwn',
+                text: `${product?.description ?? ''}`
+              }
+            ]
           },
           {
             type: 'actions',
@@ -488,7 +506,7 @@ async function openAccountSettings(
                 type: 'button',
                 text: {
                   type: 'plain_text',
-                  text: 'Open Billing Portal :credit_card:',
+                  text: 'Manage Subscription',
                   emoji: true
                 },
                 url: portalUrl

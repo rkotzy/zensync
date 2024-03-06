@@ -41,13 +41,43 @@ export async function handleAppHomeOpened(
           }
         },
         {
+          type: 'section',
+          text: {
+            type: 'mrkdwn',
+            text: 'Check out our <https://slacktozendesk.com/docs|documentation> for setup guides and answers to common questions.\nIf you still need help, or just want to chat, use the button below to message us on Slack.'
+          }
+        },
+        {
+          type: 'actions',
+          elements: [
+            {
+              type: 'button',
+              text: {
+                type: 'plain_text',
+                text: 'Chat with us :slack:',
+                emoji: true
+              },
+              action_id: InteractivityActionId.GET_HELP_BUTTON_TAPPED
+            }
+          ]
+        },
+        {
+          type: 'context',
+          elements: [
+            {
+              type: 'mrkdwn',
+              text: "If you can't use Slack to get in touch email us at support@slacktozendesk.com."
+            }
+          ]
+        },
+        {
           type: 'divider'
         },
         {
           type: 'section',
           text: {
             type: 'mrkdwn',
-            text: 'Manage your connection with Zendesk through the button below. Refer to our <https://slacktozendesk.com/docs|docs> for more information.'
+            text: 'Manage your connection with Zendesk through the button below.'
           }
         },
         {

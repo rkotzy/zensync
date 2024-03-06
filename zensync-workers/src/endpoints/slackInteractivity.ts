@@ -1,6 +1,6 @@
 import { OpenAPIRoute } from '@cloudflare/itty-router-openapi';
 import { initializeDb } from '@/lib/drizzle';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, count } from 'drizzle-orm';
 import {
   verifySlackRequest,
   findSlackConnectionByTeamId,
@@ -20,11 +20,11 @@ import {
   encryptData
 } from '@/lib/encryption';
 import bcrypt from 'bcryptjs';
-import { nanoid } from 'nanoid';
 import { customAlphabet } from 'nanoid';
 import Stripe from 'stripe';
 import { handleAppHomeOpened } from '@/views/homeTab';
 import { responseWithLogging } from '@/lib/logger';
+import { getBillingPortalConfiguration } from '@/interfaces/products.interface';
 
 export class SlackInteractivityHandler extends OpenAPIRoute {
   async handle(
@@ -143,7 +143,13 @@ export class SlackInteractivityHandler extends OpenAPIRoute {
       actionId === InteractivityActionId.OPEN_ACCOUNT_SETTINGS_BUTTON_TAPPED
     ) {
       try {
-        await openAccountSettings(payload, slackConnectionDetails, env, logger);
+        await openAccountSettings(
+          payload,
+          slackConnectionDetails,
+          env,
+          logger,
+          db
+        );
       } catch (error) {
         return returnGenericError(error, logger);
       }
@@ -435,7 +441,8 @@ async function openAccountSettings(
   payload: any,
   connection: SlackConnection,
   env: Env,
-  logger: EdgeWithExecutionContext
+  logger: EdgeWithExecutionContext,
+  db: NeonHttpDatabase<typeof schema>
 ) {
   const triggerId = payload.trigger_id;
 
@@ -451,10 +458,25 @@ async function openAccountSettings(
       throw new Error('No stripe customer found in connection');
     }
 
+    const stripeProductId = connection.subscription?.stripeProductId;
     const stripe = new Stripe(env.STRIPE_API_KEY);
+
+    const limitedChannels = await db
+      .select({ id: channel.id })
+      .from(channel)
+      .where(eq(channel.slackConnectionId, connection.id))
+      .limit(4);
+
+    const billingPortalConfiguration = getBillingPortalConfiguration(
+      limitedChannels.length
+    );
+
     const session: Stripe.BillingPortal.Session =
       await stripe.billingPortal.sessions.create({
         customer: connection.stripeCustomerId,
+        ...(billingPortalConfiguration !== null && {
+          configuration: billingPortalConfiguration
+        }),
         return_url: `https://${connection.domain}.slack.com`
       });
 
@@ -464,7 +486,6 @@ async function openAccountSettings(
       throw new Error('No portal URL found');
     }
 
-    const stripeProductId = connection.subscription?.stripeProductId;
     let product: Stripe.Product;
     if (stripeProductId) {
       product = await stripe.products.retrieve(

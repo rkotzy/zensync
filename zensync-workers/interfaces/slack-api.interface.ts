@@ -6,6 +6,7 @@ export interface SlackResponse {
   access_token?: string;
   authed_user?: any;
   bot_user_id?: string;
+  app_id?: string;
   file?: any;
   channel?: any;
   profile?: any;

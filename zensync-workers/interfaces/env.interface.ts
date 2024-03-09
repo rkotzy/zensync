@@ -11,4 +11,5 @@ export interface Env {
   STRIPE_API_KEY: string;
   DEFAULT_STRIPE_PRODUCT_ID: string;
   STRIPE_ENDPOINT_SECRET: string;
+  SUBSCRIPTION_EXPIRATION_BUFFER_HOURS: number;
 }

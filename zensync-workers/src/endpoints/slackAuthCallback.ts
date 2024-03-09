@@ -71,6 +71,7 @@ export class SlackAuthCallback extends OpenAPIRoute {
     let accessToken: string;
     let authedUser: string;
     let botUserId: string;
+    let appId: string;
     try {
       const params = new URLSearchParams();
       params.append('client_id', env.SLACK_CLIENT_ID!);
@@ -94,6 +95,7 @@ export class SlackAuthCallback extends OpenAPIRoute {
       accessToken = responseData.access_token;
       authedUser = responseData.authed_user.id;
       botUserId = responseData.bot_user_id;
+      appId = responseData.app_id;
 
       if (!accessToken || !botUserId) {
         logger.error(
@@ -153,6 +155,7 @@ export class SlackAuthCallback extends OpenAPIRoute {
           encryptedToken: encryptedToken,
           authedUserId: authedUser,
           botUserId: botUserId,
+          appId: appId,
           status: 'ACTIVE'
         })
         .onConflictDoUpdate({
@@ -168,6 +171,7 @@ export class SlackAuthCallback extends OpenAPIRoute {
             encryptedToken: encryptedToken,
             authedUserId: authedUser,
             botUserId: botUserId,
+            appId: appId,
             status: 'ACTIVE'
           }
         })

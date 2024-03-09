@@ -1,6 +1,6 @@
 import { OpenAPIRoute } from '@cloudflare/itty-router-openapi';
 import { initializeDb } from '@/lib/drizzle';
-import { eq, and, count } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import {
   verifySlackRequest,
   findSlackConnectionByTeamId,
@@ -464,7 +464,12 @@ async function openAccountSettings(
     const limitedChannels = await db
       .select({ id: channel.id })
       .from(channel)
-      .where(eq(channel.slackConnectionId, connection.id))
+      .where(
+        and(
+          eq(channel.slackConnectionId, connection.id),
+          eq(channel.isMember, true)
+        )
+      )
       .limit(4);
 
     const billingPortalConfiguration = getBillingPortalConfiguration(

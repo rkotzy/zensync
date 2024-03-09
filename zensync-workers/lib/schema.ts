@@ -50,6 +50,7 @@ export const slackConnection = pgTable('slack_connections', {
   encryptedToken: text('encrypted_token').notNull(),
   authedUserId: text('authed_user_id'),
   botUserId: text('bot_user_id').notNull(),
+  appId: text('app_id').notNull(),
   status: text('status'),
   subscriptionId: uuid('subscription_id')
     .unique()
@@ -128,7 +129,8 @@ export const channel = pgTable(
       mode: 'date',
       withTimezone: true
     }),
-    tags: text('tags').array()
+    tags: text('tags').array(),
+    status: text('status')
   },
   table => ({
     channels_slack_connection_slack_channel_unique: unique().on(

@@ -18,6 +18,8 @@ import { NeonHttpDatabase } from 'drizzle-orm/neon-http';
 import * as schema from '@/lib/schema';
 import { ZendeskResponse } from '@/interfaces/zendesk-api.interface';
 import { importEncryptionKeyFromEnvironment } from '@/lib/encryption';
+import { getSeatsByProductId } from '@/interfaces/products.interface';
+import Stripe from 'stripe';
 
 const eventHandlers: Record<
   string,
@@ -111,11 +113,56 @@ async function handleChannelJoined(
   }
 
   try {
+    let channelStatus: string | null = null;
+
+    // Check channel limit
+    const limitedChannels = await db
+      .select({ id: channel.id })
+      .from(channel)
+      .where(
+        and(
+          eq(channel.slackConnectionId, connection.id),
+          eq(channel.isMember, true)
+        )
+      )
+      .limit(10);
+
+    const channelLimit = getSeatsByProductId(
+      connection.subscription?.stripeProductId
+    );
+
+    // Leave channel if limit reached, set status to PENDING_UPGRADE
+    // The +1 is to account for the channel being joined
+    if (
+      limitedChannels.length + 1 > channelLimit || // More channels than allowed
+      (connection.subscription?.periodEnd && // Subscription expired
+        new Date(
+          connection.subscription.periodEnd.getTime() +
+            env.SUBSCRIPTION_EXPIRATION_BUFFER_HOURS * 60 * 60 * 1000
+        ) < new Date())
+    ) {
+      // Set channel status to PENDING_UPGRADE
+      channelStatus = 'PENDING_UPGRADE';
+
+      // Send ephemeral message to channel inviter
+      const inviterUserId = eventData.inviter;
+      if (inviterUserId && inviterUserId !== '') {
+        await postEphemeralMessage(
+          channelId,
+          inviterUserId,
+          connection,
+          env,
+          logger
+        );
+      }
+    }
+
+    // We haven't exceeded the channel limit, so we can continue
+
     // Fetch channel info from Slack
     const params = new URLSearchParams();
     params.append('channel', channelId);
-
-    const response = await fetch(
+    const channelJoinResponse = await fetch(
       `https://slack.com/api/conversations.info?${params.toString()}`,
       {
         method: 'GET',
@@ -126,18 +173,23 @@ async function handleChannelJoined(
       }
     );
 
-    const responseData = (await response.json()) as SlackResponse;
+    const channelJoinResponseData =
+      (await channelJoinResponse.json()) as SlackResponse;
 
-    if (!responseData.ok) {
-      logger.warn(`Failed to fetch channel info: ${response.statusText}`);
+    if (!channelJoinResponseData.ok) {
+      logger.warn(
+        `Failed to fetch channel info: ${channelJoinResponse.statusText}`
+      );
       throw new Error('Failed to fetch channel info');
     }
 
-    const channelType = getChannelType(responseData.channel, logger);
-    const channelName = responseData.channel?.name;
+    const channelType = getChannelType(channelJoinResponseData.channel, logger);
+    const channelName = channelJoinResponseData.channel?.name;
+
+    // TODO: Slack warns about this is_shared parameter
     const isShared =
-      responseData.channel?.is_shared ||
-      responseData.channel?.is_pending_ext_shared;
+      channelJoinResponseData.channel?.is_shared ||
+      channelJoinResponseData.channel?.is_pending_ext_shared;
 
     // Save or update channel in database
     await db
@@ -148,7 +200,8 @@ async function handleChannelJoined(
         type: channelType,
         isMember: true,
         name: channelName,
-        isShared: isShared
+        isShared: isShared,
+        status: channelStatus
       })
       .onConflictDoUpdate({
         target: [channel.slackConnectionId, channel.slackChannelIdentifier],
@@ -157,12 +210,70 @@ async function handleChannelJoined(
           type: channelType,
           isMember: true,
           name: channelName,
-          isShared: isShared
+          isShared: isShared,
+          status: channelStatus
         }
       });
   } catch (error) {
     logger.error('Error saving channel to database:', error);
     throw error;
+  }
+}
+
+async function postEphemeralMessage(
+  channelId: string,
+  userId: string,
+  connection: SlackConnection,
+  env: Env,
+  logger: EdgeWithExecutionContext
+): Promise<void> {
+  // Post a ephemeral message to the user in the channel
+  // to inform them that the channel limit has been reached
+  let ephemeralMessageText =
+    "You've reached your maximum channel limit, upgrade your plan to join this channel.";
+
+  const stripe = new Stripe(env.STRIPE_API_KEY);
+  const session: Stripe.BillingPortal.Session =
+    await stripe.billingPortal.sessions.create({
+      customer: connection.stripeCustomerId,
+      return_url: `https://${connection.domain}.slack.com`,
+      ...(connection.subscription?.stripeSubscriptionId && {
+        flow_data: {
+          type: 'subscription_update',
+          subscription_update: {
+            subscription: connection.subscription.stripeSubscriptionId
+          }
+        }
+      })
+    });
+
+  const portalUrl = session.url;
+  if (portalUrl) {
+    ephemeralMessageText = `You've reached you maximum channel limit, <${portalUrl}|upgrade your plan> to join this channel.`;
+  }
+
+  const postEphemeralParams = new URLSearchParams({
+    channel: channelId,
+    user: userId,
+    text: ephemeralMessageText
+  });
+
+  const ephemeralResponse = await fetch(
+    `https://slack.com/api/chat.postEphemeral?${postEphemeralParams.toString()}`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        Authorization: `Bearer ${connection.token}`
+      }
+    }
+  );
+
+  if (!ephemeralResponse.ok) {
+    logger.error(
+      `Failed to post ephemeral message: ${ephemeralResponse.statusText}`
+    );
+    // We don't throw here since it's not critical if message isn't sent
   }
 }
 

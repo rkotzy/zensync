@@ -9,7 +9,7 @@ const productSeats: ProductSeatsMapping = {
   prod_Pgqqt8hNokEwKb: 5000 // Enterprise - seats are arbitrary, can be raised but unlikely to be hit
 };
 
-export function getSeatsByProductId(productId: string): number {
+export function getSeatsByProductId(productId: string | undefined): number {
   return productSeats[productId] || 0; // Returns 0 if product ID is not found
 }
 

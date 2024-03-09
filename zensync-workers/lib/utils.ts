@@ -198,6 +198,31 @@ export async function getSlackConnection(
   }
 }
 
+export async function isSubscriptionActive(
+  connection: SlackConnection,
+  logger: EdgeWithExecutionContext,
+  env: Env
+): Promise<boolean> {
+  if (
+    !connection.subscription?.periodEnd ||
+    typeof env.SUBSCRIPTION_EXPIRATION_BUFFER_HOURS !== 'number'
+  ) {
+    logger.error(
+      'Either periodEnd is missing, or SUBSCRIPTION_EXPIRATION_BUFFER_HOURS is not a number.'
+    );
+    return true; // Assuming missing data or configuration should be treated as active
+  }
+
+  const periodEnd = connection.subscription.periodEnd;
+  const bufferMilliseconds =
+    env.SUBSCRIPTION_EXPIRATION_BUFFER_HOURS * 60 * 60 * 1000; // Convert hours to milliseconds
+  const expirationDateWithBuffer = new Date(
+    periodEnd.getTime() + bufferMilliseconds
+  );
+
+  return expirationDateWithBuffer >= new Date(); // Return true if subscription is active (not yet expired)
+}
+
 export async function updateChannelActivity(
   slackConnection: SlackConnection,
   channelId: string,

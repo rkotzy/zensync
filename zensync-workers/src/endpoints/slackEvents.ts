@@ -9,6 +9,7 @@ import { Env } from '@/interfaces/env.interface';
 import { importEncryptionKeyFromEnvironment } from '@/lib/encryption';
 import { handleAppHomeOpened } from '@/views/homeTab';
 import { responseWithLogging } from '@/lib/logger';
+import { isSubscriptionActive } from '@/lib/utils';
 
 export class SlackEventHandler extends OpenAPIRoute {
   async handle(
@@ -111,9 +112,10 @@ export class SlackEventHandler extends OpenAPIRoute {
         logger.error('No slackUserId found in app_home_opened event');
       }
     } else if (
-      isMessageToQueue(eventType, eventSubtype) ||
-      (eventType === 'message' &&
-        isPayloadEligibleForTicket(requestBody, connectionDetails, logger))
+      isSubscriptionActive(connectionDetails, logger, env) &&
+      (isMessageToQueue(eventType, eventSubtype) ||
+        (eventType === 'message' &&
+          isPayloadEligibleForTicket(requestBody, connectionDetails, logger)))
     ) {
       try {
         await env.PROCESS_SLACK_MESSAGES_QUEUE_BINDING.send({
@@ -130,7 +132,10 @@ export class SlackEventHandler extends OpenAPIRoute {
           logger
         );
       }
-    } else if (eventSubtype === 'file_share') {
+    } else if (
+      eventSubtype === 'file_share' &&
+      isSubscriptionActive(connectionDetails, logger, env)
+    ) {
       // handle file_share messages differently by processing the file first
       try {
         await env.UPLOAD_FILES_TO_ZENDESK_QUEUE_BINDING.send({

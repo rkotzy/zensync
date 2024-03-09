@@ -1,5 +1,5 @@
 import { initializeDb } from '@/lib/drizzle';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, is } from 'drizzle-orm';
 import {
   channel,
   SlackConnection,
@@ -20,6 +20,7 @@ import { ZendeskResponse } from '@/interfaces/zendesk-api.interface';
 import { importEncryptionKeyFromEnvironment } from '@/lib/encryption';
 import { getSeatsByProductId } from '@/interfaces/products.interface';
 import Stripe from 'stripe';
+import { isSubscriptionActive } from '@/lib/utils';
 
 const eventHandlers: Record<
   string,
@@ -135,11 +136,7 @@ async function handleChannelJoined(
     // The +1 is to account for the channel being joined
     if (
       limitedChannels.length + 1 > channelLimit || // More channels than allowed
-      (connection.subscription?.periodEnd && // Subscription expired
-        new Date(
-          connection.subscription.periodEnd.getTime() +
-            env.SUBSCRIPTION_EXPIRATION_BUFFER_HOURS * 60 * 60 * 1000
-        ) < new Date())
+      !isSubscriptionActive(connection, logger, env) // Subscription is expired
     ) {
       // Set channel status to PENDING_UPGRADE
       channelStatus = 'PENDING_UPGRADE';

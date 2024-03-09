@@ -4,7 +4,8 @@ import {
   ZendeskConnection,
   slackConnection,
   SlackConnection,
-  channel
+  channel,
+  Channel
 } from '@/lib/schema';
 import * as schema from '@/lib/schema';
 import { NeonHttpDatabase } from 'drizzle-orm/neon-http';
@@ -211,6 +212,7 @@ export async function isSubscriptionActive(
       'Either periodEnd is missing, or SUBSCRIPTION_EXPIRATION_BUFFER_HOURS is not a number.'
     );
     return true; // Assuming missing data or configuration should be treated as active
+    // TODO: Consider logging in Sentry to troubleshoot
   }
 
   const periodEnd = connection.subscription.periodEnd;
@@ -221,6 +223,31 @@ export async function isSubscriptionActive(
   );
 
   return expirationDateWithBuffer >= new Date(); // Return true if subscription is active (not yet expired)
+}
+
+export async function getChannelInfo(
+  channelId: string,
+  slackConnectionId: string,
+  db: NeonHttpDatabase<typeof schema>,
+  logger: EdgeWithExecutionContext
+): Promise<Channel | null | undefined> {
+  try {
+    const channelInfo = await db.query.channel.findFirst({
+      where: and(
+        eq(channel.slackConnectionId, slackConnectionId),
+        eq(channel.slackChannelIdentifier, channelId)
+      )
+    });
+
+    return channelInfo;
+  } catch (error) {
+    logger.error('Error getting channel info:', error);
+    return undefined;
+  }
+}
+
+export function isChannelEligibleForMessaging(channel: Channel): boolean {
+  return channel.isMember && channel.status !== 'PENDING_UPGRADE';
 }
 
 export async function updateChannelActivity(

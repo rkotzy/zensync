@@ -14,10 +14,9 @@ import { Logtail } from '@logtail/edge';
 import { EdgeWithExecutionContext } from '@logtail/edge/dist/es6/edgeWithExecutionContext';
 import { NeonHttpDatabase } from 'drizzle-orm/neon-http';
 import { Env } from '@/interfaces/env.interface';
-import { getSlackConnection } from '@/lib/utils';
+import { getSlackConnection, isSubscriptionActive } from '@/lib/utils';
 import bcrypt from 'bcryptjs';
 import { responseWithLogging } from '@/lib/logger';
-import { isSubscriptionActive } from '@/lib/utils';
 
 export class ZendeskEventHandler extends OpenAPIRoute {
   async handle(

@@ -17,6 +17,7 @@ import { Env } from '@/interfaces/env.interface';
 import { getSlackConnection } from '@/lib/utils';
 import bcrypt from 'bcryptjs';
 import { responseWithLogging } from '@/lib/logger';
+import { isSubscriptionActive } from '@/lib/utils';
 
 export class ZendeskEventHandler extends OpenAPIRoute {
   async handle(
@@ -59,7 +60,7 @@ export class ZendeskEventHandler extends OpenAPIRoute {
     }
 
     // Ignore messages if last_updated_at === created_at
-    // WARNING: - This would ignore messages sent in same minute.
+    // TODO: - This would ignore messages sent in same minute.
     // Should log in Sentry probably?
     if (requestBody.last_updated_at === requestBody.created_at) {
       logger.info('Message is not an update, skipping');
@@ -113,22 +114,6 @@ export class ZendeskEventHandler extends OpenAPIRoute {
       );
     }
 
-    // To be safe I should double-check the organization_id owns the channel_id
-    if (
-      !conversationInfo.channel ||
-      !conversationInfo.channel.slackChannelIdentifier ||
-      conversationInfo.channel.slackConnectionId !== slackConnectionId
-    ) {
-      logger.warn(`Invalid Ids: ${slackConnectionId} !== ${conversationInfo}`);
-      return responseWithLogging(
-        request,
-        requestBody,
-        'Invalid Ids',
-        401,
-        logger
-      );
-    }
-
     // Get the full slack connection info
     const slackConnectionInfo = await getSlackConnection(
       slackConnectionId,
@@ -146,6 +131,12 @@ export class ZendeskEventHandler extends OpenAPIRoute {
         404,
         logger
       );
+    }
+
+    // Make sure the subscription is active
+    if (!isSubscriptionActive(slackConnectionInfo, logger, env)) {
+      logger.info('Subscription is not active, ignoring');
+      return responseWithLogging(request, requestBody, 'Ok', 200, logger);
     }
 
     try {

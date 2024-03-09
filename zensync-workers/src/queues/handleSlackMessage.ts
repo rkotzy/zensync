@@ -11,7 +11,13 @@ import {
   SlackMessageData,
   SlackResponse
 } from '@/interfaces/slack-api.interface';
-import { fetchZendeskCredentials, updateChannelActivity } from '@/lib/utils';
+import {
+  fetchZendeskCredentials,
+  updateChannelActivity,
+  isSubscriptionActive,
+  getChannelInfo,
+  isChannelEligibleForMessaging
+} from '@/lib/utils';
 import { Env } from '@/interfaces/env.interface';
 import { EdgeWithExecutionContext } from '@logtail/edge/dist/es6/edgeWithExecutionContext';
 import { NeonHttpDatabase } from 'drizzle-orm/neon-http';
@@ -20,7 +26,6 @@ import { ZendeskResponse } from '@/interfaces/zendesk-api.interface';
 import { importEncryptionKeyFromEnvironment } from '@/lib/encryption';
 import { getSeatsByProductId } from '@/interfaces/products.interface';
 import Stripe from 'stripe';
-import { isSubscriptionActive } from '@/lib/utils';
 
 const eventHandlers: Record<
   string,
@@ -932,18 +937,12 @@ async function handleNewConversation(
   followUpTicket: FollowUpTicket | undefined = undefined
 ) {
   // Fetch channel info
-  const channelInfo = await db.query.channel.findFirst({
-    where: eq(channel.slackChannelIdentifier, channelId)
-  });
-
-  // Create Zendesk ticket indepotently using Slack message ID + channel ID?
-  const idempotencyKey = channelId + messageData.ts;
-  const zendeskAuthToken = btoa(
-    `${zendeskCredentials.zendeskEmail}/token:${zendeskCredentials.zendeskApiKey}`
+  const channelInfo = await getChannelInfo(
+    channelId,
+    slackConnectionInfo.id,
+    db,
+    logger
   );
-
-  // Set the primary key for the conversation
-  let conversationUuid = followUpTicket?.conversationId ?? crypto.randomUUID();
 
   if (!channelInfo) {
     logger.warn(`No channel found: ${channelId}`);
@@ -953,6 +952,20 @@ async function handleNewConversation(
   if (!channelInfo.name) {
     logger.warn(`No channel name found, continuing: ${channelInfo}`);
   }
+
+  if (!isChannelEligibleForMessaging(channelInfo)) {
+    logger.warn(`Channel is not eligible for messaging: ${channelInfo}`);
+    return;
+  }
+
+  // Create Zendesk ticket indepotently using Slack message ID + channel ID?
+  const idempotencyKey = channelId + messageData.ts;
+  const zendeskAuthToken = btoa(
+    `${zendeskCredentials.zendeskEmail}/token:${zendeskCredentials.zendeskApiKey}`
+  );
+
+  // Set the primary key for the conversation
+  let conversationUuid = followUpTicket?.conversationId ?? crypto.randomUUID();
 
   let htmlBody = slackMarkdownToHtml(messageData.text);
   if (!htmlBody || htmlBody === '') {

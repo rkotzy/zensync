@@ -24,7 +24,7 @@ import { NeonHttpDatabase } from 'drizzle-orm/neon-http';
 import * as schema from '@/lib/schema';
 import { ZendeskResponse } from '@/interfaces/zendesk-api.interface';
 import { importEncryptionKeyFromEnvironment } from '@/lib/encryption';
-import { getSeatsByProductId } from '@/interfaces/products.interface';
+import { getChannelsByProductId } from '@/interfaces/products.interface';
 import Stripe from 'stripe';
 
 const eventHandlers: Record<
@@ -133,7 +133,7 @@ async function handleChannelJoined(
       )
       .limit(10);
 
-    const channelLimit = getSeatsByProductId(
+    const channelLimit = getChannelsByProductId(
       connection.subscription?.stripeProductId
     );
 

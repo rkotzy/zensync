@@ -1,5 +1,5 @@
 import { NeonHttpDatabase } from 'drizzle-orm/neon-http';
-import { eq, and, desc } from 'drizzle-orm';
+import { eq, and, desc, is } from 'drizzle-orm';
 import { Env } from '@/interfaces/env.interface';
 import {
   SlackConnection,
@@ -11,6 +11,9 @@ import { SlackResponse } from '@/interfaces/slack-api.interface';
 import * as schema from '@/lib/schema';
 import { EdgeWithExecutionContext } from '@logtail/edge/dist/es6/edgeWithExecutionContext';
 import { fetchZendeskCredentials, InteractivityActionId } from '@/lib/utils';
+import { isSubscriptionActive } from '@/lib/utils';
+
+const PENDING_UPGRADE = 'PENDING_UPGRADE';
 
 export async function handleAppHomeOpened(
   slackUserId: string,
@@ -66,13 +69,14 @@ export async function handleAppHomeOpened(
           elements: [
             {
               type: 'mrkdwn',
-              text: "If you can't use Slack to get in touch email us at support@slacktozendesk.com."
+              text: "If you can't use Slack to get in touch, email us at support@slacktozendesk.com."
             }
           ]
         },
         {
           type: 'divider'
         },
+        ...buildUpgradeCTA(channelInfos, connection, logger, env),
         {
           type: 'section',
           text: {
@@ -204,57 +208,115 @@ async function fetchHomeTabData(
   }
 }
 
-function createChannelSections(channelInfos: Channel[]) {
-  // If the channelInfos array is empty, return an empty array
+function containsPendingChannels(channelInfos: Channel[]): boolean {
+  return channelInfos.some(channel => channel.status === PENDING_UPGRADE);
+}
+
+function createChannelSections(channelInfos) {
   if (channelInfos.length === 0) {
     return [];
   }
 
-  // Map over the channelInfos array to create a section for each item
-  return channelInfos
-    .map(info => {
-      const activityDate = info.latestActivityAt ?? info.createdAt;
-      const latestActivityTimestamp = Math.floor(activityDate.getTime() / 1000);
-      const fallbackText = activityDate.toLocaleDateString(); // Simplified fallback text generation
+  return channelInfos.flatMap(info => {
+    const activityDate = info.latestActivityAt ?? info.createdAt;
+    const latestActivityTimestamp = Math.floor(activityDate.getTime() / 1000);
+    const fallbackText = activityDate.toLocaleDateString();
 
-      const slackFormattedDate = `<!date^${latestActivityTimestamp}^{date_short} at {time}|${fallbackText}>`;
+    const slackFormattedDate = `<!date^${latestActivityTimestamp}^{date_short} at {time}|${fallbackText}>`;
 
-      const tags = info.tags || [];
-      const tagsString =
-        tags.length > 0 ? tags.map(tag => `\`${tag}\``).join(', ') : '';
+    const tags = info.tags || [];
+    const tagsString =
+      tags.length > 0 ? tags.map(tag => `\`${tag}\``).join(', ') : '';
 
-      return [
+    // Set accessory button based on the channel's status
+    const accessory = {
+      type: 'button',
+      text: {
+        type: 'plain_text',
+        emoji: true,
+        text: info.status === PENDING_UPGRADE ? ':warning: Upgrade' : 'Edit'
+      },
+      action_id:
+        info.status === PENDING_UPGRADE
+          ? InteractivityActionId.OPEN_ACCOUNT_SETTINGS_BUTTON_TAPPED
+          : `${InteractivityActionId.EDIT_CHANNEL_BUTTON_TAPPED}:${info.slackChannelIdentifier}`,
+      ...(info.status === PENDING_UPGRADE && { style: 'danger' })
+    };
+
+    const section = {
+      type: 'section',
+      text: {
+        type: 'mrkdwn',
+        text: `*<#${info.slackChannelIdentifier}|${info.name}>*\n*Owner:* ${
+          info.defaultAssigneeEmail ?? ''
+        }\n*Tags:* ${tagsString}`
+      },
+      accessory: accessory
+    };
+
+    // Update context text for PENDING_UPGRADE status
+    const contextText =
+      info.status === PENDING_UPGRADE
+        ? 'Channel deactivated, upgrade plan to receive messages!'
+        : `Last message on ${slackFormattedDate}`;
+
+    const contextBlock = {
+      type: 'context',
+      elements: [
         {
-          type: 'section',
-          text: {
-            type: 'mrkdwn',
-            text: `*<#${info.slackChannelIdentifier}|${info.name}>*\n*Owner:* ${
-              info.defaultAssigneeEmail ?? ''
-            }\n*Tags:* ${tagsString}`
-          },
-          accessory: {
-            type: 'button',
-            text: {
-              type: 'plain_text',
-              emoji: true,
-              text: 'Edit'
-            },
-            action_id: `${InteractivityActionId.EDIT_CHANNEL_BUTTON_TAPPED}:${info.slackChannelIdentifier}`
-          }
-        },
-        {
-          type: 'context',
-          elements: [
-            {
-              type: 'mrkdwn',
-              text: `Last message on ${slackFormattedDate}`
-            }
-          ]
-        },
-        {
-          type: 'divider'
+          type: 'mrkdwn',
+          text: contextText
         }
-      ];
-    })
-    .flat();
+      ]
+    };
+
+    const dividerBlock = { type: 'divider' };
+
+    return [section, contextBlock, dividerBlock];
+  });
+}
+
+function buildUpgradeCTA(
+  channelInfos: Channel[],
+  connection: SlackConnection,
+  logger: EdgeWithExecutionContext,
+  env: Env
+): any {
+  const subscriptionActive = isSubscriptionActive(connection, logger, env);
+  const hasPendingChannels = containsPendingChannels(channelInfos);
+
+  if (subscriptionActive && !hasPendingChannels) {
+    return [];
+  }
+
+  return [
+    {
+      type: 'section',
+      text: {
+        type: 'plain_text',
+        text: subscriptionActive
+          ? ":warning: You've exceeded your plan limit :warning:"
+          : ":warning: You're subscription has expired :warning:",
+        emoji: true
+      }
+    },
+    {
+      type: 'actions',
+      elements: [
+        {
+          type: 'button',
+          text: {
+            type: 'plain_text',
+            text: 'Upgrade Plan',
+            emoji: true
+          },
+          action_id: InteractivityActionId.OPEN_ACCOUNT_SETTINGS_BUTTON_TAPPED,
+          style: 'danger'
+        }
+      ]
+    },
+    {
+      type: 'divider'
+    }
+  ];
 }

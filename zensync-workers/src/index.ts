@@ -5,6 +5,7 @@ import { SlackAuthRedirect } from './endpoints/slackAuthRedirect';
 import { SlackAuthCallback } from './endpoints/slackAuthCallback';
 import { SlackEventHandler } from './endpoints/slackEvents';
 import { StripeEventHandler } from './endpoints/stripeEvents';
+import { SyncSubscriptionHandler } from './endpoints/syncSubscription';
 import { QueueMessageHandler } from './queues/queueHandler';
 import { logRequestAndResponse } from '@/lib/logger';
 
@@ -17,6 +18,7 @@ router.get(`/v1/slack/auth/redirect`, SlackAuthRedirect);
 router.get(`/v1/slack/auth/callback`, SlackAuthCallback);
 router.post(`/v1/slack/events`, SlackEventHandler);
 router.post(`/v1/stripe/events`, StripeEventHandler);
+router.post(`/internal/syncSubscription`, SyncSubscriptionHandler);
 
 // 404 for everything else
 router.all('*', () =>

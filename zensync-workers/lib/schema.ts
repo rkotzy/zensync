@@ -6,11 +6,9 @@ import {
   boolean,
   pgEnum,
   unique,
-  index,
-  integer
+  index
 } from 'drizzle-orm/pg-core';
 import { InferSelectModel, relations } from 'drizzle-orm';
-import { Env } from '@/interfaces/env.interface';
 
 // This table stores the state parameter that is passed to the Slack OAuth.
 // This is used to prevent CSRF attacks and is a temporary value. We can
@@ -19,7 +17,8 @@ export const slackOauthState = pgTable('slack_oauth_states', {
   id: uuid('id').primaryKey().notNull(),
   createdAt: timestamp('created_at', {
     mode: 'date',
-    withTimezone: true
+    withTimezone: true,
+    precision: 6
   })
     .defaultNow()
     .notNull()
@@ -32,13 +31,15 @@ export const slackConnection = pgTable('slack_connections', {
   id: uuid('id').defaultRandom().primaryKey().notNull(),
   createdAt: timestamp('created_at', {
     mode: 'date',
-    withTimezone: true
+    withTimezone: true,
+    precision: 6
   })
     .defaultNow()
     .notNull(),
   updatedAt: timestamp('updated_at', {
     mode: 'date',
-    withTimezone: true
+    withTimezone: true,
+    precision: 6
   }),
   slackTeamId: text('slack_team_id').notNull().unique(),
   name: text('name'),
@@ -72,13 +73,15 @@ export const zendeskConnection = pgTable('zendesk_connections', {
   id: uuid('id').defaultRandom().primaryKey().notNull(),
   createdAt: timestamp('created_at', {
     mode: 'date',
-    withTimezone: true
+    withTimezone: true,
+    precision: 6
   })
     .defaultNow()
     .notNull(),
   updatedAt: timestamp('updated_at', {
     mode: 'date',
-    withTimezone: true
+    withTimezone: true,
+    precision: 6
   }),
   slackConnectionId: uuid('slack_connection_id')
     .notNull()
@@ -108,13 +111,15 @@ export const channel = pgTable(
     id: uuid('id').defaultRandom().primaryKey().notNull(),
     createdAt: timestamp('created_at', {
       mode: 'date',
-      withTimezone: true
+      withTimezone: true,
+      precision: 6
     })
       .defaultNow()
       .notNull(),
     updatedAt: timestamp('updated_at', {
       mode: 'date',
-      withTimezone: true
+      withTimezone: true,
+      precision: 6
     }),
     slackChannelIdentifier: text('slack_channel_identifier').notNull(),
     slackConnectionId: uuid('slack_connection_id')
@@ -153,13 +158,15 @@ export const conversation = pgTable(
     id: uuid('id').defaultRandom().primaryKey().notNull(),
     createdAt: timestamp('created_at', {
       mode: 'date',
-      withTimezone: true
+      withTimezone: true,
+      precision: 6
     })
       .defaultNow()
       .notNull(),
     updatedAt: timestamp('updated_at', {
       mode: 'date',
-      withTimezone: true
+      withTimezone: true,
+      precision: 6
     }),
     channelId: uuid('channel_id')
       .notNull()
@@ -192,13 +199,15 @@ export const subscription = pgTable('subscriptions', {
   id: uuid('id').defaultRandom().primaryKey().notNull(),
   createdAt: timestamp('created_at', {
     mode: 'date',
-    withTimezone: true
+    withTimezone: true,
+    precision: 6
   })
     .defaultNow()
     .notNull(),
   updatedAt: timestamp('updated_at', {
     mode: 'date',
-    withTimezone: true
+    withTimezone: true,
+    precision: 6
   }),
   stripeSubscriptionId: text('stripe_subscription_id').unique().notNull(),
   stripeProductId: text('stripe_product_id').notNull(),

@@ -155,6 +155,21 @@ export class SlackInteractivityHandler extends OpenAPIRoute {
       }
     }
 
+    // Handle the view_closed event
+    else if (payload.type === 'view_closed') {
+      const userId = payload.user?.id;
+      if (userId) {
+        await handleAppHomeOpened(
+          userId,
+          slackConnectionDetails,
+          db,
+          env,
+          encryptionKey,
+          logger
+        );
+      }
+    }
+
     // The body is intentionally empty here for Slack to close any views
     return responseWithLogging(request, payload, null, 200, logger);
   }
@@ -501,6 +516,7 @@ async function openAccountSettings(
     const body = JSON.stringify({
       trigger_id: triggerId,
       view: {
+        notify_on_close: true,
         type: 'modal',
         title: {
           type: 'plain_text',

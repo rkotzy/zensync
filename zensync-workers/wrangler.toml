@@ -28,6 +28,10 @@ binding = "UPLOAD_FILES_TO_ZENDESK_QUEUE_BINDING"
 queue = "slack-connection-created"
 binding = "SLACK_CONNECTION_CREATED_QUEUE_BINDING"
 
+[[queues.producers]]
+queue = "stripe-subscription-changed"
+binding = "STRIPE_SUBSCRIPTION_CHANGED_QUEUE_BINDING"
+
 [[queues.consumers]]
 queue = "process-slack-messages"
 max_batch_size = 1
@@ -47,6 +51,13 @@ queue = "slack-connection-created"
 max_batch_size = 1
 max_batch_timeout = 1
 max_retries = 4
+dead_letter_queue = "dlq"
+
+[[queues.consumers]]
+queue = "stripe-subscription-changed"
+max_batch_size = 1
+max_batch_timeout = 1
+max_retries = 3
 dead_letter_queue = "dlq"
 
 [[queues.consumers]]

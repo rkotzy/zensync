@@ -1,6 +1,7 @@
 import { uploadFilesToZendesk } from './uploadFiles';
 import { handleMessageFromSlack } from './handleSlackMessage';
 import { slackConnectionCreated } from './slackConnectionCreated';
+import { stripeSubscriptionChanged } from './subscriptionChanged';
 import { Env } from '@/interfaces/env.interface';
 import { Logtail } from '@logtail/edge';
 
@@ -26,6 +27,9 @@ export class QueueMessageHandler {
             break;
           case 'slack-connection-created':
             await slackConnectionCreated(message.body, env, logger);
+            break;
+          case 'stripe-subscription-changed':
+            await stripeSubscriptionChanged(message.body, env, logger);
             break;
           case 'dlq':
             // Handle dead-letter queue messages

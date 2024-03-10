@@ -92,6 +92,12 @@ async function updateCustomerSubscription(
         ...(productId ? { stripeProductId: productId } : {})
       })
       .where(eq(subscription.stripeSubscriptionId, subscriptionId));
+
+    // Fire off the queue to update channels
+    await env.STRIPE_SUBSCRIPTION_CHANGED_QUEUE_BINDING.send({
+      productId: productId,
+      subscriptionId: subscriptionInfo.id
+    });
   } catch (err) {
     logger.error(`Error updating customer subscription ${err}`);
     throw new Error(`Error updating customer subscription: ${err}`);

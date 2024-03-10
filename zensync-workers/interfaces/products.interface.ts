@@ -6,10 +6,10 @@ const productSeats: ProductSeatsMapping = {
   prod_PYxuYByQ6U1tCK: 1, // Free
   prod_PYxvepWcZa2v7K: 3, // Starter
   prod_PYxwITwNzYqxaJ: 5000, // Unlimited - seats are arbitrary, can be raised but unlikely to be hit
-  prod_Pgqqt8hNokEwKb: 5000 // Enterprise - seats are arbitrary, can be raised but unlikely to be hit
+  prod_Pgqqt8hNokEwKb: 5001 // Enterprise - seats are arbitrary, can be raised but unlikely to be hit
 };
 
-export function getSeatsByProductId(productId: string | undefined): number {
+export function getChannelsByProductId(productId: string | undefined): number {
   return productSeats[productId] || 0; // Returns 0 if product ID is not found
 }
 

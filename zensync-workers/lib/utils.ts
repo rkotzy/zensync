@@ -199,11 +199,11 @@ export async function getSlackConnection(
   }
 }
 
-export async function isSubscriptionActive(
+export function isSubscriptionActive(
   connection: SlackConnection,
   logger: EdgeWithExecutionContext,
   env: Env
-): Promise<boolean> {
+): boolean {
   if (
     !connection.subscription?.periodEnd ||
     typeof env.SUBSCRIPTION_EXPIRATION_BUFFER_HOURS !== 'number'

@@ -18,7 +18,7 @@ export const slackOauthState = pgTable('slack_oauth_states', {
   createdAt: timestamp('created_at', {
     mode: 'date',
     withTimezone: true,
-    precision: 6
+    precision: 3
   })
     .defaultNow()
     .notNull()
@@ -32,14 +32,14 @@ export const slackConnection = pgTable('slack_connections', {
   createdAt: timestamp('created_at', {
     mode: 'date',
     withTimezone: true,
-    precision: 6
+    precision: 3
   })
     .defaultNow()
     .notNull(),
   updatedAt: timestamp('updated_at', {
     mode: 'date',
     withTimezone: true,
-    precision: 6
+    precision: 3
   }),
   slackTeamId: text('slack_team_id').notNull().unique(),
   name: text('name'),
@@ -74,14 +74,14 @@ export const zendeskConnection = pgTable('zendesk_connections', {
   createdAt: timestamp('created_at', {
     mode: 'date',
     withTimezone: true,
-    precision: 6
+    precision: 3
   })
     .defaultNow()
     .notNull(),
   updatedAt: timestamp('updated_at', {
     mode: 'date',
     withTimezone: true,
-    precision: 6
+    precision: 3
   }),
   slackConnectionId: uuid('slack_connection_id')
     .notNull()
@@ -112,14 +112,14 @@ export const channel = pgTable(
     createdAt: timestamp('created_at', {
       mode: 'date',
       withTimezone: true,
-      precision: 6
+      precision: 3
     })
       .defaultNow()
       .notNull(),
     updatedAt: timestamp('updated_at', {
       mode: 'date',
       withTimezone: true,
-      precision: 6
+      precision: 3
     }),
     slackChannelIdentifier: text('slack_channel_identifier').notNull(),
     slackConnectionId: uuid('slack_connection_id')
@@ -159,14 +159,14 @@ export const conversation = pgTable(
     createdAt: timestamp('created_at', {
       mode: 'date',
       withTimezone: true,
-      precision: 6
+      precision: 3
     })
       .defaultNow()
       .notNull(),
     updatedAt: timestamp('updated_at', {
       mode: 'date',
       withTimezone: true,
-      precision: 6
+      precision: 3
     }),
     channelId: uuid('channel_id')
       .notNull()
@@ -200,14 +200,14 @@ export const subscription = pgTable('subscriptions', {
   createdAt: timestamp('created_at', {
     mode: 'date',
     withTimezone: true,
-    precision: 6
+    precision: 3
   })
     .defaultNow()
     .notNull(),
   updatedAt: timestamp('updated_at', {
     mode: 'date',
     withTimezone: true,
-    precision: 6
+    precision: 3
   }),
   stripeSubscriptionId: text('stripe_subscription_id').unique().notNull(),
   stripeProductId: text('stripe_product_id').notNull(),

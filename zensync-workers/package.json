@@ -11,7 +11,6 @@
     "@cloudflare/itty-router-openapi": "^1.0.10",
     "@logtail/edge": "^0.4.19",
     "bcryptjs": "^2.4.3",
-    "nanoid": "^5.0.5",
     "stripe": "^14.16.0"
   },
   "devDependencies": {

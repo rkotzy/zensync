@@ -94,7 +94,6 @@ export const zendeskConnection = pgTable('zendesk_connections', {
   encryptedZendeskApiKey: text('encrypted_zendesk_api_key').notNull(),
   zendeskTriggerId: text('zendesk_trigger_id'),
   zendeskWebhookId: text('zendesk_webhook_id'),
-  webhookPublicId: text('webhook_public_id').unique(),
   hashedWebhookBearerToken: text('hashed_webhook_bearer_token'),
   status: text('status')
 });

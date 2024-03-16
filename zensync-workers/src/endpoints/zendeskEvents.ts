@@ -197,6 +197,7 @@ async function authenticateRequest(
 ): Promise<string | null> {
   try {
     const authorizationHeader = request.headers.get('authorization');
+    const webhookId = request.headers.get('x-zendesk-webhook-id');
     const bearerToken = authorizationHeader?.replace('Bearer ', '');
 
     if (!bearerToken) {
@@ -205,19 +206,18 @@ async function authenticateRequest(
     }
 
     const url = new URL(request.url);
-    const publicId = url.searchParams.get('id');
 
-    if (!publicId) {
-      logger.error('Missing id');
+    if (!webhookId) {
+      logger.error('Missing webhook id');
       return null;
     }
 
     const connection = await db.query.zendeskConnection.findFirst({
-      where: eq(zendeskConnection.webhookPublicId, publicId)
+      where: eq(zendeskConnection.zendeskWebhookId, webhookId)
     });
 
     if (!connection) {
-      logger.error('Invalid public Id');
+      logger.error('Invalid webhook Id');
       return null;
     }
 

@@ -72,6 +72,7 @@ export class SlackAuthCallback extends OpenAPIRoute {
     let authedUser: string;
     let botUserId: string;
     let appId: string;
+    let teamId: string;
     try {
       const params = new URLSearchParams();
       params.append('client_id', env.SLACK_CLIENT_ID!);
@@ -137,6 +138,7 @@ export class SlackAuthCallback extends OpenAPIRoute {
       }
 
       const team = teamInfoResponse.team;
+      teamId = team.id;
 
       // Encrypt the access token before saving to db
       const encryptionKey = await importEncryptionKeyFromEnvironment(env);
@@ -145,7 +147,7 @@ export class SlackAuthCallback extends OpenAPIRoute {
       const connectionInfo = await db
         .insert(slackConnection)
         .values({
-          slackTeamId: team.id,
+          slackTeamId: teamId,
           name: team.name,
           domain: team.domain,
           iconUrl: team.icon.image_132,
@@ -197,6 +199,7 @@ export class SlackAuthCallback extends OpenAPIRoute {
       return new Response('Error saving access token.', { status: 500 });
     }
 
-    return new Response('Success', { status: 200 });
+    return new Response('Success! You may close this window.', { status: 200 });
+    //return Response.redirect(`slack://app?team=${teamId}&id=${appId}&tab=home`);
   }
 }

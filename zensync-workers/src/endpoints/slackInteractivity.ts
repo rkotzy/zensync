@@ -20,7 +20,6 @@ import {
   encryptData
 } from '@/lib/encryption';
 import bcrypt from 'bcryptjs';
-import { customAlphabet } from 'nanoid';
 import Stripe from 'stripe';
 import { handleAppHomeOpened } from '@/views/homeTab';
 import { responseWithLogging } from '@/lib/logger';
@@ -247,14 +246,6 @@ async function saveZendeskCredentials(
   // Generate a UUID for the webhook token
   let webhookToken = crypto.randomUUID();
 
-  const nanoid = customAlphabet(
-    '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz',
-    12
-  );
-
-  // Generate a path ID for the webhook URL
-  let pathId = nanoid();
-
   let zendeskTriggerId: string;
   let zendeskWebhookId: string;
   try {
@@ -278,7 +269,7 @@ async function saveZendeskCredentials(
     });
 
     const zendeskWebhookResponse = await fetch(
-      `https://${zendeskDomain}.zendesk.com/api/v2/webhooks?id=${pathId}`,
+      `https://${zendeskDomain}.zendesk.com/api/v2/webhooks`,
       {
         method: 'POST',
         headers: {
@@ -402,8 +393,7 @@ async function saveZendeskCredentials(
         status: 'ACTIVE',
         zendeskTriggerId: zendeskTriggerId,
         zendeskWebhookId: zendeskWebhookId,
-        hashedWebhookBearerToken: hashedWebhookToken,
-        webhookPublicId: pathId
+        hashedWebhookBearerToken: hashedWebhookToken
       })
       .onConflictDoUpdate({
         target: zendeskConnection.slackConnectionId,
@@ -413,7 +403,6 @@ async function saveZendeskCredentials(
           zendeskDomain: zendeskDomain,
           zendeskEmail: zendeskEmail,
           hashedWebhookBearerToken: hashedWebhookToken,
-          webhookPublicId: pathId,
           zendeskTriggerId: zendeskTriggerId,
           zendeskWebhookId: zendeskWebhookId,
           status: 'ACTIVE'

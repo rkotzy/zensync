@@ -65,13 +65,7 @@ async function updateChannelStatus(
     // Check if the index is within bounds to prevent accessing undefined
     if (allChannels.length > 0 && channelLimit > 0) {
       const safeIndex = Math.min(channelLimit - 1, allChannels.length - 1);
-      const lastActiveChannelDate = roundUpToNearestSecond(
-        allChannels[safeIndex].createdAt
-      );
-      logger.info(`Last active channel date: ${lastActiveChannelDate}`);
-      logger.info(
-        `Last active channel time: ${lastActiveChannelDate.getMilliseconds()}`
-      );
+      const lastActiveChannelDate = allChannels[safeIndex].createdAt;
 
       await activateChannels(db, connection.id, lastActiveChannelDate, logger);
       await deactivateChannels(
@@ -158,12 +152,4 @@ async function activateAllChannels(
         eq(channel.status, PENDING_UPGRADE)
       )
     );
-}
-
-function roundUpToNearestSecond(date: Date): Date {
-  if (date.getMilliseconds() > 0) {
-    // Add the difference to round up to the nearest second
-    return new Date(date.getTime() + (1000 - date.getMilliseconds()));
-  }
-  return date; // Return the original date if no rounding is needed
 }

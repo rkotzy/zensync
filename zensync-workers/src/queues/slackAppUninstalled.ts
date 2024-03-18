@@ -1,7 +1,7 @@
 import { initializeDb } from '@/lib/drizzle';
 import { NeonHttpDatabase } from 'drizzle-orm/neon-http';
 import * as schema from '@/lib/schema';
-import { slackConnection, channel, SlackConnection } from '@/lib/schema';
+import { channel, SlackConnection } from '@/lib/schema';
 import { eq, and } from 'drizzle-orm';
 import { Env } from '@/interfaces/env.interface';
 import { EdgeWithExecutionContext } from '@logtail/edge/dist/es6/edgeWithExecutionContext';

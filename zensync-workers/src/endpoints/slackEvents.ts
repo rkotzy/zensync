@@ -1,6 +1,6 @@
 import { OpenAPIRoute } from '@cloudflare/itty-router-openapi';
 import { initializeDb } from '@/lib/drizzle';
-import { findSlackConnectionByTeamId, verifySlackRequest } from '@/lib/utils';
+import { findSlackConnectionByAppId, verifySlackRequest } from '@/lib/utils';
 import { SlackConnection } from '@/lib/schema';
 import { Logtail } from '@logtail/edge';
 import { EdgeWithExecutionContext } from '@logtail/edge/dist/es6/edgeWithExecutionContext';
@@ -61,8 +61,8 @@ export class SlackEventHandler extends OpenAPIRoute {
     const encryptionKey = await importEncryptionKeyFromEnvironment(env);
 
     // Find the corresponding slack connection details
-    const connectionDetails = await findSlackConnectionByTeamId(
-      requestBody.team_id,
+    const connectionDetails = await findSlackConnectionByAppId(
+      requestBody.api_app_id,
       db,
       env,
       logger,
@@ -71,12 +71,12 @@ export class SlackEventHandler extends OpenAPIRoute {
 
     if (!connectionDetails) {
       logger.warn(
-        `No slack connection found for team ID: ${requestBody.team_id}.`
+        `No slack connection found for app ID: ${requestBody.api_app_id}.`
       );
       return responseWithLogging(
         request,
         requestBody,
-        'Invalid team_id',
+        'Invalid api_app_id',
         404,
         logger
       );

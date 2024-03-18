@@ -152,6 +152,25 @@ export class SlackEventHandler extends OpenAPIRoute {
           logger
         );
       }
+    } else if (eventType === 'app_uninstalled') {
+      // handle the app being uninstalled from a workspace
+      try {
+        await env.SLACK_APP_UNINSTALLED_QUEUE_BINDING.send({
+          eventBody: requestBody,
+          connectionDetails: connectionDetails
+        });
+      } catch (error) {
+        logger.error(
+          `Error publishing app uninstalled to queue: ${error.message}`
+        );
+        return responseWithLogging(
+          request,
+          requestBody,
+          'Internal Server Error',
+          500,
+          logger
+        );
+      }
     } else {
       logger.info(
         `No processable event type found for event: ${JSON.stringify(

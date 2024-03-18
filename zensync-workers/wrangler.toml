@@ -32,6 +32,10 @@ binding = "SLACK_CONNECTION_CREATED_QUEUE_BINDING"
 queue = "stripe-subscription-changed"
 binding = "STRIPE_SUBSCRIPTION_CHANGED_QUEUE_BINDING"
 
+[[queues.producers]]
+queue = "slack-app-uninstalled"
+binding = "SLACK_APP_UNINSTALLED_QUEUE_BINDING"
+
 [[queues.consumers]]
 queue = "process-slack-messages"
 max_batch_size = 1
@@ -59,6 +63,14 @@ max_batch_size = 1
 max_batch_timeout = 1
 max_retries = 3
 dead_letter_queue = "dlq"
+
+[[queues.consumers]]
+queue = "slack-app-uninstalled"
+max_batch_size = 1
+max_batch_timeout = 1
+max_retries = 4
+dead_letter_queue = "dlq"
+
 
 [[queues.consumers]]
 queue = "dlq"

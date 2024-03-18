@@ -208,9 +208,8 @@ async function handleChannelJoined(
     const channelType = getChannelType(channelJoinResponseData.channel, logger);
     const channelName = channelJoinResponseData.channel?.name;
 
-    // TODO: Slack warns about this is_shared parameter
     const isShared =
-      channelJoinResponseData.channel?.is_shared ||
+      channelJoinResponseData.channel?.is_ext_shared ||
       channelJoinResponseData.channel?.is_pending_ext_shared;
 
     // Save or update channel in database
@@ -328,7 +327,7 @@ function getChannelType(
 
   if (channelData.is_channel) {
     return 'PUBLIC';
-  } else if (channelData.is_group) {
+  } else if (channelData.is_private) {
     return 'PRIVATE';
   } else if (channelData.is_im) {
     return 'DM';

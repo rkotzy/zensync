@@ -3,7 +3,7 @@ import { initializeDb } from '@/lib/drizzle';
 import { eq, and } from 'drizzle-orm';
 import {
   verifySlackRequest,
-  findSlackConnectionByTeamId,
+  findSlackConnectionByAppId,
   InteractivityActionId,
   fetchZendeskCredentials
 } from '@/lib/utils';
@@ -63,8 +63,8 @@ export class SlackInteractivityHandler extends OpenAPIRoute {
     const payload = JSON.parse(payloadString);
 
     // Find the corresponding organization connection details
-    const slackConnectionDetails = await findSlackConnectionByTeamId(
-      payload.team?.id,
+    const slackConnectionDetails = await findSlackConnectionByAppId(
+      payload.api_app_id,
       db,
       env,
       logger,
@@ -72,11 +72,11 @@ export class SlackInteractivityHandler extends OpenAPIRoute {
     );
 
     if (!slackConnectionDetails) {
-      logger.warn(`No organization found for team ID: ${payload.team?.id}.`);
+      logger.warn(`No organization found for team ID: ${payload.api_app_id}.`);
       return responseWithLogging(
         request,
         payload,
-        'Invalid team_id',
+        'Invalid api_app_id',
         404,
         logger
       );

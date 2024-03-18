@@ -127,21 +127,21 @@ export async function fetchZendeskCredentials(
   }
 }
 
-export async function findSlackConnectionByTeamId(
-  teamId: string | undefined,
+export async function findSlackConnectionByAppId(
+  appId: string | undefined,
   db: NeonHttpDatabase<typeof schema>,
   env: Env,
   logger: EdgeWithExecutionContext,
   key?: CryptoKey
 ): Promise<SlackConnection | null | undefined> {
-  if (!teamId) {
-    logger.error('No team_id found');
+  if (!appId) {
+    logger.error('No api_app_id found');
     return undefined;
   }
 
   try {
     const connection = await db.query.slackConnection.findFirst({
-      where: eq(slackConnection.slackTeamId, teamId),
+      where: eq(slackConnection.appId, appId),
       with: {
         subscription: true
       }

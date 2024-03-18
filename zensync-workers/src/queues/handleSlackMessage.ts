@@ -149,7 +149,7 @@ async function handleChannelJoined(
       // Send ephemeral message to channel inviter
       const inviterUserId = eventData.inviter;
       if (inviterUserId && inviterUserId !== '') {
-        await postEphemeralMessage(
+        await postUpgradeEphemeralMessage(
           channelId,
           inviterUserId,
           connection,
@@ -160,6 +160,26 @@ async function handleChannelJoined(
     }
 
     // We haven't exceeded the channel limit, so we can continue
+
+    // Post an ephemeral message if there are no Zendesk credentials
+    const zendeskCredentials = await fetchZendeskCredentials(
+      connection.id,
+      db,
+      env,
+      logger,
+      key
+    );
+
+    if (!zendeskCredentials || zendeskCredentials.status !== 'ACTIVE') {
+      await postEphemeralMessage(
+        channelId,
+        eventData.user,
+        'Zendesk credentials are missing or inactive. Configure them in the Zensync app settings to start syncing messages.',
+        connection,
+        env,
+        logger
+      );
+    }
 
     // Fetch channel info from Slack
     const params = new URLSearchParams();
@@ -225,6 +245,39 @@ async function handleChannelJoined(
 async function postEphemeralMessage(
   channelId: string,
   userId: string,
+  text: string,
+  connection: SlackConnection,
+  env: Env,
+  logger: EdgeWithExecutionContext
+): Promise<void> {
+  const postEphemeralParams = new URLSearchParams({
+    channel: channelId,
+    user: userId,
+    text: text
+  });
+
+  const ephemeralResponse = await fetch(
+    `https://slack.com/api/chat.postEphemeral?${postEphemeralParams.toString()}`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        Authorization: `Bearer ${connection.token}`
+      }
+    }
+  );
+
+  if (!ephemeralResponse.ok) {
+    logger.error(
+      `Failed to post ephemeral message: ${ephemeralResponse.statusText}`
+    );
+    // We don't throw here since it's not critical if message isn't sent
+  }
+}
+
+async function postUpgradeEphemeralMessage(
+  channelId: string,
+  userId: string,
   connection: SlackConnection,
   env: Env,
   logger: EdgeWithExecutionContext
@@ -254,29 +307,14 @@ async function postEphemeralMessage(
     ephemeralMessageText = `You've reached you maximum channel limit, <${portalUrl}|upgrade your plan> to join this channel.`;
   }
 
-  const postEphemeralParams = new URLSearchParams({
-    channel: channelId,
-    user: userId,
-    text: ephemeralMessageText
-  });
-
-  const ephemeralResponse = await fetch(
-    `https://slack.com/api/chat.postEphemeral?${postEphemeralParams.toString()}`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        Authorization: `Bearer ${connection.token}`
-      }
-    }
+  await postEphemeralMessage(
+    channelId,
+    userId,
+    ephemeralMessageText,
+    connection,
+    env,
+    logger
   );
-
-  if (!ephemeralResponse.ok) {
-    logger.error(
-      `Failed to post ephemeral message: ${ephemeralResponse.statusText}`
-    );
-    // We don't throw here since it's not critical if message isn't sent
-  }
 }
 
 function getChannelType(

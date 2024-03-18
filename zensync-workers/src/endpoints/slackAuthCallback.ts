@@ -17,6 +17,7 @@ import {
   importEncryptionKeyFromEnvironment
 } from '@/lib/encryption';
 import { Env } from '@/interfaces/env.interface';
+import { initializePosthog } from '@/lib/posthog';
 
 export class SlackAuthCallback extends OpenAPIRoute {
   static schema: OpenAPIRouteSchema = {
@@ -50,6 +51,7 @@ export class SlackAuthCallback extends OpenAPIRoute {
       );
     }
 
+    const posthog = initializePosthog(env);
     const db = initializeDb(env);
 
     const slackOauthStateResponse = await db.query.slackOauthState.findFirst({
@@ -179,6 +181,20 @@ export class SlackAuthCallback extends OpenAPIRoute {
         })
         .returning();
 
+      posthog.groupIdentify({
+        groupType: 'company',
+        groupKey: teamId,
+        properties: {
+          name: team.name
+        }
+      });
+
+      posthog.capture({
+        event: 'user_signed_up',
+        distinctId: authedUser,
+        groups: { company: teamId }
+      });
+
       // Send to a customer created queue to create a Stripe account
       if (connectionInfo && connectionInfo.length === 1) {
         const fullConnectionInfo: SlackConnection = {
@@ -199,6 +215,7 @@ export class SlackAuthCallback extends OpenAPIRoute {
       return new Response('Error saving access token.', { status: 500 });
     }
 
+    await posthog.shutdown();
     return new Response('Success! You may close this window.', { status: 200 });
     //return Response.redirect(`slack://app?team=${teamId}&id=${appId}&tab=home`);
   }

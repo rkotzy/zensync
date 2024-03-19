@@ -1,6 +1,7 @@
 import { PostHog } from 'posthog-node';
+import { Env } from '@/interfaces/env.interface';
 
-export function initializePosthog(env) {
+export function initializePosthog(env: Env) {
   const client = new PostHog(env.POSTHOG_ANALYTICS_KEY, {
     host: 'https://app.posthog.com',
     flushAt: 1,

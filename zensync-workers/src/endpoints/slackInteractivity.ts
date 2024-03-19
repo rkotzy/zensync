@@ -24,6 +24,7 @@ import Stripe from 'stripe';
 import { handleAppHomeOpened } from '@/views/homeTab';
 import { responseWithLogging } from '@/lib/logger';
 import { getBillingPortalConfiguration } from '@/interfaces/products.interface';
+import { initializePosthog } from '@/lib/posthog';
 
 export class SlackInteractivityHandler extends OpenAPIRoute {
   async handle(
@@ -84,6 +85,11 @@ export class SlackInteractivityHandler extends OpenAPIRoute {
 
     const actionId = getFirstActionId(payload);
 
+    // Set up the analytics client
+    const posthog = initializePosthog(env);
+    const analyticsDistinctId = payload.user?.id;
+    const analyticsCompanyId = slackConnectionDetails.appId;
+
     // Handle the edit channel button tap
     if (
       actionId?.startsWith(InteractivityActionId.EDIT_CHANNEL_BUTTON_TAPPED)
@@ -132,6 +138,14 @@ export class SlackInteractivityHandler extends OpenAPIRoute {
           encryptionKey,
           logger
         );
+
+        posthog.capture({
+          distinctId: analyticsDistinctId,
+          event: 'zendesk_connection_saved',
+          groups: { company: analyticsCompanyId }
+        });
+
+        await posthog.shutdown();
       } catch (error) {
         return returnGenericError(error, logger);
       }
@@ -149,6 +163,14 @@ export class SlackInteractivityHandler extends OpenAPIRoute {
           logger,
           db
         );
+
+        posthog.capture({
+          distinctId: analyticsDistinctId,
+          event: 'account_details_viewed',
+          groups: { company: analyticsCompanyId }
+        });
+
+        await posthog.shutdown();
       } catch (error) {
         return returnGenericError(error, logger);
       }

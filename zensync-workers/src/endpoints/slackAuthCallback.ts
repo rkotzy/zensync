@@ -182,6 +182,7 @@ export class SlackAuthCallback extends OpenAPIRoute {
         .returning();
 
       posthog.groupIdentify({
+        distinctId: authedUser,
         groupType: 'company',
         groupKey: teamId,
         properties: {

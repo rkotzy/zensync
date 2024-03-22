@@ -218,7 +218,7 @@ async function authenticateRequest(
     });
 
     if (!connection) {
-      logger.error('Invalid webhook Id');
+      logger.error(`Invalid webhook Id ${webhookId}`);
       return null;
     }
 

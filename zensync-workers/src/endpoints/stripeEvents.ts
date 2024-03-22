@@ -64,10 +64,6 @@ async function updateCustomerSubscription(
 
     const db = initializeDb(env);
 
-    // const subscriptionInfo = await db.query.subscription.findFirst({
-    //   where: eq(subscription.stripeSubscriptionId, subscriptionId)
-    // });
-
     const slackConnectionInfo = await db
       .select()
       .from(slackConnection)

@@ -16,7 +16,8 @@ import {
   updateChannelActivity,
   isSubscriptionActive,
   getChannelInfo,
-  isChannelEligibleForMessaging
+  isChannelEligibleForMessaging,
+  singleEventAnalyticsLogger
 } from '@/lib/utils';
 import { Env } from '@/interfaces/env.interface';
 import { EdgeWithExecutionContext } from '@logtail/edge/dist/es6/edgeWithExecutionContext';
@@ -235,6 +236,18 @@ async function handleChannelJoined(
           status: channelStatus
         }
       });
+
+    await singleEventAnalyticsLogger(
+      eventData.user,
+      'channel_joined',
+      connection.appId,
+      eventData.channel,
+      request.event_time,
+      request.event_id,
+      null,
+      env,
+      null
+    );
   } catch (error) {
     logger.error('Error saving channel to database:', error);
     throw error;
@@ -363,6 +376,18 @@ async function handleChannelLeft(
           eq(channel.slackChannelIdentifier, channelId)
         )
       );
+
+    await singleEventAnalyticsLogger(
+      eventData.user,
+      'channel_left',
+      connection.appId,
+      eventData.channel,
+      request.event_time,
+      request.event_id,
+      null,
+      env,
+      null
+    );
   } catch (error) {
     logger.error(`Error archiving channel in database: ${error}`);
     throw error;
@@ -380,6 +405,9 @@ async function handleChannelUnarchive(
   const eventData = request.event;
   const channelId = eventData.channel;
 
+  // TODO: - Roll this into the channel joined handler to send the ephemeral message
+  // and check plan limits, etc.
+
   try {
     await db
       .update(channel)
@@ -393,6 +421,18 @@ async function handleChannelUnarchive(
           eq(channel.slackChannelIdentifier, channelId)
         )
       );
+
+    await singleEventAnalyticsLogger(
+      eventData.user,
+      'channel_joined',
+      connection.appId,
+      request.event?.channel,
+      request.event_time,
+      request.event_id,
+      null,
+      env,
+      null
+    );
   } catch (error) {
     logger.error(`Error unarchiving channel in database: ${error}`);
     throw error;
@@ -514,6 +554,22 @@ async function handleMessageEdit(
       text: `<strong>(Edited)</strong>\n\n${request.event.message.text}`
     };
 
+    try {
+      await singleEventAnalyticsLogger(
+        request.event?.user,
+        'message_edited',
+        connection.appId,
+        request.event?.channel,
+        request.event_time,
+        request.event_id,
+        null,
+        env,
+        null
+      );
+    } catch (error) {
+      logger.error(`Analytics logging error: ${error}`);
+    }
+
     // Since files can't be added/removed in an edit, we can just use the message handler
     return await handleMessage(
       request,
@@ -550,6 +606,22 @@ async function handleMessageDeleted(
     let status = 'open';
     if (!getParentMessageId(request.event as SlackMessageData)) {
       status = 'closed';
+    }
+
+    try {
+      await singleEventAnalyticsLogger(
+        request.event?.user,
+        'message_deleted',
+        connection.appId,
+        request.event?.channel,
+        request.event_time,
+        request.event_id,
+        null,
+        env,
+        null
+      );
+    } catch (error) {
+      logger.error(`Analytics logging error: ${error}`);
     }
 
     return await handleMessage(
@@ -644,6 +716,7 @@ async function handleMessage(
         connection,
         db,
         logger,
+        env,
         messageData.channel,
         parentMessageId ?? messageData.ts,
         zendeskUserId,
@@ -673,6 +746,7 @@ async function handleMessage(
       connection,
       db,
       logger,
+      env,
       messageData.channel,
       zendeskUserId,
       fileUploadTokens,
@@ -814,6 +888,7 @@ async function handleThreadReply(
   slackConnectionInfo: SlackConnection,
   db: NeonHttpDatabase<typeof schema>,
   logger: EdgeWithExecutionContext,
+  env: Env,
   channelId: string,
   slackParentMessageId: string,
   authorId: number,
@@ -851,6 +926,7 @@ async function handleThreadReply(
       slackConnectionInfo,
       db,
       logger,
+      env,
       channelId,
       authorId,
       fileUploadTokens,
@@ -917,6 +993,7 @@ async function handleThreadReply(
         slackConnectionInfo,
         db,
         logger,
+        env,
         messageData.channel,
         authorId,
         fileUploadTokens,
@@ -940,6 +1017,22 @@ async function handleThreadReply(
 
       // Update the channel activity
       await updateChannelActivity(slackConnectionInfo, channelId, db, logger);
+
+      await singleEventAnalyticsLogger(
+        messageData.user,
+        'message_reply',
+        slackConnectionInfo.appId,
+        messageData.channel,
+        messageData.ts,
+        idempotencyKey,
+        {
+          is_public: isPublic,
+          has_attachments: fileUploadTokens && fileUploadTokens.length > 0,
+          source: 'slack'
+        },
+        env,
+        null
+      );
     } catch (error) {
       logger.error(`Error updating conversation in database: ${error}`);
       throw new Error('Error updating conversation in database');
@@ -967,6 +1060,7 @@ async function handleNewConversation(
   slackConnectionInfo: SlackConnection,
   db: NeonHttpDatabase<typeof schema>,
   logger: EdgeWithExecutionContext,
+  env: Env,
   channelId: string,
   authorId: number,
   fileUploadTokens: string[] | undefined,
@@ -1056,6 +1150,21 @@ async function handleNewConversation(
     }
 
     ticketId = responseData.ticket.id;
+
+    await singleEventAnalyticsLogger(
+      messageData.user,
+      'ticket_created',
+      slackConnectionInfo.appId,
+      messageData.channel,
+      messageData.ts,
+      idempotencyKey,
+      {
+        is_public: isPublic,
+        has_attachments: fileUploadTokens && fileUploadTokens.length > 0
+      },
+      env,
+      null
+    );
   } catch (error) {
     logger.error(`Error creating ticket: ${error}`);
     throw error;

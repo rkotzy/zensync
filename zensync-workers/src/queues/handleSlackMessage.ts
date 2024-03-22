@@ -36,7 +36,8 @@ const eventHandlers: Record<
     db: NeonHttpDatabase<typeof schema>,
     env: Env,
     key: CryptoKey,
-    logger: EdgeWithExecutionContext
+    logger: EdgeWithExecutionContext,
+    analyticsIdempotencyKey: string | null
   ) => Promise<void>
 > = {
   member_joined_channel: handleChannelJoined,
@@ -60,6 +61,7 @@ export async function handleMessageFromSlack(
 ) {
   const requestBody = requestJson.eventBody;
   const connectionDetails = requestJson.connectionDetails;
+  const analyticsIdempotencyKey = requestJson.idempotencyKey || null;
   if (!connectionDetails) {
     logger.error('No connection details found');
     return;
@@ -79,7 +81,8 @@ export async function handleMessageFromSlack(
         db,
         env,
         encryptionKey,
-        logger
+        logger,
+        analyticsIdempotencyKey
       );
     } catch (error) {
       logger.error(`Error handling ${eventSubtype} subtype event:`, error);
@@ -93,7 +96,8 @@ export async function handleMessageFromSlack(
         db,
         env,
         encryptionKey,
-        logger
+        logger,
+        analyticsIdempotencyKey
       );
     } catch (error) {
       logger.error(`Error handling ${eventType} event:`, error);
@@ -110,7 +114,8 @@ async function handleChannelJoined(
   db: NeonHttpDatabase<typeof schema>,
   env: Env,
   key: CryptoKey,
-  logger: EdgeWithExecutionContext
+  logger: EdgeWithExecutionContext,
+  analyticsIdempotencyKey: string | null
 ) {
   const eventData = request.event;
   const channelId = eventData.channel;
@@ -238,12 +243,12 @@ async function handleChannelJoined(
       });
 
     await singleEventAnalyticsLogger(
-      eventData.user,
+      eventData.inviter,
       'channel_joined',
       connection.appId,
       eventData.channel,
       request.event_time,
-      request.event_id,
+      analyticsIdempotencyKey,
       null,
       env,
       null
@@ -358,7 +363,8 @@ async function handleChannelLeft(
   db: NeonHttpDatabase<typeof schema>,
   env: Env,
   key: CryptoKey,
-  logger: EdgeWithExecutionContext
+  logger: EdgeWithExecutionContext,
+  analyticsIdempotencyKey: string | null
 ) {
   const eventData = request.event;
   const channelId = eventData.channel;
@@ -383,7 +389,7 @@ async function handleChannelLeft(
       connection.appId,
       eventData.channel,
       request.event_time,
-      request.event_id,
+      analyticsIdempotencyKey,
       null,
       env,
       null
@@ -400,7 +406,8 @@ async function handleChannelUnarchive(
   db: NeonHttpDatabase<typeof schema>,
   env: Env,
   key: CryptoKey,
-  logger: EdgeWithExecutionContext
+  logger: EdgeWithExecutionContext,
+  analyticsIdempotencyKey: string | null
 ) {
   const eventData = request.event;
   const channelId = eventData.channel;
@@ -428,7 +435,7 @@ async function handleChannelUnarchive(
       connection.appId,
       request.event?.channel,
       request.event_time,
-      request.event_id,
+      analyticsIdempotencyKey,
       null,
       env,
       null
@@ -503,10 +510,19 @@ async function handleFileUpload(
   db: NeonHttpDatabase<typeof schema>,
   env: Env,
   key: CryptoKey,
-  logger: EdgeWithExecutionContext
+  logger: EdgeWithExecutionContext,
+  analyticsIdempotencyKey: string | null
 ) {
   if (request.zendeskFileTokens) {
-    return await handleMessage(request, connection, db, env, key, logger);
+    return await handleMessage(
+      request,
+      connection,
+      db,
+      env,
+      key,
+      logger,
+      analyticsIdempotencyKey
+    );
   } else {
     logger.warn('Need to handle file fallback');
 
@@ -515,7 +531,15 @@ async function handleFileUpload(
     // Check if there are files
     if (!files || files.length === 0) {
       logger.warn('No files found in fallback');
-      return await handleMessage(request, connection, db, env, key, logger);
+      return await handleMessage(
+        request,
+        connection,
+        db,
+        env,
+        key,
+        logger,
+        analyticsIdempotencyKey
+      );
     }
 
     // Start building the HTML output
@@ -530,7 +554,15 @@ async function handleFileUpload(
     htmlOutput += '</p>';
 
     request.event.text += htmlOutput;
-    return await handleMessage(request, connection, db, env, key, logger);
+    return await handleMessage(
+      request,
+      connection,
+      db,
+      env,
+      key,
+      logger,
+      analyticsIdempotencyKey
+    );
   }
 }
 
@@ -540,7 +572,8 @@ async function handleMessageEdit(
   db: NeonHttpDatabase<typeof schema>,
   env: Env,
   key: CryptoKey,
-  logger: EdgeWithExecutionContext
+  logger: EdgeWithExecutionContext,
+  analyticsIdempotencyKey: string | null
 ) {
   // TODO: - I can do this check in the event handler to avoid a worker call
   if (request.event?.message?.text === request.event?.previous_message?.text) {
@@ -561,7 +594,7 @@ async function handleMessageEdit(
         connection.appId,
         request.event?.channel,
         request.event_time,
-        request.event_id,
+        analyticsIdempotencyKey,
         null,
         env,
         null
@@ -578,7 +611,7 @@ async function handleMessageEdit(
       env,
       key,
       logger,
-      false
+      analyticsIdempotencyKey
     );
   } else {
     logger.warn(`Unhandled message edit type: ${request}`);
@@ -592,7 +625,8 @@ async function handleMessageDeleted(
   db: NeonHttpDatabase<typeof schema>,
   env: Env,
   key: CryptoKey,
-  logger: EdgeWithExecutionContext
+  logger: EdgeWithExecutionContext,
+  analyticsIdempotencyKey: string | null
 ) {
   if (request.event?.previous_message) {
     // Merge the message data into the event object
@@ -615,7 +649,7 @@ async function handleMessageDeleted(
         connection.appId,
         request.event?.channel,
         request.event_time,
-        request.event_id,
+        analyticsIdempotencyKey,
         null,
         env,
         null
@@ -631,6 +665,7 @@ async function handleMessageDeleted(
       env,
       key,
       logger,
+      analyticsIdempotencyKey,
       false,
       status
     );
@@ -647,6 +682,7 @@ async function handleMessage(
   env: Env,
   key: CryptoKey,
   logger: EdgeWithExecutionContext,
+  analyticsIdempotencyKey: string | null,
   isPublic: boolean = true,
   status: string = 'open'
 ) {
@@ -722,7 +758,8 @@ async function handleMessage(
         zendeskUserId,
         fileUploadTokens,
         isPublic,
-        status
+        status,
+        analyticsIdempotencyKey
       );
     } catch (error) {
       logger.error(`Error handling thread reply: ${error}`);
@@ -750,7 +787,8 @@ async function handleMessage(
       messageData.channel,
       zendeskUserId,
       fileUploadTokens,
-      isPublic
+      isPublic,
+      analyticsIdempotencyKey
     );
   } catch (error) {
     logger.error(`Error creating new conversation: ${error}`);
@@ -894,7 +932,8 @@ async function handleThreadReply(
   authorId: number,
   fileUploadTokens: string[] | undefined,
   isPublic: boolean,
-  status: string = 'open'
+  status: string = 'open',
+  analyticsIdempotencyKey: string | null
 ) {
   // get conversation from database
   const conversationInfo = await db
@@ -930,7 +969,8 @@ async function handleThreadReply(
       channelId,
       authorId,
       fileUploadTokens,
-      isPublic
+      isPublic,
+      analyticsIdempotencyKey
     );
   }
 
@@ -998,6 +1038,7 @@ async function handleThreadReply(
         authorId,
         fileUploadTokens,
         true,
+        analyticsIdempotencyKey,
         followUpTicket
       );
     }
@@ -1024,7 +1065,7 @@ async function handleThreadReply(
         slackConnectionInfo.appId,
         messageData.channel,
         messageData.ts,
-        idempotencyKey,
+        analyticsIdempotencyKey,
         {
           is_public: isPublic,
           has_attachments: fileUploadTokens && fileUploadTokens.length > 0,
@@ -1065,6 +1106,7 @@ async function handleNewConversation(
   authorId: number,
   fileUploadTokens: string[] | undefined,
   isPublic: boolean,
+  analyticsIdempotencyKey: string | null,
   followUpTicket: FollowUpTicket | undefined = undefined
 ) {
   // Fetch channel info
@@ -1157,7 +1199,7 @@ async function handleNewConversation(
       slackConnectionInfo.appId,
       messageData.channel,
       messageData.ts,
-      idempotencyKey,
+      analyticsIdempotencyKey,
       {
         is_public: isPublic,
         has_attachments: fileUploadTokens && fileUploadTokens.length > 0

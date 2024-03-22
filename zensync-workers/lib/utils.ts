@@ -250,13 +250,8 @@ export function isSubscriptionActive(
   logger: EdgeWithExecutionContext,
   env: Env
 ): boolean {
-  if (
-    !connection.subscription?.periodEnd ||
-    typeof env.SUBSCRIPTION_EXPIRATION_BUFFER_HOURS !== 'number'
-  ) {
-    logger.error(
-      'Either periodEnd is missing, or SUBSCRIPTION_EXPIRATION_BUFFER_HOURS is not a number.'
-    );
+  if (!connection.subscription?.periodEnd) {
+    logger.error('periodEnd is missing');
     return true; // Assuming missing data or configuration should be treated as active
     // TODO: Consider logging in Sentry to troubleshoot
   }

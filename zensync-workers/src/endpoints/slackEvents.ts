@@ -105,7 +105,7 @@ export class SlackEventHandler extends OpenAPIRoute {
             connectionDetails.appId,
             null,
             requestBody.event_time,
-            requestBody.event_id,
+            null,
             null,
             env,
             null

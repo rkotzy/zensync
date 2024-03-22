@@ -9,7 +9,7 @@ import { Env } from '@/interfaces/env.interface';
 import { importEncryptionKeyFromEnvironment } from '@/lib/encryption';
 import { handleAppHomeOpened } from '@/views/homeTab';
 import { responseWithLogging } from '@/lib/logger';
-import { isSubscriptionActive } from '@/lib/utils';
+import { isSubscriptionActive, singleEventAnalyticsLogger } from '@/lib/utils';
 
 export class SlackEventHandler extends OpenAPIRoute {
   async handle(
@@ -97,6 +97,18 @@ export class SlackEventHandler extends OpenAPIRoute {
             env,
             encryptionKey,
             logger
+          );
+
+          await singleEventAnalyticsLogger(
+            slackUserId,
+            'app_home_opened',
+            connectionDetails.appId,
+            null,
+            requestBody.event_time,
+            requestBody.event_id,
+            null,
+            env,
+            null
           );
         } catch (error) {
           logger.error(`Error handling app_home_opened: ${error.message}`);

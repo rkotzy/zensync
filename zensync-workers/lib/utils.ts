@@ -13,6 +13,8 @@ import { EdgeWithExecutionContext } from '@logtail/edge/dist/es6/edgeWithExecuti
 import { Env } from '@/interfaces/env.interface';
 import { decryptData, importEncryptionKeyFromEnvironment } from './encryption';
 import Stripe from 'stripe';
+import { PostHog } from 'posthog-node';
+import { initializePosthog } from './posthog';
 
 export enum InteractivityActionId {
   // Zendesk modal details
@@ -33,6 +35,50 @@ export enum InteractivityActionId {
 
   // Get help modal details
   GET_HELP_BUTTON_TAPPED = 'get-help'
+}
+
+export async function singleEventAnalyticsLogger(
+  userId: string,
+  event: string,
+  connectionAppId: string,
+  channelId: string | null,
+  timestamp: number | string | null,
+  uuid: string | null,
+  properties: Record<string | number, any> | null,
+  env: Env | null | undefined,
+  posthog: PostHog | null | undefined
+): Promise<void> {
+  let client = posthog;
+  if (!client) {
+    client = initializePosthog(env);
+  }
+
+  if (!userId) {
+    userId = 'static_string_for_group_events';
+  }
+
+  let dateTimestamp: Date | null = null;
+  if (typeof timestamp === 'number' || typeof timestamp === 'string') {
+    dateTimestamp = convertTimestampToDate(timestamp);
+  }
+
+  client.capture({
+    timestamp: dateTimestamp,
+    uuid: uuid,
+    distinctId: userId,
+    event: event,
+    groups: { company: connectionAppId, channel: channelId },
+    properties: properties
+  });
+
+  await client.shutdown();
+}
+
+function convertTimestampToDate(timestamp: number | string): Date {
+  const parsedTimestamp =
+    typeof timestamp === 'string' ? parseFloat(timestamp) : timestamp;
+  const timestampInMilliseconds = parsedTimestamp * 1000;
+  return new Date(timestampInMilliseconds);
 }
 
 export async function verifySlackRequest(

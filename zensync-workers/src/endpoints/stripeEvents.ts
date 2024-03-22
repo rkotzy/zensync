@@ -1,11 +1,13 @@
 import { OpenAPIRoute } from '@cloudflare/itty-router-openapi';
 import { initializeDb } from '@/lib/drizzle';
 import { eq } from 'drizzle-orm';
-import { subscription } from '@/lib/schema';
+import { subscription, slackConnection } from '@/lib/schema';
 import { Logtail } from '@logtail/edge';
 import { EdgeWithExecutionContext } from '@logtail/edge/dist/es6/edgeWithExecutionContext';
 import { Env } from '@/interfaces/env.interface';
 import Stripe from 'stripe';
+import { initializePosthog } from '@/lib/posthog';
+import { getChannelsByProductId } from '@/interfaces/products.interface';
 
 export class StripeEventHandler extends OpenAPIRoute {
   async handle(
@@ -62,14 +64,27 @@ async function updateCustomerSubscription(
 
     const db = initializeDb(env);
 
-    const subscriptionInfo = await db.query.subscription.findFirst({
-      where: eq(subscription.stripeSubscriptionId, subscriptionId)
-    });
+    // const subscriptionInfo = await db.query.subscription.findFirst({
+    //   where: eq(subscription.stripeSubscriptionId, subscriptionId)
+    // });
 
-    if (!subscriptionInfo) {
+    const slackConnectionInfo = await db
+      .select()
+      .from(slackConnection)
+      .fullJoin(
+        subscription,
+        eq(slackConnection.subscriptionId, subscription.id)
+      )
+      .where(eq(subscription.stripeSubscriptionId, subscriptionId))
+      .limit(1);
+
+    if (!slackConnectionInfo[0]) {
       logger.error('Subscription not found');
       throw new Error('Subscription not found');
     }
+
+    const connectionInfo = slackConnectionInfo[0];
+    const subscriptionInfo = connectionInfo.subscriptions;
 
     if (subscriptionInfo.updatedAt > new Date(data.created * 1000)) {
       logger.warn('Out of date subscription event');
@@ -98,6 +113,39 @@ async function updateCustomerSubscription(
       productId: productId,
       subscriptionId: subscriptionInfo.id
     });
+
+    // Capture analytics
+    if (canceledAt && subscriptionInfo.canceledAt === null) {
+      const posthog = initializePosthog(env);
+      posthog.capture({
+        event: 'subscription_cancelled',
+        distinctId: 'static_string_for_group_events',
+        groups: { company: connectionInfo.slack_connections.appId }
+      });
+      await posthog.shutdown();
+    } else if (
+      getChannelsByProductId(productId) <
+      getChannelsByProductId(subscriptionInfo.stripeProductId)
+    ) {
+      const posthog = initializePosthog(env);
+      posthog.capture({
+        event: 'subscription_downgraded',
+        distinctId: 'static_string_for_group_events',
+        groups: { company: connectionInfo.slack_connections.appId }
+      });
+      await posthog.shutdown();
+    } else if (
+      getChannelsByProductId(productId) >
+      getChannelsByProductId(subscriptionInfo.stripeProductId)
+    ) {
+      const posthog = initializePosthog(env);
+      posthog.capture({
+        event: 'subscription_upgraded',
+        distinctId: 'static_string_for_group_events',
+        groups: { company: connectionInfo.slack_connections.appId }
+      });
+      await posthog.shutdown();
+    }
   } catch (err) {
     logger.error(`Error updating customer subscription ${err}`);
     throw new Error(`Error updating customer subscription: ${err}`);

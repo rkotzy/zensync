@@ -1,12 +1,7 @@
 import { OpenAPIRoute } from '@cloudflare/itty-router-openapi';
 import { initializeDb } from '@/lib/drizzle';
 import { eq } from 'drizzle-orm';
-import {
-  zendeskConnection,
-  SlackConnection,
-  slackConnection,
-  conversation
-} from '@/lib/schema';
+import { zendeskConnection, SlackConnection, conversation } from '@/lib/schema';
 import * as schema from '@/lib/schema';
 import { SlackResponse } from '@/interfaces/slack-api.interface';
 import { ZendeskEvent } from '@/interfaces/zendesk-api.interface';
@@ -14,7 +9,11 @@ import { Logtail } from '@logtail/edge';
 import { EdgeWithExecutionContext } from '@logtail/edge/dist/es6/edgeWithExecutionContext';
 import { NeonHttpDatabase } from 'drizzle-orm/neon-http';
 import { Env } from '@/interfaces/env.interface';
-import { getSlackConnection, isSubscriptionActive } from '@/lib/utils';
+import {
+  getSlackConnection,
+  isSubscriptionActive,
+  singleEventAnalyticsLogger
+} from '@/lib/utils';
 import bcrypt from 'bcryptjs';
 import { responseWithLogging } from '@/lib/logger';
 
@@ -144,7 +143,8 @@ export class ZendeskEventHandler extends OpenAPIRoute {
         slackConnectionInfo,
         conversationInfo.slackParentMessageId,
         conversationInfo.channel.slackChannelIdentifier,
-        logger
+        logger,
+        env
       );
     } catch (error) {
       logger.error(error);
@@ -159,7 +159,7 @@ async function getSlackUserByEmail(
   connection: SlackConnection,
   email: string,
   logger: EdgeWithExecutionContext
-): Promise<{ username: string | undefined; imageUrl: string }> {
+): Promise<{ userId: string; username: string | undefined; imageUrl: string }> {
   try {
     const response = await fetch(
       `https://slack.com/api/users.lookupByEmail?email=${email}`,
@@ -178,12 +178,13 @@ async function getSlackUserByEmail(
       throw new Error(`Error getting Slack user: ${responseData.error}`);
     }
 
+    const userId = responseData.user.id;
     const username =
       responseData.user.profile?.display_name ||
       responseData.user.profile?.real_name ||
       undefined;
     const imageUrl = responseData.user.profile.image_192;
-    return { username, imageUrl };
+    return { userId, username, imageUrl };
   } catch (error) {
     logger.error(`Error in getSlackUserByEmail: ${error}`, error);
     throw error;
@@ -240,14 +241,20 @@ async function sendSlackMessage(
   connection: SlackConnection,
   parentMessageId: string,
   slackChannelId: string,
-  logger: EdgeWithExecutionContext
+  logger: EdgeWithExecutionContext,
+  env: Env
 ) {
   let username: string | undefined;
   let imageUrl: string | undefined;
 
+  let slackUser: {
+    userId: string;
+    username: string;
+    imageUrl: string;
+  };
   try {
     if (requestBody.current_user_email) {
-      const slackUser = await getSlackUserByEmail(
+      slackUser = await getSlackUserByEmail(
         connection,
         requestBody.current_user_email,
         logger
@@ -286,4 +293,18 @@ async function sendSlackMessage(
     logger.error(`Error in sendSlackMessage: ${error}`);
     throw error;
   }
+
+  await singleEventAnalyticsLogger(
+    slackUser.userId,
+    'message_reply',
+    connection.appId,
+    slackChannelId,
+    null,
+    null,
+    {
+      source: 'zendesk'
+    },
+    env,
+    null
+  );
 }

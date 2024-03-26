@@ -47,32 +47,10 @@ export async function handleAppHomeOpened(
           type: 'section',
           text: {
             type: 'mrkdwn',
-            text: 'Check out our <https://slacktozendesk.com/docs|documentation> for setup guides and answers to common questions.\nIf you still need help, or just want to chat, use the button below to message us on Slack.'
+            text: 'Check out our <https://slacktozendesk.com/docs|documentation> for setup guides and answers to common questions.'
           }
         },
-        {
-          type: 'actions',
-          elements: [
-            {
-              type: 'button',
-              text: {
-                type: 'plain_text',
-                text: 'Chat with us :slack:',
-                emoji: true
-              },
-              action_id: InteractivityActionId.GET_HELP_BUTTON_TAPPED
-            }
-          ]
-        },
-        {
-          type: 'context',
-          elements: [
-            {
-              type: 'mrkdwn',
-              text: "If you can't use Slack to get in touch, email us at support@slacktozendesk.com."
-            }
-          ]
-        },
+        ...buildSupportLinks(connection),
         {
           type: 'divider'
         },
@@ -274,6 +252,51 @@ function createChannelSections(channelInfos) {
 
     return [section, contextBlock, dividerBlock];
   });
+}
+
+function buildSupportLinks(connection: SlackConnection): any {
+  if (
+    !connection.supportSlackChannelId ||
+    !connection.supportSlackChannelName
+  ) {
+    return [
+      {
+        type: 'section',
+        text: {
+          type: 'mrkdwn',
+          text: `*Set up your shared slack channel*`
+        }
+      },
+      {
+        type: 'context',
+        elements: [
+          {
+            type: 'mrkdwn',
+            text: 'Reach out to support@slacktozendesk.com to request a free shared slack channel for help and integration support directly from the Zensync team.'
+          }
+        ]
+      }
+    ];
+  }
+
+  return [
+    {
+      type: 'section',
+      text: {
+        type: 'mrkdwn',
+        text: `*Need support? Open your shared slack channel: <#${connection.supportSlackChannelId}|${connection.supportSlackChannelName}>*`
+      }
+    },
+    {
+      type: 'context',
+      elements: [
+        {
+          type: 'mrkdwn',
+          text: "Depending on your Slack permissions, you may need an invite to join.\nIf you can't use Slack, need an invite, or prefer email, reach out to support@slacktozendesk.com."
+        }
+      ]
+    }
+  ];
 }
 
 function buildUpgradeCTA(

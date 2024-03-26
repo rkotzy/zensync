@@ -23,6 +23,8 @@ export async function slackConnectionCreated(
   // Init the db
   const db = initializeDb(env);
 
+  await setupSupportChannelInSlack(connectionDetails, db, email, env, logger);
+
   await setupCustomerInStripe(
     requestJson,
     connectionDetails,
@@ -31,8 +33,6 @@ export async function slackConnectionCreated(
     env,
     logger
   );
-
-  await setupSupportChannelInSlack(connectionDetails, db, email, env, logger);
 }
 
 async function setupSupportChannelInSlack(
@@ -110,15 +110,16 @@ async function setupSupportChannelInSlack(
       })
       .where(eq(slackConnection.id, connectionDetails.id));
 
-    // Step 4: Send a message to the channel with a welcome message
-    await fetch('https://slack.com/api/chat.postMessage', {
-      method: 'POST',
-      headers: headers,
-      body: JSON.stringify({
-        channel: createChannelResponseData.channel.id,
-        text: `Welcome to your direct support channel! Let us know if you have any questions or feedback as you're getting set up.`
-      })
-    });
+    // Commenting this out for now so I can personally outreach to each channel
+    // // Step 4: Send a message to the channel with a welcome message
+    // await fetch('https://slack.com/api/chat.postMessage', {
+    //   method: 'POST',
+    //   headers: headers,
+    //   body: JSON.stringify({
+    //     channel: createChannelResponseData.channel.id,
+    //     text: `Welcome to your direct support channel! Let us know if you have any questions or feedback as you're getting set up.`
+    //   })
+    // });
 
     // Step 5: Invite the user to the channel
     let inviteExternalUser = await fetch(

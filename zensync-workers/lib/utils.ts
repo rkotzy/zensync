@@ -31,10 +31,7 @@ export enum InteractivityActionId {
   EDIT_CHANNEL_TAGS_FIELD = 'edit-channel-tags-input',
 
   // Account settings modal details
-  OPEN_ACCOUNT_SETTINGS_BUTTON_TAPPED = 'open-account-settings',
-
-  // Get help modal details
-  GET_HELP_BUTTON_TAPPED = 'get-help'
+  OPEN_ACCOUNT_SETTINGS_BUTTON_TAPPED = 'open-account-settings'
 }
 
 export async function singleEventAnalyticsLogger(

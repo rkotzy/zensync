@@ -17,6 +17,145 @@ export async function slackConnectionCreated(
     return;
   }
 
+  // Get name and email of Slack user
+  const email = await getAuthedConnectionUserEmail(connectionDetails, logger);
+
+  // Init the db
+  const db = initializeDb(env);
+
+  await setupCustomerInStripe(
+    requestJson,
+    connectionDetails,
+    db,
+    email,
+    env,
+    logger
+  );
+
+  await setupSupportChannelInSlack(connectionDetails, db, email, env, logger);
+}
+
+async function setupSupportChannelInSlack(
+  connectionDetails: SlackConnection,
+  db: ReturnType<typeof initializeDb>,
+  email: string,
+  env: Env,
+  logger: EdgeWithExecutionContext
+) {
+  // Check if Slack channel already exists on the connection or data is missing, return
+  if (
+    connectionDetails.supportSlackChannelId ||
+    !connectionDetails.domain ||
+    !connectionDetails.authedUserId
+  ) {
+    return;
+  }
+
+  try {
+    const headers = {
+      'Content-type': 'application/json',
+      Accept: 'application/json',
+      Authorization: 'Bearer ' + env.INTERNAL_SLACKBOT_ACCESS_TOKEN
+    };
+    // Step 1: Create Slack channel
+    let createChannel = await fetch(
+      'https://slack.com/api/conversations.create',
+      {
+        method: 'POST',
+        headers: headers,
+        body: JSON.stringify({
+          team_id: 'T06Q45PBVGT', // Zensync team Id
+          is_private: false,
+          name: `ext-zensync-${connectionDetails.domain}`
+        })
+      }
+    );
+
+    const createChannelResponseData =
+      (await createChannel.json()) as SlackResponse;
+
+    if (!createChannelResponseData.ok) {
+      throw new Error(
+        `Error creating Slack channel: ${createChannelResponseData.error}`
+      );
+    }
+    // Step 2: Invite myself to the channel
+    let inviteZensyncAccount = await fetch(
+      'https://slack.com/api/conversations.invite',
+      {
+        method: 'POST',
+        headers: headers,
+        body: JSON.stringify({
+          channel: createChannelResponseData.channel.id,
+          users: 'U06QGUD7F5X' // ryan zensync user id
+        })
+      }
+    );
+
+    const inviteZensyncAccountResponseData =
+      (await inviteZensyncAccount.json()) as SlackResponse;
+
+    if (!inviteZensyncAccountResponseData.ok) {
+      throw new Error(
+        `Error inviting Zensync Account: ${inviteZensyncAccountResponseData.error}`
+      );
+    }
+
+    // Step 3: Update slack channel in database
+    await db
+      .update(slackConnection)
+      .set({
+        supportSlackChannelId: createChannelResponseData.channel.id,
+        supportSlackChannelName: `ext-zensync-${connectionDetails.domain}`
+      })
+      .where(eq(slackConnection.id, connectionDetails.id));
+
+    // Step 4: Send a message to the channel with a welcome message
+    await fetch('https://slack.com/api/chat.postMessage', {
+      method: 'POST',
+      headers: headers,
+      body: JSON.stringify({
+        channel: createChannelResponseData.channel.id,
+        text: `Welcome to your direct support channel! Let us know if you have any questions or feedback as you're getting set up.`
+      })
+    });
+
+    // Step 5: Invite the user to the channel
+    let inviteExternalUser = await fetch(
+      'https://slack.com/api/conversations.inviteShared',
+      {
+        method: 'POST',
+        headers: headers,
+        body: JSON.stringify({
+          channel: createChannelResponseData.channel.id,
+          emails: email,
+          external_limited: false
+        })
+      }
+    );
+
+    const inviteExternalUserResponseData =
+      (await inviteExternalUser.json()) as SlackResponse;
+
+    if (!inviteExternalUserResponseData.ok) {
+      throw new Error(
+        `Error inviting user: ${inviteExternalUserResponseData.error}`
+      );
+    }
+  } catch (error) {
+    logger.error('Error in setupSupportChannelInSlack:', error);
+    throw new Error('Error in setupSupportChannelInSlack');
+  }
+}
+
+async function setupCustomerInStripe(
+  requestJson: any,
+  connectionDetails: SlackConnection,
+  db: ReturnType<typeof initializeDb>,
+  email: string,
+  env: Env,
+  logger: EdgeWithExecutionContext
+) {
   // Get idempotency key from request
   const idempotencyKey = requestJson.idempotencyKey;
   if (!idempotencyKey) {
@@ -25,9 +164,6 @@ export async function slackConnectionCreated(
   }
 
   try {
-    // Get name and email of Slack user (can this be passed from the callback)
-    const email = await getAuthedConnectionUserEmail(connectionDetails, logger);
-
     // Create customer in Stripe
     const stripeAccount = await createStripeAccount(
       connectionDetails.name,
@@ -36,9 +172,6 @@ export async function slackConnectionCreated(
       idempotencyKey,
       logger
     );
-
-    // Update Slack connection in database
-    const db = initializeDb(env);
 
     const databaseSubscription = await db
       .insert(subscription)

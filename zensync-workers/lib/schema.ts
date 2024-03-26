@@ -58,7 +58,9 @@ export const slackConnection = pgTable('slack_connections', {
     .references(() => subscription.id, {
       onDelete: 'no action'
     }),
-  stripeCustomerId: text('stripe_customer_id')
+  stripeCustomerId: text('stripe_customer_id'),
+  supportSlackChannelId: text('support_slack_channel_id'),
+  supportSlackChannelName: text('support_slack_channel_name')
 });
 
 export type SlackConnection = InferSelectModel<typeof slackConnection> & {

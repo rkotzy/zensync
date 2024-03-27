@@ -281,11 +281,28 @@ function buildSupportLinks(connection: SlackConnection): any {
 
   return [
     {
-      type: 'section',
-      text: {
-        type: 'mrkdwn',
-        text: `*Need support? Open your shared slack channel: <#${connection.supportSlackChannelId}|${connection.supportSlackChannelName}>*`
-      }
+      type: 'rich_text',
+      elements: [
+        {
+          type: 'rich_text_section',
+          elements: [
+            {
+              type: 'text',
+              text: 'Need support? Open your shared slack channel: ',
+              style: {
+                bold: true
+              }
+            },
+            {
+              type: 'channel',
+              channel_id: connection.supportSlackChannelId,
+              style: {
+                bold: true
+              }
+            }
+          ]
+        }
+      ]
     },
     {
       type: 'context',

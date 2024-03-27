@@ -123,6 +123,24 @@ export class SlackInteractivityHandler extends OpenAPIRoute {
         return returnGenericError(error, logger);
       }
     }
+    // Handle the edit channel modal submission
+    else if (
+      payload.type === 'view_submission' &&
+      payload.view?.callback_id.startsWith(
+        InteractivityActionId.EDIT_CHANNEL_CONFIGURATION_MODAL_ID
+      )
+    ) {
+      try {
+        await updateChannelConfiguration(
+          payload,
+          slackConnectionDetails,
+          db,
+          logger
+        );
+      } catch (error) {
+        return returnGenericError(error, logger);
+      }
+    }
     // Handle the configure zendesk modal submission
     else if (
       payload.type === 'view_submission' &&
@@ -440,6 +458,13 @@ async function saveZendeskCredentials(
     throw error;
   }
 }
+
+async function updateChannelConfiguration(
+  body: any,
+  connection: SlackConnection,
+  db: NeonHttpDatabase<typeof schema>,
+  logger: EdgeWithExecutionContext
+) {}
 
 async function openSlackModal(
   body: any,

@@ -788,6 +788,7 @@ async function openChannelConfigurationModal(
           {
             type: 'input',
             block_id: 'channel_owner',
+            optional: true,
             element: {
               type: 'plain_text_input',
               action_id: InteractivityActionId.EDIT_CHANNEL_OWNER_FIELD,
@@ -810,6 +811,7 @@ async function openChannelConfigurationModal(
           {
             type: 'input',
             block_id: 'channel_tags',
+            optional: true,
             element: {
               type: 'plain_text_input',
               action_id: InteractivityActionId.EDIT_CHANNEL_TAGS_FIELD,

@@ -1145,6 +1145,8 @@ async function handleNewConversation(
     htmlBody = '<i>(Empty message)</i>';
   }
 
+  const channelTags = channelInfo.tags || [];
+
   // Create a ticket in Zendesk
   let ticketData: any = {
     ticket: {
@@ -1159,7 +1161,10 @@ async function handleNewConversation(
       },
       requester_id: authorId,
       external_id: conversationUuid,
-      tags: ['zensync'],
+      tags: ['zensync', ...channelTags],
+      ...(channelInfo.defaultAssigneeEmail && {
+        assignee_email: channelInfo.defaultAssigneeEmail
+      }),
       ...(followUpTicket && {
         via_followup_source_id: followUpTicket.sourceTicketId
       })

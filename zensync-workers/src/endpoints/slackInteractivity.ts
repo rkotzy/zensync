@@ -131,12 +131,18 @@ export class SlackInteractivityHandler extends OpenAPIRoute {
       )
     ) {
       try {
-        await updateChannelConfiguration(
+        const response = await updateChannelConfiguration(
           payload,
           slackConnectionDetails,
           db,
+          encryptionKey,
+          env,
           logger
         );
+
+        if (response instanceof Response) {
+          return response;
+        }
       } catch (error) {
         return returnGenericError(error, logger);
       }
@@ -459,13 +465,6 @@ async function saveZendeskCredentials(
   }
 }
 
-async function updateChannelConfiguration(
-  body: any,
-  connection: SlackConnection,
-  db: NeonHttpDatabase<typeof schema>,
-  logger: EdgeWithExecutionContext
-) {}
-
 async function openSlackModal(
   body: any,
   connection: SlackConnection,
@@ -483,8 +482,8 @@ async function openSlackModal(
   const responseData = (await response.json()) as SlackResponse;
 
   if (!responseData.ok) {
-    logger.error(`Error opening modal: ${body}`);
-    throw new Error(`Error opening modal: ${responseData}`);
+    console.error('Error opening modal:', responseData);
+    throw new Error(`Error opening modal: ${JSON.stringify(responseData)}`);
   }
 }
 
@@ -737,16 +736,16 @@ async function openChannelConfigurationModal(
 ) {
   const triggerId = payload.trigger_id;
   if (!triggerId) {
-    logger.warn('No trigger_id found in payload');
-    return;
+    console.warn('No trigger_id found in payload');
+    throw new Error('No trigger_id found in payload');
   }
 
   try {
     // Parse out the channel ID from the payload
     const channelId = actionId.split(':')[1];
     if (!channelId) {
-      logger.warn('No channel ID found in action ID');
-      return;
+      console.warn('No channel ID found in action ID');
+      throw new Error('No channel ID found in action ID');
     }
 
     // Fetch channel info from the database
@@ -758,8 +757,8 @@ async function openChannelConfigurationModal(
     });
 
     if (!channelInfo) {
-      logger.warn(`No channel found for ID: ${channelId}`);
-      return;
+      console.warn(`No channel found for ID: ${channelId}`);
+      throw new Error(`No channel found for ID: ${channelId}`);
     }
 
     const activityDate = channelInfo.latestActivityAt;
@@ -815,12 +814,14 @@ async function openChannelConfigurationModal(
             block_id: 'channel_owner',
             optional: true,
             element: {
-              type: 'plain_text_input',
+              type: 'email_text_input',
               action_id: InteractivityActionId.EDIT_CHANNEL_OWNER_FIELD,
-              initial_value: `${channelInfo.defaultAssigneeEmail ?? ''}`,
+              ...(channelInfo.defaultAssigneeEmail
+                ? { initial_value: channelInfo.defaultAssigneeEmail }
+                : {}),
               placeholder: {
                 type: 'plain_text',
-                text: 'admin@your-domain.com'
+                text: 'Enter an email or leave blank'
               }
             },
             label: {
@@ -845,7 +846,7 @@ async function openChannelConfigurationModal(
               }`,
               placeholder: {
                 type: 'plain_text',
-                text: 'enterprise, priority'
+                text: 'example1, example2'
               }
             },
             label: {
@@ -864,7 +865,135 @@ async function openChannelConfigurationModal(
 
     await openSlackModal(body, connection, logger);
   } catch (error) {
-    logger.error(`Error in openChannelConfigurationModal: ${error}`);
+    console.error(`Error in openChannelConfigurationModal:`, error);
     throw error;
+  }
+}
+
+async function updateChannelConfiguration(
+  payload: any,
+  connection: SlackConnection,
+  db: NeonHttpDatabase<typeof schema>,
+  key: CryptoKey,
+  env: Env,
+  logger: EdgeWithExecutionContext
+) {
+  const callbackId = payload.view?.callback_id;
+  if (!callbackId) {
+    logger.warn(`No callback_id found in payload: ${JSON.stringify(payload)}`);
+    throw new Error('No callback_id found in payload');
+  }
+
+  try {
+    // Parse out the channel ID from the payload
+    const channelId = callbackId.split(':')[1];
+    if (!channelId) {
+      logger.warn(`No channel ID found in callback_id: ${callbackId}`);
+      throw new Error('No channel ID found in callback_id');
+    }
+
+    // Extract the state values from the payload
+    const ownerFieldActionId = InteractivityActionId.EDIT_CHANNEL_OWNER_FIELD;
+    const tagsFieldActionId = InteractivityActionId.EDIT_CHANNEL_TAGS_FIELD;
+    const stateValues = payload.view.state.values;
+    let modalErrors: Record<string, string> = {};
+
+    // Extract and validate the channel owner email
+    let channelOwnerEmail: string | undefined;
+    const ownerBlock = Object.values(stateValues).find(
+      block => block[ownerFieldActionId]
+    );
+    if (
+      ownerBlock &&
+      typeof ownerBlock[ownerFieldActionId].value === 'string'
+    ) {
+      const rawEmail = ownerBlock[ownerFieldActionId].value.trim();
+
+      if (rawEmail.length > 0) {
+        // Regular expression for simple email validation
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (emailRegex.test(rawEmail)) {
+          channelOwnerEmail = rawEmail;
+        } else {
+          modalErrors.channel_owner =
+            'Please provide a valid email address or leave blank.';
+        }
+      }
+    }
+
+    // Extract the channel tags
+    let channelTags: string | undefined;
+    const tagsBlock = Object.values(stateValues).find(
+      block => block[tagsFieldActionId]
+    );
+    if (tagsBlock) {
+      channelTags = tagsBlock[tagsFieldActionId].value;
+    }
+
+    const tagsArray = validateAndConvertTags(channelTags);
+
+    if (tagsArray === null) {
+      // Set an error message for the tags field
+      modalErrors.channel_tags =
+        'Please provide a comma-separated list of tags without spaces or special characters, or leave blank.';
+    }
+
+    // See if there are any erros
+    if (Object.keys(modalErrors).length > 0) {
+      const errorResponse = JSON.stringify({
+        response_action: 'errors',
+        errors: modalErrors
+      });
+      return new Response(errorResponse, {
+        headers: { 'Content-Type': 'application/json' },
+        status: 200
+      });
+    }
+
+    // Update the values in the database
+    await db
+      .update(channel)
+      .set({
+        defaultAssigneeEmail: channelOwnerEmail ?? null,
+        tags: tagsArray
+      })
+      .where(
+        and(
+          eq(channel.slackConnectionId, connection.id),
+          eq(channel.slackChannelIdentifier, channelId)
+        )
+      );
+
+    // Reload the home view
+    const slackUserId = payload.user?.id;
+    if (slackUserId) {
+      await handleAppHomeOpened(slackUserId, connection, db, env, key, logger);
+    }
+  } catch (error) {
+    console.error(`Error updating channel: ${error}`);
+    throw error;
+  }
+}
+
+function validateAndConvertTags(
+  tagsString: string | undefined | null
+): string[] | null {
+  // Check for undefined or an empty string
+  if (!tagsString || tagsString.trim().length === 0) {
+    return []; // No tags provided, return an empty array
+  }
+
+  // Trim and remove any extra spaces around commas
+  const trimmedTagsString = tagsString.replace(/\s*,\s*/g, ',').trim();
+
+  // Regular expression to match valid tags
+  const validTagsRegex = /^[a-zA-Z0-9_]+(,[a-zA-Z0-9_]+)*$/;
+
+  if (validTagsRegex.test(trimmedTagsString)) {
+    // Valid format, split into an array by commas
+    return trimmedTagsString.split(',');
+  } else {
+    // Invalid format
+    return null;
   }
 }

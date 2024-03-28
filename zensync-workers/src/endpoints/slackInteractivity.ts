@@ -225,16 +225,9 @@ function returnGenericError(
   logger: EdgeWithExecutionContext
 ): Response {
   logger.error(`Error: ${error.message}`);
-  return Response.json(
-    {
-      response_action: 'errors',
-      errors: {
-        'zendesk-email-input': 'Unable to set up Zendesk connection',
-        'zendesk-api-key-input': 'Unable to set up Zendesk connection'
-      }
-    },
-    { status: 200 }
-  );
+  return Response.json('There was an issue with your request.', {
+    status: 500
+  });
 }
 
 function extractZendeskDomain(input: string): string {

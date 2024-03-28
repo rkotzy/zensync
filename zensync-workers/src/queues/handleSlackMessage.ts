@@ -28,6 +28,9 @@ import { importEncryptionKeyFromEnvironment } from '@/lib/encryption';
 import { getChannelsByProductId } from '@/interfaces/products.interface';
 import Stripe from 'stripe';
 
+const MISSING_ZENDESK_CREDENTIALS_MESSAGE =
+  'Zendesk credentials are missing or inactive. Configure them in the Zensync app settings to start syncing messages.';
+
 const eventHandlers: Record<
   string,
   (
@@ -86,7 +89,7 @@ export async function handleMessageFromSlack(
       );
     } catch (error) {
       logger.error(`Error handling ${eventSubtype} subtype event:`, error);
-      throw new Error('Error handling event');
+      throw new Error(`Error handling ${eventSubtype} event`);
     }
   } else if (eventType && eventHandlers[eventType]) {
     try {
@@ -101,7 +104,7 @@ export async function handleMessageFromSlack(
       );
     } catch (error) {
       logger.error(`Error handling ${eventType} event:`, error);
-      throw new Error('Error handling event');
+      throw new Error(`Error handling ${eventSubtype} event`);
     }
   } else {
     logger.warn(`No handler for event type: ${eventType}`);
@@ -180,7 +183,7 @@ async function handleChannelJoined(
       await postEphemeralMessage(
         channelId,
         eventData.user,
-        'Zendesk credentials are missing or inactive. Configure them in the Zensync app settings to start syncing messages.',
+        MISSING_ZENDESK_CREDENTIALS_MESSAGE,
         connection,
         env,
         logger
@@ -720,7 +723,7 @@ async function handleMessage(
     logger.error(
       `No Zendesk credentials found for slack connection: ${connection.id}`
     );
-    throw new Error('No Zendesk credentials found');
+    return;
   }
 
   // Get or create Zendesk user
@@ -1161,7 +1164,7 @@ async function handleNewConversation(
       },
       requester_id: authorId,
       external_id: conversationUuid,
-      tags: ['zensync', ...channelTags],
+      tags: ['zensync'],
       ...(channelInfo.defaultAssigneeEmail && {
         assignee_email: channelInfo.defaultAssigneeEmail
       }),
@@ -1213,7 +1216,7 @@ async function handleNewConversation(
       null
     );
   } catch (error) {
-    logger.error(`Error creating ticket: ${error}`);
+    logger.error('Error creating ticket: ', error);
     throw error;
   }
 

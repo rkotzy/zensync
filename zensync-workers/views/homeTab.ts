@@ -225,9 +225,11 @@ function createChannelSections(channelInfos) {
       type: 'section',
       text: {
         type: 'mrkdwn',
-        text: `*<#${info.slackChannelIdentifier}|${info.name}>*\n*Owner:* ${
+        text: `*<#${info.slackChannelIdentifier}|${
+          info.name
+        }>*\n*Zendesk assignee:* ${
           info.defaultAssigneeEmail ?? ''
-        }\n*Tags:* ${tagsString}`
+        }\n*Zendesk tags:* ${tagsString}`
       },
       accessory: accessory
     };

@@ -8,6 +8,7 @@ export interface ZendeskEvent {
   current_user_email?: any;
   current_user_name?: any;
   current_user_external_id?: any;
+  current_user_signature?: any;
   message?: any;
   is_public?: any;
   attachments?: any[];

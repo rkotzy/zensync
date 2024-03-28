@@ -58,7 +58,7 @@ export class ZendeskEventHandler extends OpenAPIRoute {
     }
 
     // Ignore messages if last_updated_at === created_at
-    // TODO: - This would ignore messages sent in same minute.
+    // TODO: - This would ignore messages sent in same minute. Can we store a base64 string instead?
     // Should log in Sentry probably?
     if (requestBody.last_updated_at === requestBody.created_at) {
       logger.info('Message is not an update, skipping');
@@ -267,9 +267,12 @@ async function sendSlackMessage(
   }
 
   try {
+    const message = requestBody.message;
+    const signature = requestBody.current_user_signature;
+
     const body = JSON.stringify({
       channel: slackChannelId,
-      text: requestBody.message,
+      text: stripSignatureFromMessage(message, signature),
       thread_ts: parentMessageId,
       username: username,
       icon_url: imageUrl
@@ -307,4 +310,24 @@ async function sendSlackMessage(
     env,
     null
   );
+}
+
+function stripSignatureFromMessage(
+  message: string | undefined | null,
+  signature: string | undefined | null
+): string {
+  console.log('message:', message);
+  console.log('signature:', signature);
+  // Return the original message if it exists, otherwise return an empty string
+  if (!message) {
+    return '';
+  }
+
+  // If there's no signature, or the signature is not at the end, return the original message
+  if (!signature || !message.endsWith(signature)) {
+    return message;
+  }
+
+  // Remove the signature from the end of the message
+  return message.slice(0, message.length - signature.length);
 }

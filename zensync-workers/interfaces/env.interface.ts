@@ -1,5 +1,4 @@
 export interface Env {
-  BETTER_STACK_SOURCE_TOKEN: string;
   ROOT_URL: string;
   PROCESS_SLACK_MESSAGES_QUEUE_BINDING: Queue<any>;
   UPLOAD_FILES_TO_ZENDESK_QUEUE_BINDING: Queue<any>;

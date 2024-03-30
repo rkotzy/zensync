@@ -1,7 +1,6 @@
 import { OpenAPIRoute } from '@cloudflare/itty-router-openapi';
 import { initializeDb } from '@/lib/drizzle';
 import { slackOauthState } from '@/lib/schema';
-import { Logtail } from '@logtail/edge';
 import { Env } from '@/interfaces/env.interface';
 
 export class SlackAuthRedirect extends OpenAPIRoute {
@@ -11,10 +10,6 @@ export class SlackAuthRedirect extends OpenAPIRoute {
     context: any,
     data: Record<string, any>
   ) {
-    // Set up logger right away
-    const baseLogger = new Logtail(env.BETTER_STACK_SOURCE_TOKEN);
-    const logger = baseLogger.withExecutionContext(context);
-
     const state = crypto.randomUUID();
 
     try {
@@ -23,7 +18,7 @@ export class SlackAuthRedirect extends OpenAPIRoute {
         id: state
       });
     } catch (error) {
-      logger.error(error);
+      console.error(error);
       return new Response(JSON.stringify({ error: 'Error saving state.' }), {
         status: 500,
         headers: {

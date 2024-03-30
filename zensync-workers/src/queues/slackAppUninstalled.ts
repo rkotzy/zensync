@@ -4,17 +4,12 @@ import * as schema from '@/lib/schema';
 import { channel, SlackConnection } from '@/lib/schema';
 import { eq, and } from 'drizzle-orm';
 import { Env } from '@/interfaces/env.interface';
-import { EdgeWithExecutionContext } from '@logtail/edge/dist/es6/edgeWithExecutionContext';
 
-export async function slackAppUninstalled(
-  requestJson: any,
-  env: Env,
-  logger: EdgeWithExecutionContext
-) {
+export async function slackAppUninstalled(requestJson: any, env: Env) {
   try {
     const connectionDetails: SlackConnection = requestJson.connectionDetails;
     if (!connectionDetails) {
-      logger.error('No connection details found');
+      console.error('No connection details found', requestJson);
       return;
     }
 
@@ -22,7 +17,7 @@ export async function slackAppUninstalled(
 
     await leaveAllChannels(db, connectionDetails.id);
   } catch (error) {
-    logger.error(error);
+    console.error(error);
     throw error;
   }
 }

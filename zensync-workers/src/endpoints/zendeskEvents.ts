@@ -5,8 +5,6 @@ import { zendeskConnection, SlackConnection, conversation } from '@/lib/schema';
 import * as schema from '@/lib/schema';
 import { SlackResponse } from '@/interfaces/slack-api.interface';
 import { ZendeskEvent } from '@/interfaces/zendesk-api.interface';
-import { Logtail } from '@logtail/edge';
-import { EdgeWithExecutionContext } from '@logtail/edge/dist/es6/edgeWithExecutionContext';
 import { NeonHttpDatabase } from 'drizzle-orm/neon-http';
 import { Env } from '@/interfaces/env.interface';
 import {
@@ -15,7 +13,6 @@ import {
   singleEventAnalyticsLogger
 } from '@/lib/utils';
 import bcrypt from 'bcryptjs';
-import { responseWithLogging } from '@/lib/logger';
 
 export class ZendeskEventHandler extends OpenAPIRoute {
   async handle(
@@ -24,14 +21,12 @@ export class ZendeskEventHandler extends OpenAPIRoute {
     context: any,
     data: Record<string, any>
   ) {
-    // Set up logger right away
-    const baseLogger = new Logtail(env.BETTER_STACK_SOURCE_TOKEN);
-    const logger = baseLogger.withExecutionContext(context);
-
     // Initialize the database
     const db = initializeDb(env);
 
     const requestBody = (await request.json()) as ZendeskEvent;
+
+    console.log('Zendesk event received:', requestBody);
 
     // Save some database calls if it's a message from Zensync
 
@@ -40,41 +35,30 @@ export class ZendeskEventHandler extends OpenAPIRoute {
       typeof requestBody.current_user_external_id === 'string' &&
       requestBody.current_user_external_id.startsWith('zensync')
     ) {
-      logger.info('Message from Zensync, skipping');
-      return responseWithLogging(request, requestBody, 'Ok', 200, logger);
+      console.log('Message from Zensync, skipping');
+      return new Response('Ok', { status: 200 });
     }
 
     // Make sure we have the last updated ticket time
     const ticketLastUpdatedAt = requestBody.last_updated_at;
     if (!ticketLastUpdatedAt) {
-      logger.error('Missing last_updated_at');
-      return responseWithLogging(
-        request,
-        requestBody,
-        'Missing last_updated_at',
-        400,
-        logger
-      );
+      console.error('Missing last_updated_at');
+      return new Response('Missing last_updated_at', { status: 400 });
     }
 
     // Ignore messages if last_updated_at === created_at
     // TODO: - This would ignore messages sent in same minute. Can we store a base64 string instead?
     // Should log in Sentry probably?
     if (requestBody.last_updated_at === requestBody.created_at) {
-      logger.info('Message is not an update, skipping');
-      return responseWithLogging(request, requestBody, 'Ok', 200, logger);
+      console.log('Message is not an update, skipping');
+      return new Response('Ok', { status: 200 });
     }
 
     // Authenticate the request and get slack connection Id
-    const slackConnectionId = await authenticateRequest(request, db, logger);
+    const slackConnectionId = await authenticateRequest(request, db);
     if (!slackConnectionId) {
-      return responseWithLogging(
-        request,
-        requestBody,
-        'Unauthorized',
-        401,
-        logger
-      );
+      console.warn('Unauthorized');
+      return new Response('Unauthorized', { status: 401 });
     }
 
     // Get the conversation from external_id
@@ -86,14 +70,8 @@ export class ZendeskEventHandler extends OpenAPIRoute {
     });
 
     if (!conversationInfo?.slackParentMessageId) {
-      logger.error(`No conversation found for id ${requestBody.external_id}`);
-      return responseWithLogging(
-        request,
-        requestBody,
-        'No conversation found',
-        404,
-        logger
-      );
+      console.error(`No conversation found for id ${requestBody.external_id}`);
+      return new Response('No conversation found', { status: 404 });
     }
 
     // To be safe I should double-check the organization_id owns the channel_id
@@ -102,39 +80,28 @@ export class ZendeskEventHandler extends OpenAPIRoute {
       !conversationInfo.channel.slackChannelIdentifier ||
       conversationInfo.channel.slackConnectionId !== slackConnectionId
     ) {
-      logger.warn(`Invalid Ids: ${slackConnectionId} !== ${conversationInfo}`);
-      return responseWithLogging(
-        request,
-        requestBody,
-        'Invalid Ids',
-        401,
-        logger
+      console.error(
+        `Invalid Ids: ${slackConnectionId} !== ${conversationInfo}`
       );
+      return new Response('Invalid Ids', { status: 401 });
     }
 
     // Get the full slack connection info
     const slackConnectionInfo = await getSlackConnection(
       slackConnectionId,
       db,
-      env,
-      logger
+      env
     );
 
     if (!slackConnectionInfo) {
-      logger.error(`No Slack connection found for id ${slackConnectionId}`);
-      return responseWithLogging(
-        request,
-        requestBody,
-        'No Slack connection found',
-        404,
-        logger
-      );
+      console.error(`No Slack connection found for id ${slackConnectionId}`);
+      return new Response('No Slack connection found', { status: 404 });
     }
 
     // Make sure the subscription is active
-    if (!isSubscriptionActive(slackConnectionInfo, logger, env)) {
-      logger.info('Subscription is not active, ignoring');
-      return responseWithLogging(request, requestBody, 'Ok', 200, logger);
+    if (!isSubscriptionActive(slackConnectionInfo, env)) {
+      console.log('Subscription is not active, ignoring');
+      return new Response('Ok', { status: 200 });
     }
 
     try {
@@ -143,22 +110,20 @@ export class ZendeskEventHandler extends OpenAPIRoute {
         slackConnectionInfo,
         conversationInfo.slackParentMessageId,
         conversationInfo.channel.slackChannelIdentifier,
-        logger,
         env
       );
     } catch (error) {
-      logger.error(error);
-      return responseWithLogging(request, requestBody, 'Error', 500, logger);
+      console.error(error);
+      return new Response('Error', { status: 500 });
     }
 
-    return responseWithLogging(request, requestBody, 'Ok', 202, logger);
+    return new Response('Ok', { status: 202 });
   }
 }
 
 async function getSlackUserByEmail(
   connection: SlackConnection,
-  email: string,
-  logger: EdgeWithExecutionContext
+  email: string
 ): Promise<{ userId: string; username: string | undefined; imageUrl: string }> {
   try {
     const response = await fetch(
@@ -186,15 +151,14 @@ async function getSlackUserByEmail(
     const imageUrl = responseData.user.profile.image_192;
     return { userId, username, imageUrl };
   } catch (error) {
-    logger.error(`Error in getSlackUserByEmail: ${error}`, error);
+    console.error(`Error in getSlackUserByEmail:`, error);
     throw error;
   }
 }
 
 async function authenticateRequest(
   request: Request,
-  db: NeonHttpDatabase<typeof schema>,
-  logger: EdgeWithExecutionContext
+  db: NeonHttpDatabase<typeof schema>
 ): Promise<string | null> {
   try {
     const authorizationHeader = request.headers.get('authorization');
@@ -202,14 +166,14 @@ async function authenticateRequest(
     const bearerToken = authorizationHeader?.replace('Bearer ', '');
 
     if (!bearerToken) {
-      logger.error('Missing bearer token');
+      console.error('Missing bearer token');
       return null;
     }
 
     const url = new URL(request.url);
 
     if (!webhookId) {
-      logger.error('Missing webhook id');
+      console.error('Missing webhook id');
       return null;
     }
 
@@ -218,20 +182,20 @@ async function authenticateRequest(
     });
 
     if (!connection) {
-      logger.error(`Invalid webhook Id ${webhookId}`);
+      console.error(`Invalid webhook Id ${webhookId}`);
       return null;
     }
 
     const hashedToken = connection.hashedWebhookBearerToken;
     const isValid = await bcrypt.compare(bearerToken, hashedToken);
     if (!isValid) {
-      logger.error('Invalid bearer token');
+      console.error('Invalid bearer token');
       return null;
     }
 
     return connection.slackConnectionId;
   } catch (error) {
-    logger.error('Error in authenticateRequest:', error);
+    console.error('Error in authenticateRequest:', error);
     return null;
   }
 }
@@ -241,7 +205,6 @@ async function sendSlackMessage(
   connection: SlackConnection,
   parentMessageId: string,
   slackChannelId: string,
-  logger: EdgeWithExecutionContext,
   env: Env
 ) {
   let username: string | undefined;
@@ -256,14 +219,13 @@ async function sendSlackMessage(
     if (requestBody.current_user_email) {
       slackUser = await getSlackUserByEmail(
         connection,
-        requestBody.current_user_email,
-        logger
+        requestBody.current_user_email
       );
       username = slackUser.username || requestBody.current_user_name;
       imageUrl = slackUser.imageUrl;
     }
   } catch (error) {
-    logger.warn(`Error getting Slack user: ${error}`);
+    console.warn(`Error getting Slack user: ${error}`);
   }
 
   try {
@@ -293,7 +255,7 @@ async function sendSlackMessage(
       throw new Error(`Error posting message: ${responseData.error}`);
     }
   } catch (error) {
-    logger.error(`Error in sendSlackMessage: ${error}`);
+    console.error(`Error in sendSlackMessage:`, error);
     throw error;
   }
 

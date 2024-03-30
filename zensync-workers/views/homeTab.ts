@@ -9,7 +9,6 @@ import {
 } from '@/lib/schema';
 import { SlackResponse } from '@/interfaces/slack-api.interface';
 import * as schema from '@/lib/schema';
-import { EdgeWithExecutionContext } from '@logtail/edge/dist/es6/edgeWithExecutionContext';
 import { fetchZendeskCredentials, InteractivityActionId } from '@/lib/utils';
 import { isSubscriptionActive } from '@/lib/utils';
 
@@ -20,16 +19,14 @@ export async function handleAppHomeOpened(
   connection: SlackConnection,
   db: NeonHttpDatabase<typeof schema>,
   env: Env,
-  key: CryptoKey,
-  logger: EdgeWithExecutionContext
+  key: CryptoKey
 ) {
   try {
     const [zendeskInfo, channelInfos] = await fetchHomeTabData(
       connection,
       db,
       env,
-      key,
-      logger
+      key
     );
 
     const viewJson = {
@@ -54,7 +51,7 @@ export async function handleAppHomeOpened(
         {
           type: 'divider'
         },
-        ...buildUpgradeCTA(channelInfos, connection, logger, env),
+        ...buildUpgradeCTA(channelInfos, connection, env),
         {
           type: 'section',
           text: {
@@ -142,12 +139,12 @@ export async function handleAppHomeOpened(
     const responseData = (await response.json()) as SlackResponse;
 
     if (!responseData.ok) {
-      logger.info(`Error publishing Slack View: ${body}`);
+      console.error(`Error publishing Slack View: ${body}`);
       const errorDetails = JSON.stringify(responseData, null, 2);
       throw new Error(`Error publishig view: ${errorDetails}`);
     }
   } catch (error) {
-    logger.error(`Error in handleAppHomeOpened: ${error.message}`);
+    console.error(`Error in handleAppHomeOpened: ${error.message}`);
     throw error;
   }
 }
@@ -156,15 +153,13 @@ async function fetchHomeTabData(
   slackConnection: SlackConnection,
   db: NeonHttpDatabase<typeof schema>,
   env: Env,
-  key: CryptoKey,
-  logger: EdgeWithExecutionContext
+  key: CryptoKey
 ): Promise<[ZendeskConnection | null, Channel[]]> {
   try {
     const zendeskInfo = await fetchZendeskCredentials(
       slackConnection.id,
       db,
       env,
-      logger,
       key
     );
 
@@ -179,7 +174,7 @@ async function fetchHomeTabData(
 
     return [zendeskInfo, channelInfos];
   } catch (error) {
-    logger.error(
+    console.error(
       `Error fetching home tab data from database: ${error.message}`
     );
     throw error;
@@ -321,10 +316,9 @@ function buildSupportLinks(connection: SlackConnection): any {
 function buildUpgradeCTA(
   channelInfos: Channel[],
   connection: SlackConnection,
-  logger: EdgeWithExecutionContext,
   env: Env
 ): any {
-  const subscriptionActive = isSubscriptionActive(connection, logger, env);
+  const subscriptionActive = isSubscriptionActive(connection, env);
   const hasPendingChannels = containsPendingChannels(channelInfos);
 
   if (subscriptionActive && !hasPendingChannels) {

@@ -4,7 +4,6 @@ import { slackConnectionCreated } from './slackConnectionCreated';
 import { stripeSubscriptionChanged } from './subscriptionChanged';
 import { slackAppUninstalled } from './slackAppUninstalled';
 import { Env } from '@/interfaces/env.interface';
-import { Logtail } from '@logtail/edge';
 
 export class QueueMessageHandler {
   async handle(
@@ -12,39 +11,35 @@ export class QueueMessageHandler {
     env: Env,
     ctx: ExecutionContext
   ): Promise<void> {
-    // Set up logger right away
-    const baseLogger = new Logtail(env.BETTER_STACK_SOURCE_TOKEN);
-    const logger = baseLogger.withExecutionContext(ctx);
-
     try {
       for (const message of batch.messages) {
         // MessageBatch has a `queue` property we can switch on
         switch (batch.queue) {
           case 'upload-files-to-zendesk':
-            await uploadFilesToZendesk(message.body, env, logger);
+            await uploadFilesToZendesk(message.body, env);
             break;
           case 'process-slack-messages':
-            await handleMessageFromSlack(message.body, env, logger);
+            await handleMessageFromSlack(message.body, env);
             break;
           case 'slack-connection-created':
-            await slackConnectionCreated(message.body, env, logger);
+            await slackConnectionCreated(message.body, env);
             break;
           case 'stripe-subscription-changed':
-            await stripeSubscriptionChanged(message.body, env, logger);
+            await stripeSubscriptionChanged(message.body, env);
             break;
           case 'slack-app-uninstalled':
-            await slackAppUninstalled(message.body, env, logger);
+            await slackAppUninstalled(message.body, env);
             break;
           case 'dlq':
-            // Handle dead-letter queue messages
+            console.error('Dead-letter queue message:', message.body);
             break;
           default:
-            logger.warn(`Unknown queue: ${batch.queue}`);
+            console.warn(`Unknown queue: ${batch.queue}`);
         }
       }
-    } catch (e) {
-      logger.error(`Error processing queue message on ${batch.queue}`);
-      throw e;
+    } catch (error) {
+      console.error(`Error processing queue message on ${batch.queue}`, error);
+      throw error;
     }
   }
 }

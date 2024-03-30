@@ -7,7 +7,6 @@ import { SlackEventHandler } from './endpoints/slackEvents';
 import { StripeEventHandler } from './endpoints/stripeEvents';
 import { SyncSubscriptionHandler } from './endpoints/syncSubscription';
 import { QueueMessageHandler } from './queues/queueHandler';
-import { logRequestAndResponse } from '@/lib/logger';
 
 export const router = OpenAPIRouter();
 const message = new QueueMessageHandler();
@@ -31,31 +30,9 @@ router.all('*', () =>
   )
 );
 
-async function handleWithLogging(request, env, ctx) {
-  const startTime = Date.now();
-
-  const requestId = crypto.randomUUID();
-
-  const newRequest = new Request(request, {
-    headers: new Headers(request.headers)
-  });
-
-  newRequest.headers.set('X-Request-ID', requestId);
-
-  const response = await router.handle(newRequest, env, ctx);
-
-  const duration = Date.now() - startTime;
-
-  ctx.waitUntil(
-    logRequestAndResponse(newRequest, response, duration, ctx, env)
-  );
-
-  return response;
-}
-
 const worker: ExportedHandler = {
   async fetch(request, env, ctx) {
-    return handleWithLogging(request, env, ctx);
+    return await router.handle(request, env, ctx);
   },
   queue: message.handle.bind(message)
 };

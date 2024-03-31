@@ -22,6 +22,7 @@ import Stripe from 'stripe';
 import { handleAppHomeOpened } from '@/views/homeTab';
 import { getBillingPortalConfiguration } from '@/interfaces/products.interface';
 import { initializePosthog } from '@/lib/posthog';
+import { safeLog } from '@/lib/logging';
 
 export class SlackInteractivityHandler extends OpenAPIRoute {
   async handle(
@@ -41,7 +42,7 @@ export class SlackInteractivityHandler extends OpenAPIRoute {
 
     // Verify the Slack request
     if (!(await verifySlackRequest(textClone, env))) {
-      console.warn('Slack verification failed!');
+      safeLog('warn', 'Slack verification failed!');
       return new Response('Verification failed', { status: 200 });
     }
 
@@ -56,7 +57,7 @@ export class SlackInteractivityHandler extends OpenAPIRoute {
     // Parse the JSON string into an object
     const payload = JSON.parse(payloadString);
 
-    console.log('Payload recieved:', payload);
+    safeLog('log', 'Payload recieved:', payload);
 
     // Find the corresponding organization connection details
     const slackConnectionDetails = await findSlackConnectionByAppId(
@@ -67,7 +68,8 @@ export class SlackInteractivityHandler extends OpenAPIRoute {
     );
 
     if (!slackConnectionDetails) {
-      console.error(
+      safeLog(
+        'error',
         `No organization found for team ID: ${payload.api_app_id}.`
       );
       return new Response('Invalid api_app_id', { status: 404 });
@@ -200,7 +202,7 @@ export class SlackInteractivityHandler extends OpenAPIRoute {
 }
 
 function returnGenericError(error: any): Response {
-  console.error(`Error: ${error.message}`);
+  safeLog('error', `Error: ${error.message}`);
   return new Response('There was an issue', { status: 500 });
 }
 
@@ -294,10 +296,11 @@ async function saveZendeskCredentials(
 
     if (!zendeskWebhookResponse.ok) {
       // If the response status is not OK, log the status and the response text
-      console.error(
+      safeLog(
+        'error',
         `Zendesk Webhook API failed with status: ${zendeskWebhookResponse.status}`
       );
-      console.error(`Response: ${await zendeskWebhookResponse.text()}`);
+      safeLog('error', `Response: ${await zendeskWebhookResponse.text()}`);
       throw new Error('Failed to set Zendesk webhook');
     }
 
@@ -372,10 +375,11 @@ async function saveZendeskCredentials(
 
     if (!zendeskTriggerResponse.ok) {
       // If the response status is not OK, log the status and the response text
-      console.error(
+      safeLog(
+        'error',
         `Zendesk Trigger API failed with status: ${zendeskTriggerResponse.status}`
       );
-      console.error(`Response: ${await zendeskTriggerResponse.text()}`);
+      safeLog('error', `Response: ${await zendeskTriggerResponse.text()}`);
       throw new Error('Failed to set Zendesk trigger');
     }
 
@@ -384,7 +388,7 @@ async function saveZendeskCredentials(
       (await zendeskTriggerResponse.json()) as ZendeskResponse;
     zendeskTriggerId = triggerResponseJson.trigger.id ?? null;
   } catch (error) {
-    console.error(error);
+    safeLog('error', error);
     throw error;
   }
 
@@ -426,7 +430,7 @@ async function saveZendeskCredentials(
       await handleAppHomeOpened(slackUserId, connection, db, env, key);
     }
   } catch (error) {
-    console.error(error);
+    safeLog('error', error);
     throw error;
   }
 }
@@ -444,7 +448,7 @@ async function openSlackModal(body: any, connection: SlackConnection) {
   const responseData = (await response.json()) as SlackResponse;
 
   if (!responseData.ok) {
-    console.error('Error opening modal:', responseData);
+    safeLog('error', 'Error opening modal:', responseData);
     throw new Error(`Error opening modal: ${JSON.stringify(responseData)}`);
   }
 }
@@ -458,14 +462,17 @@ async function openAccountSettings(
   const triggerId = payload.trigger_id;
 
   if (!triggerId) {
-    console.warn('No trigger_id found in payload');
+    safeLog('warn', 'No trigger_id found in payload');
     return;
   }
 
   try {
     // TODO: - handle this more gracefully on the client
     if (!connection.stripeCustomerId) {
-      console.error(`No stripeCustomerId found in connection ${connection.id}`);
+      safeLog(
+        'error',
+        `No stripeCustomerId found in connection ${connection.id}`
+      );
       throw new Error('No stripe customer found in connection');
     }
 
@@ -498,7 +505,7 @@ async function openAccountSettings(
 
     const portalUrl = session.url;
     if (!portalUrl) {
-      console.error('No portal URL found');
+      safeLog('error', 'No portal URL found');
       throw new Error('No portal URL found');
     }
 
@@ -556,7 +563,7 @@ async function openAccountSettings(
 
     await openSlackModal(body, connection);
   } catch (error) {
-    console.error(`Error in openBillingPortal: ${error}`);
+    safeLog('error', `Error in openBillingPortal: ${error}`);
     throw error;
   }
 }
@@ -571,7 +578,7 @@ async function openZendeskConfigurationModal(
   const triggerId = payload.trigger_id;
 
   if (!triggerId) {
-    console.warn('No trigger_id found in payload');
+    safeLog('warn', 'No trigger_id found in payload');
     return;
   }
   try {
@@ -681,7 +688,7 @@ async function openZendeskConfigurationModal(
 
     await openSlackModal(body, connection);
   } catch (error) {
-    console.error(`Error in openZendeskConfigurationModal: ${error}`);
+    safeLog('error', `Error in openZendeskConfigurationModal: ${error}`);
     throw error;
   }
 }
@@ -694,7 +701,7 @@ async function openChannelConfigurationModal(
 ) {
   const triggerId = payload.trigger_id;
   if (!triggerId) {
-    console.warn('No trigger_id found in payload');
+    safeLog('warn', 'No trigger_id found in payload');
     throw new Error('No trigger_id found in payload');
   }
 
@@ -702,7 +709,7 @@ async function openChannelConfigurationModal(
     // Parse out the channel ID from the payload
     const channelId = actionId.split(':')[1];
     if (!channelId) {
-      console.error('No channel ID found in action ID');
+      safeLog('error', 'No channel ID found in action ID');
       throw new Error('No channel ID found in action ID');
     }
 
@@ -715,7 +722,7 @@ async function openChannelConfigurationModal(
     });
 
     if (!channelInfo) {
-      console.error(`No channel found for ID: ${channelId}`);
+      safeLog('error', `No channel found for ID: ${channelId}`);
       throw new Error(`No channel found for ID: ${channelId}`);
     }
 
@@ -823,7 +830,7 @@ async function openChannelConfigurationModal(
 
     await openSlackModal(body, connection);
   } catch (error) {
-    console.error(`Error in openChannelConfigurationModal:`, error);
+    safeLog('error', `Error in openChannelConfigurationModal:`, error);
     throw error;
   }
 }
@@ -837,7 +844,8 @@ async function updateChannelConfiguration(
 ) {
   const callbackId = payload.view?.callback_id;
   if (!callbackId) {
-    console.error(
+    safeLog(
+      'error',
       `No callback_id found in payload: ${JSON.stringify(payload)}`
     );
     throw new Error('No callback_id found in payload');
@@ -847,7 +855,7 @@ async function updateChannelConfiguration(
     // Parse out the channel ID from the payload
     const channelId = callbackId.split(':')[1];
     if (!channelId) {
-      console.error(`No channel ID found in callback_id: ${callbackId}`);
+      safeLog('error', `No channel ID found in callback_id: ${callbackId}`);
       throw new Error('No channel ID found in callback_id');
     }
 
@@ -929,7 +937,7 @@ async function updateChannelConfiguration(
       await handleAppHomeOpened(slackUserId, connection, db, env, key);
     }
   } catch (error) {
-    console.error(`Error updating channel ${callbackId}`, error);
+    safeLog('error', `Error updating channel ${callbackId}`, error);
     throw error;
   }
 }

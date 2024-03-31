@@ -7,6 +7,7 @@ import { Env } from '@/interfaces/env.interface';
 import { importEncryptionKeyFromEnvironment } from '@/lib/encryption';
 import { handleAppHomeOpened } from '@/views/homeTab';
 import { isSubscriptionActive, singleEventAnalyticsLogger } from '@/lib/utils';
+import { safeLog } from '@/lib/logging';
 
 export class SlackEventHandler extends OpenAPIRoute {
   async handle(
@@ -22,7 +23,7 @@ export class SlackEventHandler extends OpenAPIRoute {
 
     // Parse the request body
     const requestBody = (await jsonClone.json()) as SlackEvent;
-    console.log('Incoming Slack event:', request);
+    safeLog('log', 'Incoming Slack event:', request);
 
     // Check if this is a URL verification request from Slack
     // if (requestBody.type === 'url_verification') {
@@ -37,7 +38,7 @@ export class SlackEventHandler extends OpenAPIRoute {
 
     // Verify the Slack request
     if (!(await verifySlackRequest(textClone, env))) {
-      console.warn('Slack verification failed!');
+      safeLog('warn', 'Slack verification failed!');
       return new Response('Verification failed', {
         status: 200
       });
@@ -59,7 +60,8 @@ export class SlackEventHandler extends OpenAPIRoute {
     );
 
     if (!connectionDetails) {
-      console.warn(
+      safeLog(
+        'warn',
         `No slack connection found for app ID: ${requestBody.api_app_id}.`
       );
 
@@ -96,13 +98,13 @@ export class SlackEventHandler extends OpenAPIRoute {
             null
           );
         } catch (error) {
-          console.error(`Error handling app_home_opened: ${error.message}`);
+          safeLog('error', `Error handling app_home_opened: ${error.message}`);
           return new Response('Internal Server Error', {
             status: 500
           });
         }
       } else {
-        console.error('No slackUserId found in app_home_opened event');
+        safeLog('error', 'No slackUserId found in app_home_opened event');
       }
     } else if (
       isSubscriptionActive(connectionDetails, env) &&
@@ -116,7 +118,7 @@ export class SlackEventHandler extends OpenAPIRoute {
           connectionDetails: connectionDetails
         });
       } catch (error) {
-        console.error(`Error publishing message queue: ${error.message}`);
+        safeLog('error', `Error publishing message queue: ${error.message}`);
         return new Response('Internal Server Error', {
           status: 500
         });
@@ -132,7 +134,7 @@ export class SlackEventHandler extends OpenAPIRoute {
           connectionDetails: connectionDetails
         });
       } catch (error) {
-        console.error(`Error publishing file to queue: ${error.message}`);
+        safeLog('error', `Error publishing file to queue: ${error.message}`);
         return new Response('Internal Server Error', {
           status: 500
         });
@@ -145,7 +147,8 @@ export class SlackEventHandler extends OpenAPIRoute {
           connectionDetails: connectionDetails
         });
       } catch (error) {
-        console.error(
+        safeLog(
+          'error',
           `Error publishing app uninstalled to queue: ${error.message}`
         );
         return new Response('Internal Server Error', {
@@ -153,7 +156,7 @@ export class SlackEventHandler extends OpenAPIRoute {
         });
       }
     } else {
-      console.log('No processable event type found for event');
+      safeLog('log', 'No processable event type found for event');
     }
 
     return new Response('Ok', {
@@ -170,7 +173,7 @@ function isPayloadEligibleForTicket(
 
   // Ignore messages from the Zensync itself
   if (connection.botUserId === eventData.user) {
-    console.log('Ignoring message from Zensync');
+    safeLog('log', 'Ignoring message from Zensync');
     return false;
   }
 
@@ -196,7 +199,7 @@ function isPayloadEligibleForTicket(
     return true;
   }
 
-  console.log(`Ignoring message subtype: ${subtype}`);
+  safeLog('log', `Ignoring message subtype: ${subtype}`);
   return false;
 }
 

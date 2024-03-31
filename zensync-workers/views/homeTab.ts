@@ -11,6 +11,7 @@ import { SlackResponse } from '@/interfaces/slack-api.interface';
 import * as schema from '@/lib/schema';
 import { fetchZendeskCredentials, InteractivityActionId } from '@/lib/utils';
 import { isSubscriptionActive } from '@/lib/utils';
+import { safeLog } from '@/lib/logging';
 
 const PENDING_UPGRADE = 'PENDING_UPGRADE';
 
@@ -139,12 +140,12 @@ export async function handleAppHomeOpened(
     const responseData = (await response.json()) as SlackResponse;
 
     if (!responseData.ok) {
-      console.error(`Error publishing Slack View: ${body}`);
+      safeLog('error', `Error publishing Slack View: ${body}`);
       const errorDetails = JSON.stringify(responseData, null, 2);
       throw new Error(`Error publishig view: ${errorDetails}`);
     }
   } catch (error) {
-    console.error(`Error in handleAppHomeOpened: ${error.message}`);
+    safeLog('error', `Error in handleAppHomeOpened: ${error.message}`);
     throw error;
   }
 }
@@ -174,7 +175,8 @@ async function fetchHomeTabData(
 
     return [zendeskInfo, channelInfos];
   } catch (error) {
-    console.error(
+    safeLog(
+      'error',
       `Error fetching home tab data from database: ${error.message}`
     );
     throw error;

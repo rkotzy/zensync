@@ -4,6 +4,7 @@ import { slackConnectionCreated } from './slackConnectionCreated';
 import { stripeSubscriptionChanged } from './subscriptionChanged';
 import { slackAppUninstalled } from './slackAppUninstalled';
 import { Env } from '@/interfaces/env.interface';
+import { safeLog } from '@/lib/logging';
 
 export class QueueMessageHandler {
   async handle(
@@ -31,14 +32,18 @@ export class QueueMessageHandler {
             await slackAppUninstalled(message.body, env);
             break;
           case 'dlq':
-            console.error('Dead-letter queue message:', message.body);
+            safeLog('error', message.body);
             break;
           default:
-            console.warn(`Unknown queue: ${batch.queue}`);
+            safeLog('warn', `Unknown queue: ${batch.queue}`);
         }
       }
     } catch (error) {
-      console.error(`Error processing queue message on ${batch.queue}`, error);
+      safeLog(
+        'error',
+        `Error processing queue message on ${batch.queue}`,
+        error
+      );
       throw error;
     }
   }

@@ -5,17 +5,18 @@ import { slackConnection, channel } from '@/lib/schema';
 import { eq, and, asc, lte, gt, isNull } from 'drizzle-orm';
 import { Env } from '@/interfaces/env.interface';
 import { getChannelsByProductId } from '@/interfaces/products.interface';
+import { safeLog } from '@/lib/logging';
 
 const PENDING_UPGRADE = 'PENDING_UPGRADE';
 
 export async function stripeSubscriptionChanged(requestJson: any, env: Env) {
-  console.log('stripeSubscriptionChanged', requestJson);
+  safeLog('log', 'stripeSubscriptionChanged', requestJson);
 
   try {
     const db = initializeDb(env);
     await updateChannelStatus(db, requestJson);
   } catch (error) {
-    console.error(error);
+    safeLog('error', error);
     throw error;
   }
 }
@@ -29,7 +30,7 @@ async function updateChannelStatus(
   const subscriptionId = requestJson.subscriptionId;
 
   if (!productId || !subscriptionId) {
-    console.error('Missing required parameters');
+    safeLog('error', 'Missing required parameters');
     return;
   }
 
@@ -38,7 +39,7 @@ async function updateChannelStatus(
   });
 
   if (!connection) {
-    console.error(`No connection found for subscription ${subscriptionId}`);
+    safeLog('error', `No connection found for subscription ${subscriptionId}`);
     return;
   }
 
@@ -88,7 +89,8 @@ async function deactivateChannels(
     )
     .returning();
 
-  console.log(
+  safeLog(
+    'log',
     `Deactivated ${JSON.stringify(deactivateChannels, null, 2)} channels`
   );
 }
@@ -98,7 +100,7 @@ async function activateChannels(
   connectionId: string,
   upToLimit: Date
 ) {
-  console.log(`Activating channels up to ${upToLimit}`);
+  safeLog('log', `Activating channels up to ${upToLimit}`);
 
   const activatedChannels = await db
     .update(channel)
@@ -113,7 +115,8 @@ async function activateChannels(
     )
     .returning();
 
-  console.log(
+  safeLog(
+    'log',
     `Activated ${JSON.stringify(activatedChannels, null, 2)} channels`
   );
 }
@@ -122,7 +125,7 @@ async function activateAllChannels(
   db: NeonHttpDatabase<typeof schema>,
   connectionId: string
 ) {
-  console.log(`Activating all channels`);
+  safeLog('log', `Activating all channels`);
 
   await db
     .update(channel)

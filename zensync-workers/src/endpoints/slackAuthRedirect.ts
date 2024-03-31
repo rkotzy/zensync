@@ -2,6 +2,7 @@ import { OpenAPIRoute } from '@cloudflare/itty-router-openapi';
 import { initializeDb } from '@/lib/drizzle';
 import { slackOauthState } from '@/lib/schema';
 import { Env } from '@/interfaces/env.interface';
+import { safeLog } from '@/lib/logging';
 
 export class SlackAuthRedirect extends OpenAPIRoute {
   async handle(
@@ -18,7 +19,7 @@ export class SlackAuthRedirect extends OpenAPIRoute {
         id: state
       });
     } catch (error) {
-      console.error(error);
+      safeLog('error', error);
       return new Response(JSON.stringify({ error: 'Error saving state.' }), {
         status: 500,
         headers: {

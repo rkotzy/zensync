@@ -13,6 +13,7 @@ import {
   singleEventAnalyticsLogger
 } from '@/lib/utils';
 import bcrypt from 'bcryptjs';
+import { safeLog } from '@/lib/logging';
 
 export class ZendeskEventHandler extends OpenAPIRoute {
   async handle(
@@ -26,7 +27,7 @@ export class ZendeskEventHandler extends OpenAPIRoute {
 
     const requestBody = (await request.json()) as ZendeskEvent;
 
-    console.log('Zendesk event received:', requestBody);
+    safeLog('log', 'Zendesk event received:', requestBody);
 
     // Save some database calls if it's a message from Zensync
 
@@ -35,14 +36,14 @@ export class ZendeskEventHandler extends OpenAPIRoute {
       typeof requestBody.current_user_external_id === 'string' &&
       requestBody.current_user_external_id.startsWith('zensync')
     ) {
-      console.log('Message from Zensync, skipping');
+      safeLog('log', 'Message from Zensync, skipping');
       return new Response('Ok', { status: 200 });
     }
 
     // Make sure we have the last updated ticket time
     const ticketLastUpdatedAt = requestBody.last_updated_at;
     if (!ticketLastUpdatedAt) {
-      console.error('Missing last_updated_at');
+      safeLog('error', 'Missing last_updated_at');
       return new Response('Missing last_updated_at', { status: 400 });
     }
 
@@ -50,14 +51,14 @@ export class ZendeskEventHandler extends OpenAPIRoute {
     // TODO: - This would ignore messages sent in same minute. Can we store a base64 string instead?
     // Should log in Sentry probably?
     if (requestBody.last_updated_at === requestBody.created_at) {
-      console.log('Message is not an update, skipping');
+      safeLog('log', 'Message is not an update, skipping');
       return new Response('Ok', { status: 200 });
     }
 
     // Authenticate the request and get slack connection Id
     const slackConnectionId = await authenticateRequest(request, db);
     if (!slackConnectionId) {
-      console.warn('Unauthorized');
+      safeLog('warn', 'Unauthorized');
       return new Response('Unauthorized', { status: 401 });
     }
 
@@ -70,7 +71,10 @@ export class ZendeskEventHandler extends OpenAPIRoute {
     });
 
     if (!conversationInfo?.slackParentMessageId) {
-      console.error(`No conversation found for id ${requestBody.external_id}`);
+      safeLog(
+        'error',
+        `No conversation found for id ${requestBody.external_id}`
+      );
       return new Response('No conversation found', { status: 404 });
     }
 
@@ -80,7 +84,8 @@ export class ZendeskEventHandler extends OpenAPIRoute {
       !conversationInfo.channel.slackChannelIdentifier ||
       conversationInfo.channel.slackConnectionId !== slackConnectionId
     ) {
-      console.error(
+      safeLog(
+        'error',
         `Invalid Ids: ${slackConnectionId} !== ${conversationInfo}`
       );
       return new Response('Invalid Ids', { status: 401 });
@@ -94,13 +99,13 @@ export class ZendeskEventHandler extends OpenAPIRoute {
     );
 
     if (!slackConnectionInfo) {
-      console.error(`No Slack connection found for id ${slackConnectionId}`);
+      safeLog('error', `No Slack connection found for id ${slackConnectionId}`);
       return new Response('No Slack connection found', { status: 404 });
     }
 
     // Make sure the subscription is active
     if (!isSubscriptionActive(slackConnectionInfo, env)) {
-      console.log('Subscription is not active, ignoring');
+      safeLog('log', 'Subscription is not active, ignoring');
       return new Response('Ok', { status: 200 });
     }
 
@@ -113,7 +118,7 @@ export class ZendeskEventHandler extends OpenAPIRoute {
         env
       );
     } catch (error) {
-      console.error(error);
+      safeLog('error', error);
       return new Response('Error', { status: 500 });
     }
 
@@ -151,7 +156,7 @@ async function getSlackUserByEmail(
     const imageUrl = responseData.user.profile.image_192;
     return { userId, username, imageUrl };
   } catch (error) {
-    console.error(`Error in getSlackUserByEmail:`, error);
+    safeLog('error', `Error in getSlackUserByEmail:`, error);
     throw error;
   }
 }
@@ -166,14 +171,14 @@ async function authenticateRequest(
     const bearerToken = authorizationHeader?.replace('Bearer ', '');
 
     if (!bearerToken) {
-      console.error('Missing bearer token');
+      safeLog('error', 'Missing bearer token');
       return null;
     }
 
     const url = new URL(request.url);
 
     if (!webhookId) {
-      console.error('Missing webhook id');
+      safeLog('error', 'Missing webhook id');
       return null;
     }
 
@@ -182,20 +187,20 @@ async function authenticateRequest(
     });
 
     if (!connection) {
-      console.error(`Invalid webhook Id ${webhookId}`);
+      safeLog('error', `Invalid webhook Id ${webhookId}`);
       return null;
     }
 
     const hashedToken = connection.hashedWebhookBearerToken;
     const isValid = await bcrypt.compare(bearerToken, hashedToken);
     if (!isValid) {
-      console.error('Invalid bearer token');
+      safeLog('error', 'Invalid bearer token');
       return null;
     }
 
     return connection.slackConnectionId;
   } catch (error) {
-    console.error('Error in authenticateRequest:', error);
+    safeLog('error', 'Error in authenticateRequest:', error);
     return null;
   }
 }
@@ -225,7 +230,7 @@ async function sendSlackMessage(
       imageUrl = slackUser.imageUrl;
     }
   } catch (error) {
-    console.warn(`Error getting Slack user: ${error}`);
+    safeLog('warn', `Error getting Slack user: ${error}`);
   }
 
   try {
@@ -255,7 +260,7 @@ async function sendSlackMessage(
       throw new Error(`Error posting message: ${responseData.error}`);
     }
   } catch (error) {
-    console.error(`Error in sendSlackMessage:`, error);
+    safeLog('error', `Error in sendSlackMessage:`, error);
     throw error;
   }
 
@@ -278,8 +283,8 @@ function stripSignatureFromMessage(
   message: string | undefined | null,
   signature: string | undefined | null
 ): string {
-  console.log('message:', message);
-  console.log('signature:', signature);
+  safeLog('log', 'message:', message);
+  safeLog('log', 'signature:', signature);
   // Return the original message if it exists, otherwise return an empty string
   if (!message) {
     return '';

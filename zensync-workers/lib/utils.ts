@@ -14,6 +14,7 @@ import { decryptData, importEncryptionKeyFromEnvironment } from './encryption';
 import Stripe from 'stripe';
 import { PostHog } from 'posthog-node';
 import { initializePosthog } from './posthog';
+import { safeLog } from './logging';
 
 export enum InteractivityActionId {
   // Zendesk modal details
@@ -143,7 +144,8 @@ export async function fetchZendeskCredentials(
     const encryptedZendeskApiKey = zendeskCredentials?.encryptedZendeskApiKey;
 
     if (!zendeskDomain || !zendeskEmail || !encryptedZendeskApiKey) {
-      console.log(
+      safeLog(
+        'log',
         `No Zendesk credentials found for slack connection ${slackConnectionId}`
       );
       return null;
@@ -163,7 +165,7 @@ export async function fetchZendeskCredentials(
       zendeskApiKey: decryptedApiKey
     };
   } catch (error) {
-    console.error(`Error querying ZendeskConnections: ${error}`);
+    safeLog('error', `Error querying ZendeskConnections: ${error}`);
     return undefined;
   }
 }
@@ -175,7 +177,7 @@ export async function findSlackConnectionByAppId(
   key?: CryptoKey
 ): Promise<SlackConnection | null | undefined> {
   if (!appId) {
-    console.error('No api_app_id found');
+    safeLog('error', 'No api_app_id found');
     return undefined;
   }
 
@@ -202,7 +204,7 @@ export async function findSlackConnectionByAppId(
 
     return null;
   } catch (error) {
-    console.error(error);
+    safeLog('error', error);
     return undefined;
   }
 }
@@ -233,7 +235,7 @@ export async function getSlackConnection(
 
     return null;
   } catch (error) {
-    console.error(`Error finding SlackConnection: ${error}`);
+    safeLog('error', `Error finding SlackConnection: ${error}`);
     return undefined;
   }
 }
@@ -243,7 +245,7 @@ export function isSubscriptionActive(
   env: Env
 ): boolean {
   if (!connection.subscription?.periodEnd) {
-    console.error(`periodEnd is missing for connection ${connection.id}`);
+    safeLog('error', `periodEnd is missing for connection ${connection.id}`);
     return true; // Assuming missing data or configuration should be treated as active
   }
 
@@ -272,7 +274,7 @@ export async function getChannelInfo(
 
     return channelInfo;
   } catch (error) {
-    console.error(`Error getting channel info for ${channelId}`, error);
+    safeLog('error', `Error getting channel info for ${channelId}`, error);
     return undefined;
   }
 }
@@ -333,7 +335,10 @@ export async function createStripeAccount(
     );
 
     if (!customer || !subscription) {
-      console.error(`Empty objects creating Stripe account ${name}, ${email}`);
+      safeLog(
+        'error',
+        `Empty objects creating Stripe account ${name}, ${email}`
+      );
       return undefined;
     }
 
@@ -344,7 +349,7 @@ export async function createStripeAccount(
       currentPeriodStart: subscription.current_period_start
     };
   } catch (error) {
-    console.error('Error creating Stripe account:', error);
+    safeLog('error', 'Error creating Stripe account:', error);
     return undefined;
   }
 }

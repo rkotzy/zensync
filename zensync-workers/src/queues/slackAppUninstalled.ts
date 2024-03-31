@@ -4,12 +4,13 @@ import * as schema from '@/lib/schema';
 import { channel, SlackConnection } from '@/lib/schema';
 import { eq, and } from 'drizzle-orm';
 import { Env } from '@/interfaces/env.interface';
+import { safeLog } from '@/lib/logging';
 
 export async function slackAppUninstalled(requestJson: any, env: Env) {
   try {
     const connectionDetails: SlackConnection = requestJson.connectionDetails;
     if (!connectionDetails) {
-      console.error('No connection details found', requestJson);
+      safeLog('error', 'No connection details found', requestJson);
       return;
     }
 
@@ -17,7 +18,7 @@ export async function slackAppUninstalled(requestJson: any, env: Env) {
 
     await leaveAllChannels(db, connectionDetails.id);
   } catch (error) {
-    console.error(error);
+    safeLog('error', error);
     throw error;
   }
 }
@@ -37,7 +38,7 @@ async function leaveAllChannels(
         )
       );
   } catch (error) {
-    console.error(error);
+    safeLog('error', error);
     throw error;
   }
 }

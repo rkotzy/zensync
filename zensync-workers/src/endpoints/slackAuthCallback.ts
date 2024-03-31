@@ -17,6 +17,7 @@ import {
 } from '@/lib/encryption';
 import { Env } from '@/interfaces/env.interface';
 import { initializePosthog } from '@/lib/posthog';
+import { safeLog } from '@/lib/logging';
 
 export class SlackAuthCallback extends OpenAPIRoute {
   static schema: OpenAPIRouteSchema = {
@@ -96,7 +97,8 @@ export class SlackAuthCallback extends OpenAPIRoute {
       appId = responseData.app_id;
 
       if (!accessToken || !botUserId) {
-        console.error(
+        safeLog(
+          'error',
           `Error fetching access token or bot user id: ${JSON.stringify(
             responseData,
             null,
@@ -106,7 +108,7 @@ export class SlackAuthCallback extends OpenAPIRoute {
         return new Response('Missing access token.', { status: 404 });
       }
     } catch (error) {
-      console.error(error);
+      safeLog('error', error);
       return new Response('Authentication failed.', { status: 400 });
     }
 
@@ -122,7 +124,8 @@ export class SlackAuthCallback extends OpenAPIRoute {
       const teamInfoResponse = (await response.json()) as SlackResponse;
 
       if (!teamInfoResponse.ok || !teamInfoResponse.team) {
-        console.error(
+        safeLog(
+          'error',
           `Error fetching team info: ${JSON.stringify(
             teamInfoResponse,
             null,
@@ -207,7 +210,7 @@ export class SlackAuthCallback extends OpenAPIRoute {
         }
       }
     } catch (error) {
-      console.error(error);
+      safeLog('error', error);
       return new Response('Error saving access token.', { status: 500 });
     }
 

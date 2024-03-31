@@ -4,11 +4,12 @@ import { Env } from '@/interfaces/env.interface';
 import { SlackConnection, slackConnection, subscription } from '@/lib/schema';
 import { SlackResponse } from '@/interfaces/slack-api.interface';
 import { createStripeAccount } from '@/lib/utils';
+import { safeLog } from '@/lib/logging';
 
 export async function slackConnectionCreated(requestJson: any, env: Env) {
   const connectionDetails: SlackConnection = requestJson.connectionDetails;
   if (!connectionDetails) {
-    console.error('No connection details found', requestJson);
+    safeLog('error', 'No connection details found', requestJson);
     return;
   }
 
@@ -83,7 +84,8 @@ async function setupSupportChannelInSlack(
       (await inviteZensyncAccount.json()) as SlackResponse;
 
     if (!inviteZensyncAccountResponseData.ok) {
-      console.error(
+      safeLog(
+        'error',
         'Error inviting Zensync Account:',
         inviteZensyncAccountResponseData
       );
@@ -135,7 +137,7 @@ async function setupSupportChannelInSlack(
       );
     }
   } catch (error) {
-    console.error('Error in setupSupportChannelInSlack:', error);
+    safeLog('error', 'Error in setupSupportChannelInSlack:', error);
     throw new Error('Error in setupSupportChannelInSlack');
   }
 }
@@ -150,7 +152,7 @@ async function setupCustomerInStripe(
   // Get idempotency key from request
   const idempotencyKey = requestJson.idempotencyKey;
   if (!idempotencyKey) {
-    console.error('No idempotency key found');
+    safeLog('error', 'No idempotency key found');
     return;
   }
 
@@ -182,7 +184,7 @@ async function setupCustomerInStripe(
 
     // If that failed for some reason throw an error, it's safe to retry
     if (!databaseSubscription || databaseSubscription.length === 0) {
-      console.error('Error upserting subscription');
+      safeLog('error', 'Error upserting subscription');
       throw new Error('Error upserting subscription');
     }
 
@@ -194,7 +196,7 @@ async function setupCustomerInStripe(
       })
       .where(eq(slackConnection.id, connectionDetails.id));
   } catch (error) {
-    console.error('Error in slackConnectionCreated:', error);
+    safeLog('error', 'Error in slackConnectionCreated:', error);
     throw new Error('Error in slackConnectionCreated');
   }
 }
@@ -222,7 +224,7 @@ async function getAuthedConnectionUserEmail(
 
     return responseData.user.profile?.email || undefined;
   } catch (error) {
-    console.error(`Error in getSlackUserEmail:`, error);
+    safeLog('error', `Error in getSlackUserEmail:`, error);
     throw error;
   }
 }

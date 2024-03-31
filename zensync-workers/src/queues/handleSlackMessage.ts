@@ -26,6 +26,7 @@ import { ZendeskResponse } from '@/interfaces/zendesk-api.interface';
 import { importEncryptionKeyFromEnvironment } from '@/lib/encryption';
 import { getChannelsByProductId } from '@/interfaces/products.interface';
 import Stripe from 'stripe';
+import { safeLog } from '@/lib/logging';
 
 const MISSING_ZENDESK_CREDENTIALS_MESSAGE =
   'Zendesk credentials are missing or inactive. Configure them in the Zensync app settings to start syncing messages.';
@@ -60,7 +61,7 @@ export async function handleMessageFromSlack(requestJson: any, env: Env) {
   const connectionDetails = requestJson.connectionDetails;
   const analyticsIdempotencyKey = requestJson.idempotencyKey || null;
   if (!connectionDetails) {
-    console.error('No connection details found in request:', requestJson);
+    safeLog('error', 'No connection details found in request:', requestJson);
     return;
   }
 
@@ -81,7 +82,7 @@ export async function handleMessageFromSlack(requestJson: any, env: Env) {
         analyticsIdempotencyKey
       );
     } catch (error) {
-      console.error(`Error handling ${eventSubtype} subtype event:`, error);
+      safeLog('error', `Error handling ${eventSubtype} subtype event:`, error);
       throw new Error(`Error handling ${eventSubtype} event`);
     }
   } else if (eventType && eventHandlers[eventType]) {
@@ -95,11 +96,11 @@ export async function handleMessageFromSlack(requestJson: any, env: Env) {
         analyticsIdempotencyKey
       );
     } catch (error) {
-      console.error(`Error handling ${eventType} event:`, error);
+      safeLog('error', `Error handling ${eventType} event:`, error);
       throw new Error(`Error handling ${eventSubtype} event`);
     }
   } else {
-    console.log(`No handler for event type: ${eventType}`);
+    safeLog('log', `No handler for event type: ${eventType}`);
   }
 }
 
@@ -196,7 +197,11 @@ async function handleChannelJoined(
       (await channelJoinResponse.json()) as SlackResponse;
 
     if (!channelJoinResponseData.ok) {
-      console.error(`Failed to fetch channel info:`, channelJoinResponseData);
+      safeLog(
+        'error',
+        `Failed to fetch channel info:`,
+        channelJoinResponseData
+      );
       throw new Error('Failed to fetch channel info');
     }
 
@@ -243,7 +248,7 @@ async function handleChannelJoined(
       null
     );
   } catch (error) {
-    console.error('Error saving channel to database:', error);
+    safeLog('error', 'Error saving channel to database:', error);
     throw error;
   }
 }
@@ -273,7 +278,7 @@ async function postEphemeralMessage(
   );
 
   if (!ephemeralResponse.ok) {
-    console.error(`Failed to post ephemeral message:`, ephemeralResponse);
+    safeLog('error', `Failed to post ephemeral message:`, ephemeralResponse);
     // We don't throw here since it's not critical if message isn't sent
   }
 }
@@ -320,7 +325,7 @@ async function postUpgradeEphemeralMessage(
 
 function getChannelType(channelData: any): string | null {
   if (typeof channelData !== 'object' || channelData === null) {
-    console.warn('Invalid or undefined channel data received:', channelData);
+    safeLog('warn', 'Invalid or undefined channel data received:', channelData);
     return null;
   }
 
@@ -334,7 +339,7 @@ function getChannelType(channelData: any): string | null {
     return 'GROUP_DM';
   }
 
-  console.warn(`Unkonwn channel type: ${channelData}`);
+  safeLog('warn', `Unkonwn channel type: ${channelData}`);
   return null;
 }
 
@@ -375,7 +380,7 @@ async function handleChannelLeft(
       null
     );
   } catch (error) {
-    console.error(`Error archiving channel in database:`, error);
+    safeLog('error', `Error archiving channel in database:`, error);
     throw error;
   }
 }
@@ -420,7 +425,7 @@ async function handleChannelUnarchive(
       null
     );
   } catch (error) {
-    console.error(`Error unarchiving channel in database:`, error);
+    safeLog('error', `Error unarchiving channel in database:`, error);
     throw error;
   }
 }
@@ -448,7 +453,7 @@ async function handleChannelNameChanged(
         )
       );
   } catch (error) {
-    console.error(`Error updating channel name in database:`, error);
+    safeLog('error', `Error updating channel name in database:`, error);
     throw error;
   }
 }
@@ -476,7 +481,7 @@ async function handleChannelIdChanged(
         )
       );
   } catch (error) {
-    console.error(`Error updating channel Id in database`, error);
+    safeLog('error', `Error updating channel Id in database`, error);
     throw error;
   }
 }
@@ -499,13 +504,13 @@ async function handleFileUpload(
       analyticsIdempotencyKey
     );
   } else {
-    console.log('Need to handle file fallback');
+    safeLog('log', 'Need to handle file fallback');
 
     const files = request.event.files;
 
     // Check if there are files
     if (!files || files.length === 0) {
-      console.warn('No files found in fallback');
+      safeLog('warn', 'No files found in fallback');
       return await handleMessage(
         request,
         connection,
@@ -549,7 +554,7 @@ async function handleMessageEdit(
 ) {
   // TODO: - I can do this check in the event handler to avoid a worker call
   if (request.event?.message?.text === request.event?.previous_message?.text) {
-    console.log('Message edit was not a change to text, ignoring');
+    safeLog('log', 'Message edit was not a change to text, ignoring');
     return;
   } else if (request.event?.message) {
     // Merge the message data into the event object
@@ -572,7 +577,7 @@ async function handleMessageEdit(
         null
       );
     } catch (error) {
-      console.error(`Analytics logging error:`, error);
+      safeLog('error', `Analytics logging error:`, error);
     }
 
     // Since files can't be added/removed in an edit, we can just use the message handler
@@ -585,7 +590,7 @@ async function handleMessageEdit(
       analyticsIdempotencyKey
     );
   } else {
-    console.warn(`Unhandled message edit type:`, request);
+    safeLog('warn', `Unhandled message edit type:`, request);
     return;
   }
 }
@@ -625,7 +630,7 @@ async function handleMessageDeleted(
         null
       );
     } catch (error) {
-      console.error(`Analytics logging error:`, error);
+      safeLog('error', `Analytics logging error:`, error);
     }
 
     return await handleMessage(
@@ -639,7 +644,7 @@ async function handleMessageDeleted(
       status
     );
   } else {
-    console.warn(`Unhandled message deletion:`, request);
+    safeLog('warn', `Unhandled message deletion:`, request);
     return;
   }
 }
@@ -663,7 +668,7 @@ async function handleMessage(
   // Build the message data interface
   const messageData = request.event as SlackMessageData;
   if (!messageData || messageData.type !== 'message') {
-    console.error('Invalid message payload', request);
+    safeLog('error', 'Invalid message payload', request);
     return;
   }
 
@@ -680,11 +685,12 @@ async function handleMessage(
       key
     );
   } catch (error) {
-    console.error(error);
+    safeLog('error', error);
     throw new Error('Error fetching Zendesk credentials');
   }
   if (!zendeskCredentials) {
-    console.log(
+    safeLog(
+      'log',
       `No Zendesk credentials found for slack connection: ${connection.id}`
     );
     return;
@@ -699,11 +705,11 @@ async function handleMessage(
       messageData
     );
   } catch (error) {
-    console.error(`Error getting or creating Zendesk user:`, error);
+    safeLog('error', `Error getting or creating Zendesk user:`, error);
     throw error;
   }
   if (!zendeskUserId) {
-    console.error('No Zendesk user ID');
+    safeLog('error', 'No Zendesk user ID');
     throw new Error('No Zendesk user ID');
   }
 
@@ -727,7 +733,7 @@ async function handleMessage(
         analyticsIdempotencyKey
       );
     } catch (error) {
-      console.error(`Error handling thread reply:`, error);
+      safeLog('error', `Error handling thread reply:`, error);
       throw error;
     }
     return;
@@ -755,7 +761,7 @@ async function handleMessage(
       analyticsIdempotencyKey
     );
   } catch (error) {
-    console.error(`Error creating new conversation:`, error);
+    safeLog('error', `Error creating new conversation:`, error);
     throw error;
   }
 }
@@ -787,7 +793,7 @@ async function getOrCreateZendeskUser(
   const slackChannelId = messageData.channel;
 
   if (!messageData.user) {
-    console.error(`No slack user found:`, messageData);
+    safeLog('error', `No slack user found:`, messageData);
     throw new Error('No message user found');
   }
 
@@ -826,7 +832,7 @@ async function getOrCreateZendeskUser(
 
     return responseData.user.id;
   } catch (error) {
-    console.error(`Error creating or updating user:`, error);
+    safeLog('error', `Error creating or updating user:`, error);
     throw error;
   }
 }
@@ -876,7 +882,7 @@ async function getSlackUser(
     const imageUrl = slackUrl || gravatarUrl;
     return { username, imageUrl };
   } catch (error) {
-    console.error(`Error in getSlackUser:`, error);
+    safeLog('error', `Error in getSlackUser:`, error);
     throw error;
   }
 }
@@ -918,7 +924,7 @@ async function handleThreadReply(
     !conversationInfo[0].zendeskTicketId ||
     !conversationInfo[0].id
   ) {
-    console.log('No conversation found, creating new ticket');
+    safeLog('log', 'No conversation found, creating new ticket');
     return await handleNewConversation(
       messageData,
       zendeskCredentials,
@@ -1033,7 +1039,7 @@ async function handleThreadReply(
         null
       );
     } catch (error) {
-      console.error(`Error updating conversation in database:`, error);
+      safeLog('error', `Error updating conversation in database:`, error);
       throw new Error('Error updating conversation in database');
     }
   }
@@ -1074,16 +1080,16 @@ async function handleNewConversation(
   );
 
   if (!channelInfo) {
-    console.error(`No channel found for ${channelId}`);
+    safeLog('error', `No channel found for ${channelId}`);
     throw new Error(`No channel found`);
   }
 
   if (!channelInfo.name) {
-    console.warn(`No channel name found, continuing: ${channelInfo}`);
+    safeLog('warn', `No channel name found, continuing: ${channelInfo}`);
   }
 
   if (!isChannelEligibleForMessaging(channelInfo)) {
-    console.log(`Channel is not eligible for messaging: ${channelInfo}`);
+    safeLog('log', `Channel is not eligible for messaging: ${channelInfo}`);
     return;
   }
 
@@ -1169,12 +1175,12 @@ async function handleNewConversation(
       null
     );
   } catch (error) {
-    console.error('Error creating ticket: ', error);
+    safeLog('error', 'Error creating ticket: ', error);
     throw error;
   }
 
   if (!ticketId) {
-    console.error('No ticket ID in payload');
+    safeLog('error', 'No ticket ID in payload');
     throw new Error('No ticket ID');
   }
 
@@ -1190,8 +1196,8 @@ async function handleNewConversation(
         })
         .where(eq(conversation.id, conversationUuid));
     } catch (error) {
-      console.error(`Error updating conversation:`, error);
-      console.error('Failed payload:', {
+      safeLog('error', `Error updating conversation:`, error);
+      safeLog('error', 'Failed payload:', {
         zendeskTicketId: ticketId,
         latestSlackMessageId: messageData.ts
       });
@@ -1207,8 +1213,8 @@ async function handleNewConversation(
         latestSlackMessageId: messageData.ts
       });
     } catch (error) {
-      console.error(`Error creating conversation:`, error);
-      console.error('Failed payload:', {
+      safeLog('error', `Error creating conversation:`, error);
+      safeLog('error', 'Failed payload:', {
         id: conversationUuid,
         channelId: channelInfo.id,
         slackParentMessageId: messageData.ts,
@@ -1223,7 +1229,7 @@ async function handleNewConversation(
   try {
     await updateChannelActivity(slackConnectionInfo, channelId, db);
   } catch (error) {
-    console.error(`Error updating channel activity:`, error);
+    safeLog('error', `Error updating channel activity:`, error);
     throw error;
   }
 }

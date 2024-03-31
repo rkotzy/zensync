@@ -5,23 +5,24 @@ import { fetchZendeskCredentials } from '@/lib/utils';
 import { initializeDb } from '@/lib/drizzle';
 import { Env } from '@/interfaces/env.interface';
 import { Buffer } from 'node:buffer';
+import { safeLog } from '@/lib/logging';
 
 export async function uploadFilesToZendesk(requestJson: any, env: Env) {
-  console.log('uploadFilesToZendesk', requestJson);
+  safeLog('log', 'uploadFilesToZendesk', requestJson);
 
   let responseJson = requestJson;
 
   const slackRequestBody = requestJson.eventBody;
   const connectionDetails: SlackConnection = requestJson.connectionDetails;
   if (!connectionDetails) {
-    console.error('No connection details found');
+    safeLog('error', 'No connection details found');
     return;
   }
 
   // Handle an array of files here
   const slackFiles = slackRequestBody.event?.files || [];
   if (slackFiles.length === 0) {
-    console.error('No file objects found in request body');
+    safeLog('error', 'No file objects found in request body');
     return;
   }
 
@@ -36,11 +37,12 @@ export async function uploadFilesToZendesk(requestJson: any, env: Env) {
       env
     );
   } catch (error) {
-    console.error(error);
+    safeLog('error', error);
     throw new Error('Error fetching Zendesk credentials');
   }
   if (!zendeskCredentials) {
-    console.log(
+    safeLog(
+      'log',
       `No Zendesk credentials found for slack connection: ${connectionDetails.id}`
     );
     return;
@@ -67,14 +69,14 @@ export async function uploadFilesToZendesk(requestJson: any, env: Env) {
         connectionDetails
       );
     } catch (error) {
-      console.error(error);
+      safeLog('error', error);
       throw new Error('Error uploading file to Zendesk');
     }
 
     // We intentionally fail here if a single upload token is missing and try them all again
     // It's easier to retry all uploads than to track which ones failed
     if (!uploadToken) {
-      console.error('No upload token found');
+      safeLog('error', 'No upload token found');
       throw new Error('No upload token found');
     }
 
@@ -87,7 +89,7 @@ export async function uploadFilesToZendesk(requestJson: any, env: Env) {
   try {
     await env.PROCESS_SLACK_MESSAGES_QUEUE_BINDING.send(responseJson);
   } catch (error) {
-    console.error('Error publishing to message processing queue:', error);
+    safeLog('error', 'Error publishing to message processing queue:', error);
     throw new Error('Error publishing to queue');
   }
 }
@@ -130,7 +132,7 @@ async function uploadFileFromUrlToZendesk(
   });
 
   if (!response.ok) {
-    console.error(`Failed to upload to Zendesk:`, response);
+    safeLog('error', `Failed to upload to Zendesk:`, response);
     throw new Error(`Failed to upload to Zendesk`);
   }
 
@@ -157,12 +159,12 @@ async function getFileInfoFromSlack(
     const responseData = (await response.json()) as SlackResponse;
 
     if (!responseData.ok) {
-      console.error(`Error getting Slack file info:`, responseData);
+      safeLog('error', `Error getting Slack file info:`, responseData);
       throw new Error(`Error getting Slack file info: ${responseData.error}`);
     }
     return responseData.file;
   } catch (error) {
-    console.error(`Error in getFileInfoFromSlack:`, error);
+    safeLog('error', `Error in getFileInfoFromSlack:`, error);
     throw error;
   }
 }

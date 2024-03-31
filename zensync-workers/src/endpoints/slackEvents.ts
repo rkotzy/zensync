@@ -2,14 +2,12 @@ import { OpenAPIRoute } from '@cloudflare/itty-router-openapi';
 import { initializeDb } from '@/lib/drizzle';
 import { findSlackConnectionByAppId, verifySlackRequest } from '@/lib/utils';
 import { SlackConnection } from '@/lib/schema';
-import { Logtail } from '@logtail/edge';
-import { EdgeWithExecutionContext } from '@logtail/edge/dist/es6/edgeWithExecutionContext';
 import { SlackEvent } from '@/interfaces/slack-api.interface';
 import { Env } from '@/interfaces/env.interface';
 import { importEncryptionKeyFromEnvironment } from '@/lib/encryption';
 import { handleAppHomeOpened } from '@/views/homeTab';
-import { responseWithLogging } from '@/lib/logger';
 import { isSubscriptionActive, singleEventAnalyticsLogger } from '@/lib/utils';
+import { safeLog } from '@/lib/logging';
 
 export class SlackEventHandler extends OpenAPIRoute {
   async handle(
@@ -18,10 +16,6 @@ export class SlackEventHandler extends OpenAPIRoute {
     context: any,
     data: Record<string, any>
   ) {
-    // Set up logger right away
-    const baseLogger = new Logtail(env.BETTER_STACK_SOURCE_TOKEN);
-    const logger = baseLogger.withExecutionContext(context);
-
     // Clone the request before consuming since we
     // need is as text and json
     const jsonClone = request.clone();
@@ -29,6 +23,7 @@ export class SlackEventHandler extends OpenAPIRoute {
 
     // Parse the request body
     const requestBody = (await jsonClone.json()) as SlackEvent;
+    safeLog('log', 'Incoming Slack event:', request);
 
     // Check if this is a URL verification request from Slack
     // if (requestBody.type === 'url_verification') {
@@ -43,14 +38,10 @@ export class SlackEventHandler extends OpenAPIRoute {
 
     // Verify the Slack request
     if (!(await verifySlackRequest(textClone, env))) {
-      logger.warn('Slack verification failed!');
-      return responseWithLogging(
-        request,
-        requestBody,
-        'Verification failed',
-        200,
-        logger
-      );
+      safeLog('warn', 'Slack verification failed!');
+      return new Response('Verification failed', {
+        status: 200
+      });
     }
 
     ///////////////////////////////////////
@@ -65,21 +56,18 @@ export class SlackEventHandler extends OpenAPIRoute {
       requestBody.api_app_id,
       db,
       env,
-      logger,
       encryptionKey
     );
 
     if (!connectionDetails) {
-      logger.warn(
+      safeLog(
+        'warn',
         `No slack connection found for app ID: ${requestBody.api_app_id}.`
       );
-      return responseWithLogging(
-        request,
-        requestBody,
-        'Invalid api_app_id',
-        404,
-        logger
-      );
+
+      return new Response('Invalid api_app_id', {
+        status: 404
+      });
     }
 
     const eventType = requestBody.event?.type;
@@ -95,8 +83,7 @@ export class SlackEventHandler extends OpenAPIRoute {
             connectionDetails,
             db,
             env,
-            encryptionKey,
-            logger
+            encryptionKey
           );
 
           await singleEventAnalyticsLogger(
@@ -111,23 +98,19 @@ export class SlackEventHandler extends OpenAPIRoute {
             null
           );
         } catch (error) {
-          logger.error(`Error handling app_home_opened: ${error.message}`);
-          return responseWithLogging(
-            request,
-            requestBody,
-            'Internal Server Error',
-            500,
-            logger
-          );
+          safeLog('error', `Error handling app_home_opened: ${error.message}`);
+          return new Response('Internal Server Error', {
+            status: 500
+          });
         }
       } else {
-        logger.error('No slackUserId found in app_home_opened event');
+        safeLog('error', 'No slackUserId found in app_home_opened event');
       }
     } else if (
-      isSubscriptionActive(connectionDetails, logger, env) &&
+      isSubscriptionActive(connectionDetails, env) &&
       (isMessageToQueue(eventType, eventSubtype) ||
         (eventType === 'message' &&
-          isPayloadEligibleForTicket(requestBody, connectionDetails, logger)))
+          isPayloadEligibleForTicket(requestBody, connectionDetails)))
     ) {
       try {
         await env.PROCESS_SLACK_MESSAGES_QUEUE_BINDING.send({
@@ -135,18 +118,14 @@ export class SlackEventHandler extends OpenAPIRoute {
           connectionDetails: connectionDetails
         });
       } catch (error) {
-        logger.error(`Error publishing message queue: ${error.message}`);
-        return responseWithLogging(
-          request,
-          requestBody,
-          'Internal Server Error',
-          500,
-          logger
-        );
+        safeLog('error', `Error publishing message queue: ${error.message}`);
+        return new Response('Internal Server Error', {
+          status: 500
+        });
       }
     } else if (
       eventSubtype === 'file_share' &&
-      isSubscriptionActive(connectionDetails, logger, env)
+      isSubscriptionActive(connectionDetails, env)
     ) {
       // handle file_share messages differently by processing the file first
       try {
@@ -155,14 +134,10 @@ export class SlackEventHandler extends OpenAPIRoute {
           connectionDetails: connectionDetails
         });
       } catch (error) {
-        logger.error(`Error publishing file to queue: ${error.message}`);
-        return responseWithLogging(
-          request,
-          requestBody,
-          'Internal Server Error',
-          500,
-          logger
-        );
+        safeLog('error', `Error publishing file to queue: ${error.message}`);
+        return new Response('Internal Server Error', {
+          status: 500
+        });
       }
     } else if (eventType === 'app_uninstalled') {
       // handle the app being uninstalled from a workspace
@@ -172,41 +147,33 @@ export class SlackEventHandler extends OpenAPIRoute {
           connectionDetails: connectionDetails
         });
       } catch (error) {
-        logger.error(
+        safeLog(
+          'error',
           `Error publishing app uninstalled to queue: ${error.message}`
         );
-        return responseWithLogging(
-          request,
-          requestBody,
-          'Internal Server Error',
-          500,
-          logger
-        );
+        return new Response('Internal Server Error', {
+          status: 500
+        });
       }
     } else {
-      logger.info(
-        `No processable event type found for event: ${JSON.stringify(
-          requestBody.event,
-          null,
-          2
-        )}`
-      );
+      safeLog('log', 'No processable event type found for event');
     }
 
-    return responseWithLogging(request, requestBody, 'Ok', 202, logger);
+    return new Response('Ok', {
+      status: 202
+    });
   }
 }
 
 function isPayloadEligibleForTicket(
   request: any,
-  connection: SlackConnection,
-  logger: EdgeWithExecutionContext
+  connection: SlackConnection
 ): boolean {
   const eventData = request.event;
 
   // Ignore messages from the Zensync itself
   if (connection.botUserId === eventData.user) {
-    logger.info('Ignoring message from Zensync');
+    safeLog('log', 'Ignoring message from Zensync');
     return false;
   }
 
@@ -232,7 +199,7 @@ function isPayloadEligibleForTicket(
     return true;
   }
 
-  logger.info(`Ignoring message subtype: ${subtype}`);
+  safeLog('log', `Ignoring message subtype: ${subtype}`);
   return false;
 }
 

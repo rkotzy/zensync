@@ -11,13 +11,13 @@ import {
 } from '@/lib/schema';
 import { eq } from 'drizzle-orm';
 import { SlackResponse } from '@/interfaces/slack-api.interface';
-import { Logtail } from '@logtail/edge';
 import {
   encryptData,
   importEncryptionKeyFromEnvironment
 } from '@/lib/encryption';
 import { Env } from '@/interfaces/env.interface';
 import { initializePosthog } from '@/lib/posthog';
+import { safeLog } from '@/lib/logging';
 
 export class SlackAuthCallback extends OpenAPIRoute {
   static schema: OpenAPIRouteSchema = {
@@ -33,10 +33,6 @@ export class SlackAuthCallback extends OpenAPIRoute {
     context: any,
     data: Record<string, any>
   ) {
-    // Set up logger right away
-    const baseLogger = new Logtail(env.BETTER_STACK_SOURCE_TOKEN);
-    const logger = baseLogger.withExecutionContext(context);
-
     const url = new URL(request.url);
     const code = url.searchParams.get('code');
     const state = url.searchParams.get('state');
@@ -101,7 +97,8 @@ export class SlackAuthCallback extends OpenAPIRoute {
       appId = responseData.app_id;
 
       if (!accessToken || !botUserId) {
-        logger.error(
+        safeLog(
+          'error',
           `Error fetching access token or bot user id: ${JSON.stringify(
             responseData,
             null,
@@ -111,7 +108,7 @@ export class SlackAuthCallback extends OpenAPIRoute {
         return new Response('Missing access token.', { status: 404 });
       }
     } catch (error) {
-      logger.error(error);
+      safeLog('error', error);
       return new Response('Authentication failed.', { status: 400 });
     }
 
@@ -127,7 +124,8 @@ export class SlackAuthCallback extends OpenAPIRoute {
       const teamInfoResponse = (await response.json()) as SlackResponse;
 
       if (!teamInfoResponse.ok || !teamInfoResponse.team) {
-        logger.error(
+        safeLog(
+          'error',
           `Error fetching team info: ${JSON.stringify(
             teamInfoResponse,
             null,
@@ -212,7 +210,7 @@ export class SlackAuthCallback extends OpenAPIRoute {
         }
       }
     } catch (error) {
-      logger.error(error);
+      safeLog('error', error);
       return new Response('Error saving access token.', { status: 500 });
     }
 

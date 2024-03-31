@@ -9,8 +9,6 @@ import {
 } from '@/lib/utils';
 import { SlackConnection, zendeskConnection, channel } from '@/lib/schema';
 import * as schema from '@/lib/schema';
-import { Logtail } from '@logtail/edge';
-import { EdgeWithExecutionContext } from '@logtail/edge/dist/es6/edgeWithExecutionContext';
 import { NeonHttpDatabase } from 'drizzle-orm/neon-http';
 import { ZendeskResponse } from '@/interfaces/zendesk-api.interface';
 import { SlackResponse } from '@/interfaces/slack-api.interface';
@@ -22,9 +20,9 @@ import {
 import bcrypt from 'bcryptjs';
 import Stripe from 'stripe';
 import { handleAppHomeOpened } from '@/views/homeTab';
-import { responseWithLogging } from '@/lib/logger';
 import { getBillingPortalConfiguration } from '@/interfaces/products.interface';
 import { initializePosthog } from '@/lib/posthog';
+import { safeLog } from '@/lib/logging';
 
 export class SlackInteractivityHandler extends OpenAPIRoute {
   async handle(
@@ -33,10 +31,6 @@ export class SlackInteractivityHandler extends OpenAPIRoute {
     context: any,
     data: Record<string, any>
   ) {
-    // Set up logger right away
-    const baseLogger = new Logtail(env.BETTER_STACK_SOURCE_TOKEN);
-    const logger = baseLogger.withExecutionContext(context);
-
     // Initialize the database
     const db = initializeDb(env);
 
@@ -48,7 +42,7 @@ export class SlackInteractivityHandler extends OpenAPIRoute {
 
     // Verify the Slack request
     if (!(await verifySlackRequest(textClone, env))) {
-      logger.warn('Slack verification failed!');
+      safeLog('warn', 'Slack verification failed!');
       return new Response('Verification failed', { status: 200 });
     }
 
@@ -63,24 +57,22 @@ export class SlackInteractivityHandler extends OpenAPIRoute {
     // Parse the JSON string into an object
     const payload = JSON.parse(payloadString);
 
+    safeLog('log', 'Payload recieved:', payload);
+
     // Find the corresponding organization connection details
     const slackConnectionDetails = await findSlackConnectionByAppId(
       payload.api_app_id,
       db,
       env,
-      logger,
       encryptionKey
     );
 
     if (!slackConnectionDetails) {
-      logger.warn(`No organization found for team ID: ${payload.api_app_id}.`);
-      return responseWithLogging(
-        request,
-        payload,
-        'Invalid api_app_id',
-        404,
-        logger
+      safeLog(
+        'error',
+        `No organization found for team ID: ${payload.api_app_id}.`
       );
+      return new Response('Invalid api_app_id', { status: 404 });
     }
 
     const actionId = getFirstActionId(payload);
@@ -99,11 +91,10 @@ export class SlackInteractivityHandler extends OpenAPIRoute {
           actionId,
           payload,
           slackConnectionDetails,
-          db,
-          logger
+          db
         );
       } catch (error) {
-        return returnGenericError(error, logger);
+        return returnGenericError(error);
       }
     }
     // Handle the configure zendesk button tap
@@ -116,11 +107,10 @@ export class SlackInteractivityHandler extends OpenAPIRoute {
           slackConnectionDetails,
           db,
           env,
-          encryptionKey,
-          logger
+          encryptionKey
         );
       } catch (error) {
-        return returnGenericError(error, logger);
+        return returnGenericError(error);
       }
     }
     // Handle the edit channel modal submission
@@ -136,15 +126,14 @@ export class SlackInteractivityHandler extends OpenAPIRoute {
           slackConnectionDetails,
           db,
           encryptionKey,
-          env,
-          logger
+          env
         );
 
         if (response instanceof Response) {
           return response;
         }
       } catch (error) {
-        return returnGenericError(error, logger);
+        return returnGenericError(error);
       }
     }
     // Handle the configure zendesk modal submission
@@ -159,8 +148,7 @@ export class SlackInteractivityHandler extends OpenAPIRoute {
           slackConnectionDetails,
           env,
           db,
-          encryptionKey,
-          logger
+          encryptionKey
         );
 
         posthog.capture({
@@ -171,7 +159,7 @@ export class SlackInteractivityHandler extends OpenAPIRoute {
 
         await posthog.shutdown();
       } catch (error) {
-        return returnGenericError(error, logger);
+        return returnGenericError(error);
       }
     }
 
@@ -180,13 +168,7 @@ export class SlackInteractivityHandler extends OpenAPIRoute {
       actionId === InteractivityActionId.OPEN_ACCOUNT_SETTINGS_BUTTON_TAPPED
     ) {
       try {
-        await openAccountSettings(
-          payload,
-          slackConnectionDetails,
-          env,
-          logger,
-          db
-        );
+        await openAccountSettings(payload, slackConnectionDetails, env, db);
 
         posthog.capture({
           distinctId: analyticsDistinctId,
@@ -196,7 +178,7 @@ export class SlackInteractivityHandler extends OpenAPIRoute {
 
         await posthog.shutdown();
       } catch (error) {
-        return returnGenericError(error, logger);
+        return returnGenericError(error);
       }
     }
 
@@ -209,25 +191,19 @@ export class SlackInteractivityHandler extends OpenAPIRoute {
           slackConnectionDetails,
           db,
           env,
-          encryptionKey,
-          logger
+          encryptionKey
         );
       }
     }
 
     // The body is intentionally empty here for Slack to close any views
-    return responseWithLogging(request, payload, null, 200, logger);
+    return new Response(null, { status: 200 });
   }
 }
 
-function returnGenericError(
-  error: any,
-  logger: EdgeWithExecutionContext
-): Response {
-  logger.error(`Error: ${error.message}`);
-  return Response.json('There was an issue with your request.', {
-    status: 500
-  });
+function returnGenericError(error: any): Response {
+  safeLog('error', `Error: ${error.message}`);
+  return new Response('There was an issue', { status: 500 });
 }
 
 function extractZendeskDomain(input: string): string {
@@ -261,8 +237,7 @@ async function saveZendeskCredentials(
   connection: SlackConnection,
   env: Env,
   db: NeonHttpDatabase<typeof schema>,
-  key: CryptoKey,
-  logger: EdgeWithExecutionContext
+  key: CryptoKey
 ): Promise<void> {
   const values = payload.view?.state.values;
 
@@ -321,10 +296,11 @@ async function saveZendeskCredentials(
 
     if (!zendeskWebhookResponse.ok) {
       // If the response status is not OK, log the status and the response text
-      logger.error(
+      safeLog(
+        'error',
         `Zendesk Webhook API failed with status: ${zendeskWebhookResponse.status}`
       );
-      logger.error(`Response: ${await zendeskWebhookResponse.text()}`);
+      safeLog('error', `Response: ${await zendeskWebhookResponse.text()}`);
       throw new Error('Failed to set Zendesk webhook');
     }
 
@@ -399,10 +375,11 @@ async function saveZendeskCredentials(
 
     if (!zendeskTriggerResponse.ok) {
       // If the response status is not OK, log the status and the response text
-      logger.error(
+      safeLog(
+        'error',
         `Zendesk Trigger API failed with status: ${zendeskTriggerResponse.status}`
       );
-      logger.error(`Response: ${await zendeskTriggerResponse.text()}`);
+      safeLog('error', `Response: ${await zendeskTriggerResponse.text()}`);
       throw new Error('Failed to set Zendesk trigger');
     }
 
@@ -411,7 +388,7 @@ async function saveZendeskCredentials(
       (await zendeskTriggerResponse.json()) as ZendeskResponse;
     zendeskTriggerId = triggerResponseJson.trigger.id ?? null;
   } catch (error) {
-    logger.error(error);
+    safeLog('error', error);
     throw error;
   }
 
@@ -450,19 +427,15 @@ async function saveZendeskCredentials(
 
     const slackUserId = payload.user?.id;
     if (slackUserId) {
-      await handleAppHomeOpened(slackUserId, connection, db, env, key, logger);
+      await handleAppHomeOpened(slackUserId, connection, db, env, key);
     }
   } catch (error) {
-    logger.error(error);
+    safeLog('error', error);
     throw error;
   }
 }
 
-async function openSlackModal(
-  body: any,
-  connection: SlackConnection,
-  logger: EdgeWithExecutionContext
-) {
+async function openSlackModal(body: any, connection: SlackConnection) {
   const response = await fetch('https://slack.com/api/views.open', {
     method: 'POST',
     headers: {
@@ -475,7 +448,7 @@ async function openSlackModal(
   const responseData = (await response.json()) as SlackResponse;
 
   if (!responseData.ok) {
-    console.error('Error opening modal:', responseData);
+    safeLog('error', 'Error opening modal:', responseData);
     throw new Error(`Error opening modal: ${JSON.stringify(responseData)}`);
   }
 }
@@ -484,20 +457,22 @@ async function openAccountSettings(
   payload: any,
   connection: SlackConnection,
   env: Env,
-  logger: EdgeWithExecutionContext,
   db: NeonHttpDatabase<typeof schema>
 ) {
   const triggerId = payload.trigger_id;
 
   if (!triggerId) {
-    logger.warn('No trigger_id found in payload');
+    safeLog('warn', 'No trigger_id found in payload');
     return;
   }
 
   try {
     // TODO: - handle this more gracefully on the client
     if (!connection.stripeCustomerId) {
-      logger.warn('No stripeCustomerId found in connection');
+      safeLog(
+        'error',
+        `No stripeCustomerId found in connection ${connection.id}`
+      );
       throw new Error('No stripe customer found in connection');
     }
 
@@ -530,7 +505,7 @@ async function openAccountSettings(
 
     const portalUrl = session.url;
     if (!portalUrl) {
-      logger.warn('No portal URL found');
+      safeLog('error', 'No portal URL found');
       throw new Error('No portal URL found');
     }
 
@@ -586,9 +561,9 @@ async function openAccountSettings(
       }
     });
 
-    await openSlackModal(body, connection, logger);
+    await openSlackModal(body, connection);
   } catch (error) {
-    logger.error(`Error in openBillingPortal: ${error}`);
+    safeLog('error', `Error in openBillingPortal: ${error}`);
     throw error;
   }
 }
@@ -598,13 +573,12 @@ async function openZendeskConfigurationModal(
   connection: SlackConnection,
   db: NeonHttpDatabase<typeof schema>,
   env: Env,
-  key: CryptoKey,
-  logger: EdgeWithExecutionContext
+  key: CryptoKey
 ) {
   const triggerId = payload.trigger_id;
 
   if (!triggerId) {
-    logger.warn('No trigger_id found in payload');
+    safeLog('warn', 'No trigger_id found in payload');
     return;
   }
   try {
@@ -612,7 +586,6 @@ async function openZendeskConfigurationModal(
       connection.id,
       db,
       env,
-      logger,
       key
     );
 
@@ -713,9 +686,9 @@ async function openZendeskConfigurationModal(
       }
     });
 
-    await openSlackModal(body, connection, logger);
+    await openSlackModal(body, connection);
   } catch (error) {
-    logger.error(`Error in openZendeskConfigurationModal: ${error}`);
+    safeLog('error', `Error in openZendeskConfigurationModal: ${error}`);
     throw error;
   }
 }
@@ -724,12 +697,11 @@ async function openChannelConfigurationModal(
   actionId: string,
   payload: any,
   connection: SlackConnection,
-  db: NeonHttpDatabase<typeof schema>,
-  logger: EdgeWithExecutionContext
+  db: NeonHttpDatabase<typeof schema>
 ) {
   const triggerId = payload.trigger_id;
   if (!triggerId) {
-    console.warn('No trigger_id found in payload');
+    safeLog('warn', 'No trigger_id found in payload');
     throw new Error('No trigger_id found in payload');
   }
 
@@ -737,7 +709,7 @@ async function openChannelConfigurationModal(
     // Parse out the channel ID from the payload
     const channelId = actionId.split(':')[1];
     if (!channelId) {
-      console.warn('No channel ID found in action ID');
+      safeLog('error', 'No channel ID found in action ID');
       throw new Error('No channel ID found in action ID');
     }
 
@@ -750,7 +722,7 @@ async function openChannelConfigurationModal(
     });
 
     if (!channelInfo) {
-      console.warn(`No channel found for ID: ${channelId}`);
+      safeLog('error', `No channel found for ID: ${channelId}`);
       throw new Error(`No channel found for ID: ${channelId}`);
     }
 
@@ -856,9 +828,9 @@ async function openChannelConfigurationModal(
       }
     });
 
-    await openSlackModal(body, connection, logger);
+    await openSlackModal(body, connection);
   } catch (error) {
-    console.error(`Error in openChannelConfigurationModal:`, error);
+    safeLog('error', `Error in openChannelConfigurationModal:`, error);
     throw error;
   }
 }
@@ -868,12 +840,14 @@ async function updateChannelConfiguration(
   connection: SlackConnection,
   db: NeonHttpDatabase<typeof schema>,
   key: CryptoKey,
-  env: Env,
-  logger: EdgeWithExecutionContext
+  env: Env
 ) {
   const callbackId = payload.view?.callback_id;
   if (!callbackId) {
-    logger.warn(`No callback_id found in payload: ${JSON.stringify(payload)}`);
+    safeLog(
+      'error',
+      `No callback_id found in payload: ${JSON.stringify(payload)}`
+    );
     throw new Error('No callback_id found in payload');
   }
 
@@ -881,7 +855,7 @@ async function updateChannelConfiguration(
     // Parse out the channel ID from the payload
     const channelId = callbackId.split(':')[1];
     if (!channelId) {
-      logger.warn(`No channel ID found in callback_id: ${callbackId}`);
+      safeLog('error', `No channel ID found in callback_id: ${callbackId}`);
       throw new Error('No channel ID found in callback_id');
     }
 
@@ -960,10 +934,10 @@ async function updateChannelConfiguration(
     // Reload the home view
     const slackUserId = payload.user?.id;
     if (slackUserId) {
-      await handleAppHomeOpened(slackUserId, connection, db, env, key, logger);
+      await handleAppHomeOpened(slackUserId, connection, db, env, key);
     }
   } catch (error) {
-    console.error(`Error updating channel: ${error}`);
+    safeLog('error', `Error updating channel ${callbackId}`, error);
     throw error;
   }
 }

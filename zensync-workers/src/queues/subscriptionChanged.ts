@@ -4,36 +4,33 @@ import * as schema from '@/lib/schema';
 import { slackConnection, channel } from '@/lib/schema';
 import { eq, and, asc, lte, gt, isNull } from 'drizzle-orm';
 import { Env } from '@/interfaces/env.interface';
-import { EdgeWithExecutionContext } from '@logtail/edge/dist/es6/edgeWithExecutionContext';
 import { getChannelsByProductId } from '@/interfaces/products.interface';
+import { safeLog } from '@/lib/logging';
 
 const PENDING_UPGRADE = 'PENDING_UPGRADE';
 
-export async function stripeSubscriptionChanged(
-  requestJson: any,
-  env: Env,
-  logger: EdgeWithExecutionContext
-) {
+export async function stripeSubscriptionChanged(requestJson: any, env: Env) {
+  safeLog('log', 'stripeSubscriptionChanged', requestJson);
+
   try {
     const db = initializeDb(env);
-    await updateChannelStatus(db, requestJson, logger);
+    await updateChannelStatus(db, requestJson);
   } catch (error) {
-    logger.error(error);
+    safeLog('error', error);
     throw error;
   }
 }
 
 async function updateChannelStatus(
   db: NeonHttpDatabase<typeof schema>,
-  requestJson: any,
-  logger: EdgeWithExecutionContext
+  requestJson: any
 ) {
   // Get current Stripe subscription
   const productId = requestJson.productId;
   const subscriptionId = requestJson.subscriptionId;
 
   if (!productId || !subscriptionId) {
-    logger.error('Missing required parameters');
+    safeLog('error', 'Missing required parameters');
     return;
   }
 
@@ -42,7 +39,7 @@ async function updateChannelStatus(
   });
 
   if (!connection) {
-    logger.error('No connection found for subscription');
+    safeLog('error', `No connection found for subscription ${subscriptionId}`);
     return;
   }
 
@@ -57,8 +54,6 @@ async function updateChannelStatus(
     orderBy: [asc(channel.createdAt)]
   });
 
-  logger.info(`All channels: ${JSON.stringify(allChannels, null, 2)}`);
-
   if (allChannels.length > channelLimit) {
     // If there are more channels than the limit
 
@@ -67,30 +62,20 @@ async function updateChannelStatus(
       const safeIndex = Math.min(channelLimit - 1, allChannels.length - 1);
       const lastActiveChannelDate = allChannels[safeIndex].createdAt;
 
-      await activateChannels(db, connection.id, lastActiveChannelDate, logger);
-      await deactivateChannels(
-        db,
-        connection.id,
-        lastActiveChannelDate,
-        logger
-      );
+      await activateChannels(db, connection.id, lastActiveChannelDate);
+      await deactivateChannels(db, connection.id, lastActiveChannelDate);
     }
   } else {
     // If the total number of channels is within the limit, activate all that are pending
-    await activateAllChannels(db, connection.id, logger);
+    await activateAllChannels(db, connection.id);
   }
 }
 
 async function deactivateChannels(
   db: NeonHttpDatabase<typeof schema>,
   connectionId: string,
-  beyondLimit: Date,
-  logger: EdgeWithExecutionContext
+  beyondLimit: Date
 ) {
-  logger.info(`Deactivating channels after ${beyondLimit}`);
-  logger.info(`input data: ${connectionId}, ${beyondLimit}`);
-  logger.info(`getTime: ${beyondLimit.getMilliseconds()}`);
-
   const deactivateChannels = await db
     .update(channel)
     .set({ status: PENDING_UPGRADE, updatedAt: new Date() })
@@ -104,7 +89,8 @@ async function deactivateChannels(
     )
     .returning();
 
-  logger.info(
+  safeLog(
+    'log',
     `Deactivated ${JSON.stringify(deactivateChannels, null, 2)} channels`
   );
 }
@@ -112,10 +98,9 @@ async function deactivateChannels(
 async function activateChannels(
   db: NeonHttpDatabase<typeof schema>,
   connectionId: string,
-  upToLimit: Date,
-  logger: EdgeWithExecutionContext
+  upToLimit: Date
 ) {
-  logger.info(`Activating channels up to ${upToLimit}`);
+  safeLog('log', `Activating channels up to ${upToLimit}`);
 
   const activatedChannels = await db
     .update(channel)
@@ -130,17 +115,17 @@ async function activateChannels(
     )
     .returning();
 
-  logger.info(
+  safeLog(
+    'log',
     `Activated ${JSON.stringify(activatedChannels, null, 2)} channels`
   );
 }
 
 async function activateAllChannels(
   db: NeonHttpDatabase<typeof schema>,
-  connectionId: string,
-  logger: EdgeWithExecutionContext
+  connectionId: string
 ) {
-  logger.info(`Activating all channels`);
+  safeLog('log', `Activating all channels`);
 
   await db
     .update(channel)

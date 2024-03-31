@@ -2,12 +2,11 @@ import { OpenAPIRoute } from '@cloudflare/itty-router-openapi';
 import { initializeDb } from '@/lib/drizzle';
 import { eq } from 'drizzle-orm';
 import { subscription, slackConnection } from '@/lib/schema';
-import { Logtail } from '@logtail/edge';
-import { EdgeWithExecutionContext } from '@logtail/edge/dist/es6/edgeWithExecutionContext';
 import { Env } from '@/interfaces/env.interface';
 import Stripe from 'stripe';
 import { initializePosthog } from '@/lib/posthog';
 import { getChannelsByProductId } from '@/interfaces/products.interface';
+import { safeLog } from '@/lib/logging';
 
 export class StripeEventHandler extends OpenAPIRoute {
   async handle(
@@ -16,11 +15,10 @@ export class StripeEventHandler extends OpenAPIRoute {
     context: any,
     data: Record<string, any>
   ) {
-    // Set up logger right away
-    const baseLogger = new Logtail(env.BETTER_STACK_SOURCE_TOKEN);
-    const logger = baseLogger.withExecutionContext(context);
-
     const body = await request.text();
+
+    safeLog('log', 'Stripe event received:', body);
+
     const stripe = new Stripe(env.STRIPE_API_KEY);
     const sig = request.headers.get('stripe-signature');
 
@@ -35,17 +33,17 @@ export class StripeEventHandler extends OpenAPIRoute {
       // Handle the event
       switch (event.type) {
         case 'customer.subscription.deleted':
-          await updateCustomerSubscription(event.data.object, env, logger);
+          await updateCustomerSubscription(event.data.object, env);
           break;
         case 'customer.subscription.updated':
-          await updateCustomerSubscription(event.data.object, env, logger);
+          await updateCustomerSubscription(event.data.object, env);
           break;
         default:
-          logger.info(`Unhandled event type ${event.type}`);
+          safeLog('log', `Unhandled event type ${event.type}`);
       }
-    } catch (err) {
-      logger.error(`Error constructing Stripe event: ${err}`);
-      return new Response(`Webhook error ${err}`, { status: 400 });
+    } catch (error) {
+      safeLog('error', `Error constructing Stripe event:`, error);
+      return new Response(`Webhook error ${error}`, { status: 400 });
     }
 
     // Return a response to acknowledge receipt of the event
@@ -53,11 +51,7 @@ export class StripeEventHandler extends OpenAPIRoute {
   }
 }
 
-async function updateCustomerSubscription(
-  data: Stripe.Subscription,
-  env: Env,
-  logger: EdgeWithExecutionContext
-) {
+async function updateCustomerSubscription(data: Stripe.Subscription, env: Env) {
   try {
     const subscriptionId = data.id;
     const productId = data.items.data[0].price.product.toString();
@@ -75,15 +69,15 @@ async function updateCustomerSubscription(
       .limit(1);
 
     if (!slackConnectionInfo[0]) {
-      logger.error('Subscription not found');
-      throw new Error('Subscription not found');
+      safeLog('error', `Subscription not found: ${subscriptionId}`);
+      throw new Error(`Subscription not found: ${subscriptionId}`);
     }
 
     const connectionInfo = slackConnectionInfo[0];
     const subscriptionInfo = connectionInfo.subscriptions;
 
     if (subscriptionInfo.updatedAt > new Date(data.created * 1000)) {
-      logger.warn('Out of date subscription event');
+      safeLog('warn', 'Out of date subscription event');
       return;
     }
 
@@ -142,8 +136,8 @@ async function updateCustomerSubscription(
       });
       await posthog.shutdown();
     }
-  } catch (err) {
-    logger.error(`Error updating customer subscription ${err}`);
-    throw new Error(`Error updating customer subscription: ${err}`);
+  } catch (error) {
+    safeLog('error', `Error updating customer subscription:`, error);
+    throw new Error(`Error updating customer subscription: ${error}`);
   }
 }

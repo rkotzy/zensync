@@ -20,13 +20,13 @@ import {
   singleEventAnalyticsLogger
 } from '@/lib/utils';
 import { Env } from '@/interfaces/env.interface';
-import { EdgeWithExecutionContext } from '@logtail/edge/dist/es6/edgeWithExecutionContext';
 import { NeonHttpDatabase } from 'drizzle-orm/neon-http';
 import * as schema from '@/lib/schema';
 import { ZendeskResponse } from '@/interfaces/zendesk-api.interface';
 import { importEncryptionKeyFromEnvironment } from '@/lib/encryption';
 import { getChannelsByProductId } from '@/interfaces/products.interface';
 import Stripe from 'stripe';
+import { safeLog } from '@/lib/logging';
 
 const MISSING_ZENDESK_CREDENTIALS_MESSAGE =
   'Zendesk credentials are missing or inactive. Configure them in the Zensync app settings to start syncing messages.';
@@ -39,7 +39,6 @@ const eventHandlers: Record<
     db: NeonHttpDatabase<typeof schema>,
     env: Env,
     key: CryptoKey,
-    logger: EdgeWithExecutionContext,
     analyticsIdempotencyKey: string | null
   ) => Promise<void>
 > = {
@@ -57,16 +56,12 @@ const eventHandlers: Record<
   // Add more event handlers as needed
 };
 
-export async function handleMessageFromSlack(
-  requestJson: any,
-  env: Env,
-  logger: EdgeWithExecutionContext
-) {
+export async function handleMessageFromSlack(requestJson: any, env: Env) {
   const requestBody = requestJson.eventBody;
   const connectionDetails = requestJson.connectionDetails;
   const analyticsIdempotencyKey = requestJson.idempotencyKey || null;
   if (!connectionDetails) {
-    logger.error('No connection details found');
+    safeLog('error', 'No connection details found in request:', requestJson);
     return;
   }
 
@@ -84,11 +79,10 @@ export async function handleMessageFromSlack(
         db,
         env,
         encryptionKey,
-        logger,
         analyticsIdempotencyKey
       );
     } catch (error) {
-      logger.error(`Error handling ${eventSubtype} subtype event:`, error);
+      safeLog('error', `Error handling ${eventSubtype} subtype event:`, error);
       throw new Error(`Error handling ${eventSubtype} event`);
     }
   } else if (eventType && eventHandlers[eventType]) {
@@ -99,15 +93,14 @@ export async function handleMessageFromSlack(
         db,
         env,
         encryptionKey,
-        logger,
         analyticsIdempotencyKey
       );
     } catch (error) {
-      logger.error(`Error handling ${eventType} event:`, error);
+      safeLog('error', `Error handling ${eventType} event:`, error);
       throw new Error(`Error handling ${eventSubtype} event`);
     }
   } else {
-    logger.warn(`No handler for event type: ${eventType}`);
+    safeLog('log', `No handler for event type: ${eventType}`);
   }
 }
 
@@ -117,7 +110,6 @@ async function handleChannelJoined(
   db: NeonHttpDatabase<typeof schema>,
   env: Env,
   key: CryptoKey,
-  logger: EdgeWithExecutionContext,
   analyticsIdempotencyKey: string | null
 ) {
   const eventData = request.event;
@@ -150,7 +142,7 @@ async function handleChannelJoined(
     // The +1 is to account for the channel being joined
     if (
       limitedChannels.length + 1 > channelLimit || // More channels than allowed
-      !isSubscriptionActive(connection, logger, env) // Subscription is expired
+      !isSubscriptionActive(connection, env) // Subscription is expired
     ) {
       // Set channel status to PENDING_UPGRADE
       channelStatus = 'PENDING_UPGRADE';
@@ -162,8 +154,7 @@ async function handleChannelJoined(
           channelId,
           inviterUserId,
           connection,
-          env,
-          logger
+          env
         );
       }
     }
@@ -175,7 +166,6 @@ async function handleChannelJoined(
       connection.id,
       db,
       env,
-      logger,
       key
     );
 
@@ -185,8 +175,7 @@ async function handleChannelJoined(
         eventData.user,
         MISSING_ZENDESK_CREDENTIALS_MESSAGE,
         connection,
-        env,
-        logger
+        env
       );
     }
 
@@ -208,13 +197,15 @@ async function handleChannelJoined(
       (await channelJoinResponse.json()) as SlackResponse;
 
     if (!channelJoinResponseData.ok) {
-      logger.warn(
-        `Failed to fetch channel info: ${channelJoinResponse.statusText}`
+      safeLog(
+        'error',
+        `Failed to fetch channel info:`,
+        channelJoinResponseData
       );
       throw new Error('Failed to fetch channel info');
     }
 
-    const channelType = getChannelType(channelJoinResponseData.channel, logger);
+    const channelType = getChannelType(channelJoinResponseData.channel);
     const channelName = channelJoinResponseData.channel?.name;
 
     const isShared =
@@ -257,7 +248,7 @@ async function handleChannelJoined(
       null
     );
   } catch (error) {
-    logger.error('Error saving channel to database:', error);
+    safeLog('error', 'Error saving channel to database:', error);
     throw error;
   }
 }
@@ -267,8 +258,7 @@ async function postEphemeralMessage(
   userId: string,
   text: string,
   connection: SlackConnection,
-  env: Env,
-  logger: EdgeWithExecutionContext
+  env: Env
 ): Promise<void> {
   const postEphemeralParams = new URLSearchParams({
     channel: channelId,
@@ -288,9 +278,7 @@ async function postEphemeralMessage(
   );
 
   if (!ephemeralResponse.ok) {
-    logger.error(
-      `Failed to post ephemeral message: ${ephemeralResponse.statusText}`
-    );
+    safeLog('error', `Failed to post ephemeral message:`, ephemeralResponse);
     // We don't throw here since it's not critical if message isn't sent
   }
 }
@@ -299,8 +287,7 @@ async function postUpgradeEphemeralMessage(
   channelId: string,
   userId: string,
   connection: SlackConnection,
-  env: Env,
-  logger: EdgeWithExecutionContext
+  env: Env
 ): Promise<void> {
   // Post a ephemeral message to the user in the channel
   // to inform them that the channel limit has been reached
@@ -332,17 +319,13 @@ async function postUpgradeEphemeralMessage(
     userId,
     ephemeralMessageText,
     connection,
-    env,
-    logger
+    env
   );
 }
 
-function getChannelType(
-  channelData: any,
-  logger: EdgeWithExecutionContext
-): string | null {
+function getChannelType(channelData: any): string | null {
   if (typeof channelData !== 'object' || channelData === null) {
-    logger.warn('Invalid or undefined channel data received:', channelData);
+    safeLog('warn', 'Invalid or undefined channel data received:', channelData);
     return null;
   }
 
@@ -356,7 +339,7 @@ function getChannelType(
     return 'GROUP_DM';
   }
 
-  logger.warn(`Unkonwn channel type: ${channelData}`);
+  safeLog('warn', `Unkonwn channel type: ${channelData}`);
   return null;
 }
 
@@ -366,7 +349,6 @@ async function handleChannelLeft(
   db: NeonHttpDatabase<typeof schema>,
   env: Env,
   key: CryptoKey,
-  logger: EdgeWithExecutionContext,
   analyticsIdempotencyKey: string | null
 ) {
   const eventData = request.event;
@@ -398,7 +380,7 @@ async function handleChannelLeft(
       null
     );
   } catch (error) {
-    logger.error(`Error archiving channel in database: ${error}`);
+    safeLog('error', `Error archiving channel in database:`, error);
     throw error;
   }
 }
@@ -409,7 +391,6 @@ async function handleChannelUnarchive(
   db: NeonHttpDatabase<typeof schema>,
   env: Env,
   key: CryptoKey,
-  logger: EdgeWithExecutionContext,
   analyticsIdempotencyKey: string | null
 ) {
   const eventData = request.event;
@@ -444,7 +425,7 @@ async function handleChannelUnarchive(
       null
     );
   } catch (error) {
-    logger.error(`Error unarchiving channel in database: ${error}`);
+    safeLog('error', `Error unarchiving channel in database:`, error);
     throw error;
   }
 }
@@ -454,8 +435,7 @@ async function handleChannelNameChanged(
   connection: SlackConnection,
   db: NeonHttpDatabase<typeof schema>,
   env: Env,
-  key: CryptoKey,
-  logger: EdgeWithExecutionContext
+  key: CryptoKey
 ) {
   const eventData = request.event;
 
@@ -473,7 +453,7 @@ async function handleChannelNameChanged(
         )
       );
   } catch (error) {
-    logger.error(`Error updating channel name in database: ${error}`);
+    safeLog('error', `Error updating channel name in database:`, error);
     throw error;
   }
 }
@@ -483,8 +463,7 @@ async function handleChannelIdChanged(
   connection: SlackConnection,
   db: NeonHttpDatabase<typeof schema>,
   env: Env,
-  key: CryptoKey,
-  logger: EdgeWithExecutionContext
+  key: CryptoKey
 ) {
   const eventData = request.event;
 
@@ -502,7 +481,7 @@ async function handleChannelIdChanged(
         )
       );
   } catch (error) {
-    logger.error(`Error updating channel Id in database: ${error}`);
+    safeLog('error', `Error updating channel Id in database`, error);
     throw error;
   }
 }
@@ -513,7 +492,6 @@ async function handleFileUpload(
   db: NeonHttpDatabase<typeof schema>,
   env: Env,
   key: CryptoKey,
-  logger: EdgeWithExecutionContext,
   analyticsIdempotencyKey: string | null
 ) {
   if (request.zendeskFileTokens) {
@@ -523,24 +501,22 @@ async function handleFileUpload(
       db,
       env,
       key,
-      logger,
       analyticsIdempotencyKey
     );
   } else {
-    logger.warn('Need to handle file fallback');
+    safeLog('log', 'Need to handle file fallback');
 
     const files = request.event.files;
 
     // Check if there are files
     if (!files || files.length === 0) {
-      logger.warn('No files found in fallback');
+      safeLog('warn', 'No files found in fallback');
       return await handleMessage(
         request,
         connection,
         db,
         env,
         key,
-        logger,
         analyticsIdempotencyKey
       );
     }
@@ -563,7 +539,6 @@ async function handleFileUpload(
       db,
       env,
       key,
-      logger,
       analyticsIdempotencyKey
     );
   }
@@ -575,12 +550,11 @@ async function handleMessageEdit(
   db: NeonHttpDatabase<typeof schema>,
   env: Env,
   key: CryptoKey,
-  logger: EdgeWithExecutionContext,
   analyticsIdempotencyKey: string | null
 ) {
   // TODO: - I can do this check in the event handler to avoid a worker call
   if (request.event?.message?.text === request.event?.previous_message?.text) {
-    logger.info('Message edit was not a change to text, ignoring');
+    safeLog('log', 'Message edit was not a change to text, ignoring');
     return;
   } else if (request.event?.message) {
     // Merge the message data into the event object
@@ -603,7 +577,7 @@ async function handleMessageEdit(
         null
       );
     } catch (error) {
-      logger.error(`Analytics logging error: ${error}`);
+      safeLog('error', `Analytics logging error:`, error);
     }
 
     // Since files can't be added/removed in an edit, we can just use the message handler
@@ -613,11 +587,10 @@ async function handleMessageEdit(
       db,
       env,
       key,
-      logger,
       analyticsIdempotencyKey
     );
   } else {
-    logger.warn(`Unhandled message edit type: ${request}`);
+    safeLog('warn', `Unhandled message edit type:`, request);
     return;
   }
 }
@@ -628,7 +601,6 @@ async function handleMessageDeleted(
   db: NeonHttpDatabase<typeof schema>,
   env: Env,
   key: CryptoKey,
-  logger: EdgeWithExecutionContext,
   analyticsIdempotencyKey: string | null
 ) {
   if (request.event?.previous_message) {
@@ -658,7 +630,7 @@ async function handleMessageDeleted(
         null
       );
     } catch (error) {
-      logger.error(`Analytics logging error: ${error}`);
+      safeLog('error', `Analytics logging error:`, error);
     }
 
     return await handleMessage(
@@ -667,13 +639,12 @@ async function handleMessageDeleted(
       db,
       env,
       key,
-      logger,
       analyticsIdempotencyKey,
       false,
       status
     );
   } else {
-    logger.warn(`Unhandled message deletion: ${request}`);
+    safeLog('warn', `Unhandled message deletion:`, request);
     return;
   }
 }
@@ -684,7 +655,6 @@ async function handleMessage(
   db: NeonHttpDatabase<typeof schema>,
   env: Env,
   key: CryptoKey,
-  logger: EdgeWithExecutionContext,
   analyticsIdempotencyKey: string | null,
   isPublic: boolean = true,
   status: string = 'open'
@@ -698,7 +668,7 @@ async function handleMessage(
   // Build the message data interface
   const messageData = request.event as SlackMessageData;
   if (!messageData || messageData.type !== 'message') {
-    logger.error('Invalid message payload');
+    safeLog('error', 'Invalid message payload', request);
     return;
   }
 
@@ -712,15 +682,15 @@ async function handleMessage(
       connection.id,
       db,
       env,
-      logger,
       key
     );
   } catch (error) {
-    logger.error(error);
+    safeLog('error', error);
     throw new Error('Error fetching Zendesk credentials');
   }
   if (!zendeskCredentials) {
-    logger.error(
+    safeLog(
+      'log',
       `No Zendesk credentials found for slack connection: ${connection.id}`
     );
     return;
@@ -732,15 +702,14 @@ async function handleMessage(
     zendeskUserId = await getOrCreateZendeskUser(
       connection,
       zendeskCredentials,
-      messageData,
-      logger
+      messageData
     );
   } catch (error) {
-    logger.error(`Error getting or creating Zendesk user: ${error}`);
+    safeLog('error', `Error getting or creating Zendesk user:`, error);
     throw error;
   }
   if (!zendeskUserId) {
-    logger.error('No Zendesk user ID');
+    safeLog('error', 'No Zendesk user ID');
     throw new Error('No Zendesk user ID');
   }
 
@@ -754,7 +723,6 @@ async function handleMessage(
         zendeskCredentials,
         connection,
         db,
-        logger,
         env,
         messageData.channel,
         parentMessageId ?? messageData.ts,
@@ -765,7 +733,7 @@ async function handleMessage(
         analyticsIdempotencyKey
       );
     } catch (error) {
-      logger.error(`Error handling thread reply: ${error}`);
+      safeLog('error', `Error handling thread reply:`, error);
       throw error;
     }
     return;
@@ -785,7 +753,6 @@ async function handleMessage(
       zendeskCredentials,
       connection,
       db,
-      logger,
       env,
       messageData.channel,
       zendeskUserId,
@@ -794,7 +761,7 @@ async function handleMessage(
       analyticsIdempotencyKey
     );
   } catch (error) {
-    logger.error(`Error creating new conversation: ${error}`);
+    safeLog('error', `Error creating new conversation:`, error);
     throw error;
   }
 }
@@ -817,8 +784,7 @@ async function sameSenderConversationId(): Promise<string | null> {
 async function getOrCreateZendeskUser(
   slackConnection: SlackConnection,
   zendeskCredentials: ZendeskConnection,
-  messageData: SlackMessageData,
-  logger: EdgeWithExecutionContext
+  messageData: SlackMessageData
 ): Promise<number | undefined> {
   const zendeskAuthToken = btoa(
     `${zendeskCredentials.zendeskEmail}/token:${zendeskCredentials.zendeskApiKey}`
@@ -827,15 +793,14 @@ async function getOrCreateZendeskUser(
   const slackChannelId = messageData.channel;
 
   if (!messageData.user) {
-    logger.error(`No slack user found: ${messageData}`);
+    safeLog('error', `No slack user found:`, messageData);
     throw new Error('No message user found');
   }
 
   try {
     const { username, imageUrl } = await getSlackUser(
       slackConnection,
-      messageData.user,
-      logger
+      messageData.user
     );
 
     const zendeskUserData = {
@@ -867,7 +832,7 @@ async function getOrCreateZendeskUser(
 
     return responseData.user.id;
   } catch (error) {
-    logger.error(`Error creating or updating user: ${error}`);
+    safeLog('error', `Error creating or updating user:`, error);
     throw error;
   }
 }
@@ -885,8 +850,7 @@ function extractProfileImageUrls(slackImageUrl: string): {
 
 async function getSlackUser(
   connection: SlackConnection,
-  userId: string,
-  logger: EdgeWithExecutionContext
+  userId: string
 ): Promise<{ username: string | undefined; imageUrl: string }> {
   try {
     const response = await fetch(
@@ -918,7 +882,7 @@ async function getSlackUser(
     const imageUrl = slackUrl || gravatarUrl;
     return { username, imageUrl };
   } catch (error) {
-    logger.error(`Error in getSlackUser: ${error}`);
+    safeLog('error', `Error in getSlackUser:`, error);
     throw error;
   }
 }
@@ -928,7 +892,6 @@ async function handleThreadReply(
   zendeskCredentials: ZendeskConnection,
   slackConnectionInfo: SlackConnection,
   db: NeonHttpDatabase<typeof schema>,
-  logger: EdgeWithExecutionContext,
   env: Env,
   channelId: string,
   slackParentMessageId: string,
@@ -961,13 +924,12 @@ async function handleThreadReply(
     !conversationInfo[0].zendeskTicketId ||
     !conversationInfo[0].id
   ) {
-    logger.error('No conversation found, creating new ticket');
+    safeLog('log', 'No conversation found, creating new ticket');
     return await handleNewConversation(
       messageData,
       zendeskCredentials,
       slackConnectionInfo,
       db,
-      logger,
       env,
       channelId,
       authorId,
@@ -1035,7 +997,6 @@ async function handleThreadReply(
         zendeskCredentials,
         slackConnectionInfo,
         db,
-        logger,
         env,
         messageData.channel,
         authorId,
@@ -1060,7 +1021,7 @@ async function handleThreadReply(
         .where(eq(conversation.id, conversationId));
 
       // Update the channel activity
-      await updateChannelActivity(slackConnectionInfo, channelId, db, logger);
+      await updateChannelActivity(slackConnectionInfo, channelId, db);
 
       await singleEventAnalyticsLogger(
         messageData.user,
@@ -1078,7 +1039,7 @@ async function handleThreadReply(
         null
       );
     } catch (error) {
-      logger.error(`Error updating conversation in database: ${error}`);
+      safeLog('error', `Error updating conversation in database:`, error);
       throw new Error('Error updating conversation in database');
     }
   }
@@ -1103,7 +1064,6 @@ async function handleNewConversation(
   zendeskCredentials: ZendeskConnection,
   slackConnectionInfo: SlackConnection,
   db: NeonHttpDatabase<typeof schema>,
-  logger: EdgeWithExecutionContext,
   env: Env,
   channelId: string,
   authorId: number,
@@ -1116,21 +1076,20 @@ async function handleNewConversation(
   const channelInfo = await getChannelInfo(
     channelId,
     slackConnectionInfo.id,
-    db,
-    logger
+    db
   );
 
   if (!channelInfo) {
-    logger.warn(`No channel found: ${channelId}`);
+    safeLog('error', `No channel found for ${channelId}`);
     throw new Error(`No channel found`);
   }
 
   if (!channelInfo.name) {
-    logger.warn(`No channel name found, continuing: ${channelInfo}`);
+    safeLog('warn', `No channel name found, continuing: ${channelInfo}`);
   }
 
   if (!isChannelEligibleForMessaging(channelInfo)) {
-    logger.warn(`Channel is not eligible for messaging: ${channelInfo}`);
+    safeLog('log', `Channel is not eligible for messaging: ${channelInfo}`);
     return;
   }
 
@@ -1216,12 +1175,12 @@ async function handleNewConversation(
       null
     );
   } catch (error) {
-    logger.error('Error creating ticket: ', error);
+    safeLog('error', 'Error creating ticket: ', error);
     throw error;
   }
 
   if (!ticketId) {
-    logger.error('No ticket ID');
+    safeLog('error', 'No ticket ID in payload');
     throw new Error('No ticket ID');
   }
 
@@ -1237,8 +1196,8 @@ async function handleNewConversation(
         })
         .where(eq(conversation.id, conversationUuid));
     } catch (error) {
-      logger.error(`Error updating conversation: ${error}`);
-      logger.error('Failed payload:', {
+      safeLog('error', `Error updating conversation:`, error);
+      safeLog('error', 'Failed payload:', {
         zendeskTicketId: ticketId,
         latestSlackMessageId: messageData.ts
       });
@@ -1254,8 +1213,8 @@ async function handleNewConversation(
         latestSlackMessageId: messageData.ts
       });
     } catch (error) {
-      logger.error(`Error creating conversation: ${error}`);
-      logger.error('Failed payload:', {
+      safeLog('error', `Error creating conversation:`, error);
+      safeLog('error', 'Failed payload:', {
         id: conversationUuid,
         channelId: channelInfo.id,
         slackParentMessageId: messageData.ts,
@@ -1268,9 +1227,9 @@ async function handleNewConversation(
 
   // Update the channel activity
   try {
-    await updateChannelActivity(slackConnectionInfo, channelId, db, logger);
+    await updateChannelActivity(slackConnectionInfo, channelId, db);
   } catch (error) {
-    logger.error(`Error updating channel activity: ${error}`);
+    safeLog('error', `Error updating channel activity:`, error);
     throw error;
   }
 }

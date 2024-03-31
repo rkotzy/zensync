@@ -9,12 +9,12 @@ import {
 } from '@/lib/schema';
 import * as schema from '@/lib/schema';
 import { NeonHttpDatabase } from 'drizzle-orm/neon-http';
-import { EdgeWithExecutionContext } from '@logtail/edge/dist/es6/edgeWithExecutionContext';
 import { Env } from '@/interfaces/env.interface';
 import { decryptData, importEncryptionKeyFromEnvironment } from './encryption';
 import Stripe from 'stripe';
 import { PostHog } from 'posthog-node';
 import { initializePosthog } from './posthog';
+import { safeLog } from './logging';
 
 export enum InteractivityActionId {
   // Zendesk modal details
@@ -133,7 +133,6 @@ export async function fetchZendeskCredentials(
   slackConnectionId: string,
   db: NeonHttpDatabase<typeof schema>,
   env: Env,
-  logger: EdgeWithExecutionContext,
   key?: CryptoKey
 ): Promise<ZendeskConnection | null | undefined> {
   try {
@@ -145,7 +144,8 @@ export async function fetchZendeskCredentials(
     const encryptedZendeskApiKey = zendeskCredentials?.encryptedZendeskApiKey;
 
     if (!zendeskDomain || !zendeskEmail || !encryptedZendeskApiKey) {
-      logger.error(
+      safeLog(
+        'log',
         `No Zendesk credentials found for slack connection ${slackConnectionId}`
       );
       return null;
@@ -165,7 +165,7 @@ export async function fetchZendeskCredentials(
       zendeskApiKey: decryptedApiKey
     };
   } catch (error) {
-    logger.error(`Error querying ZendeskConnections: ${error}`);
+    safeLog('error', `Error querying ZendeskConnections: ${error}`);
     return undefined;
   }
 }
@@ -174,11 +174,10 @@ export async function findSlackConnectionByAppId(
   appId: string | undefined,
   db: NeonHttpDatabase<typeof schema>,
   env: Env,
-  logger: EdgeWithExecutionContext,
   key?: CryptoKey
 ): Promise<SlackConnection | null | undefined> {
   if (!appId) {
-    logger.error('No api_app_id found');
+    safeLog('error', 'No api_app_id found');
     return undefined;
   }
 
@@ -205,7 +204,7 @@ export async function findSlackConnectionByAppId(
 
     return null;
   } catch (error) {
-    logger.error(`Error querying SlackConnections: ${error}`);
+    safeLog('error', error);
     return undefined;
   }
 }
@@ -214,7 +213,6 @@ export async function getSlackConnection(
   connectionId: string,
   db: NeonHttpDatabase<typeof schema>,
   env: Env,
-  logger: EdgeWithExecutionContext,
   key?: CryptoKey
 ): Promise<SlackConnection | null | undefined> {
   try {
@@ -237,20 +235,18 @@ export async function getSlackConnection(
 
     return null;
   } catch (error) {
-    logger.error(`Error finding SlackConnection: ${error}`);
+    safeLog('error', `Error finding SlackConnection: ${error}`);
     return undefined;
   }
 }
 
 export function isSubscriptionActive(
   connection: SlackConnection,
-  logger: EdgeWithExecutionContext,
   env: Env
 ): boolean {
   if (!connection.subscription?.periodEnd) {
-    logger.error('periodEnd is missing');
+    safeLog('error', `periodEnd is missing for connection ${connection.id}`);
     return true; // Assuming missing data or configuration should be treated as active
-    // TODO: Consider logging in Sentry to troubleshoot
   }
 
   const periodEnd = connection.subscription.periodEnd;
@@ -266,8 +262,7 @@ export function isSubscriptionActive(
 export async function getChannelInfo(
   channelId: string,
   slackConnectionId: string,
-  db: NeonHttpDatabase<typeof schema>,
-  logger: EdgeWithExecutionContext
+  db: NeonHttpDatabase<typeof schema>
 ): Promise<Channel | null | undefined> {
   try {
     const channelInfo = await db.query.channel.findFirst({
@@ -279,7 +274,7 @@ export async function getChannelInfo(
 
     return channelInfo;
   } catch (error) {
-    logger.error('Error getting channel info:', error);
+    safeLog('error', `Error getting channel info for ${channelId}`, error);
     return undefined;
   }
 }
@@ -291,8 +286,7 @@ export function isChannelEligibleForMessaging(channel: Channel): boolean {
 export async function updateChannelActivity(
   slackConnection: SlackConnection,
   channelId: string,
-  db: NeonHttpDatabase<typeof schema>,
-  logger: EdgeWithExecutionContext
+  db: NeonHttpDatabase<typeof schema>
 ): Promise<void> {
   const now = new Date();
 
@@ -314,8 +308,7 @@ export async function createStripeAccount(
   name: string,
   email: string | undefined,
   env: Env,
-  idempotencyKey: string,
-  logger: EdgeWithExecutionContext
+  idempotencyKey: string
 ): Promise<{
   customerId: string;
   subscriptionId: string;
@@ -342,7 +335,10 @@ export async function createStripeAccount(
     );
 
     if (!customer || !subscription) {
-      logger.error('Empty objects creating Stripe account');
+      safeLog(
+        'error',
+        `Empty objects creating Stripe account ${name}, ${email}`
+      );
       return undefined;
     }
 
@@ -353,7 +349,7 @@ export async function createStripeAccount(
       currentPeriodStart: subscription.current_period_start
     };
   } catch (error) {
-    logger.error('Error creating Stripe account:', error);
+    safeLog('error', 'Error creating Stripe account:', error);
     return undefined;
   }
 }

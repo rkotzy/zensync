@@ -4,27 +4,25 @@ import { ZendeskConnection, SlackConnection } from '@/lib/schema';
 import { fetchZendeskCredentials } from '@/lib/utils';
 import { initializeDb } from '@/lib/drizzle';
 import { Env } from '@/interfaces/env.interface';
-import { EdgeWithExecutionContext } from '@logtail/edge/dist/es6/edgeWithExecutionContext';
 import { Buffer } from 'node:buffer';
+import { safeLog } from '@/lib/logging';
 
-export async function uploadFilesToZendesk(
-  requestJson: any,
-  env: Env,
-  logger: EdgeWithExecutionContext
-) {
+export async function uploadFilesToZendesk(requestJson: any, env: Env) {
+  safeLog('log', 'uploadFilesToZendesk', requestJson);
+
   let responseJson = requestJson;
 
   const slackRequestBody = requestJson.eventBody;
   const connectionDetails: SlackConnection = requestJson.connectionDetails;
   if (!connectionDetails) {
-    logger.error('No connection details found');
+    safeLog('error', 'No connection details found');
     return;
   }
 
   // Handle an array of files here
   const slackFiles = slackRequestBody.event?.files || [];
   if (slackFiles.length === 0) {
-    logger.error('No file objects found in request body');
+    safeLog('error', 'No file objects found in request body');
     return;
   }
 
@@ -36,18 +34,18 @@ export async function uploadFilesToZendesk(
     zendeskCredentials = await fetchZendeskCredentials(
       connectionDetails.id,
       db,
-      env,
-      logger
+      env
     );
   } catch (error) {
-    logger.error(error);
+    safeLog('error', error);
     throw new Error('Error fetching Zendesk credentials');
   }
   if (!zendeskCredentials) {
-    logger.error(
+    safeLog(
+      'log',
       `No Zendesk credentials found for slack connection: ${connectionDetails.id}`
     );
-    throw new Error('No Zendesk credentials found');
+    return;
   }
 
   // Array to hold upload tokens for each file
@@ -57,11 +55,7 @@ export async function uploadFilesToZendesk(
     // Fetch Slack Connect file if needed
     // https://api.slack.com/apis/channels-between-orgs#check_file_info
     if (slackFile.id && slackFile.file_access === 'check_file_info') {
-      slackFile = await getFileInfoFromSlack(
-        connectionDetails,
-        slackFile.id,
-        logger
-      );
+      slackFile = await getFileInfoFromSlack(connectionDetails, slackFile.id);
     }
 
     // Upload the file to Zendesk
@@ -72,17 +66,17 @@ export async function uploadFilesToZendesk(
         slackFile.name,
         slackFile.mimetype,
         zendeskCredentials,
-        connectionDetails,
-        logger
+        connectionDetails
       );
     } catch (error) {
-      logger.error(error);
+      safeLog('error', error);
       throw new Error('Error uploading file to Zendesk');
     }
 
     // We intentionally fail here if a single upload token is missing and try them all again
+    // It's easier to retry all uploads than to track which ones failed
     if (!uploadToken) {
-      logger.error('No upload token found');
+      safeLog('error', 'No upload token found');
       throw new Error('No upload token found');
     }
 
@@ -95,7 +89,7 @@ export async function uploadFilesToZendesk(
   try {
     await env.PROCESS_SLACK_MESSAGES_QUEUE_BINDING.send(responseJson);
   } catch (error) {
-    logger.error('Error publishing to queue:', error);
+    safeLog('error', 'Error publishing to message processing queue:', error);
     throw new Error('Error publishing to queue');
   }
 }
@@ -106,8 +100,7 @@ async function uploadFileFromUrlToZendesk(
   fileName: string,
   mimetype: string,
   zendeskCredentials: ZendeskConnection,
-  slackCredentials: SlackConnection,
-  logger: EdgeWithExecutionContext
+  slackCredentials: SlackConnection
 ): Promise<string> {
   const fileResponse = await fetch(fileUrl, {
     method: 'GET',
@@ -139,8 +132,8 @@ async function uploadFileFromUrlToZendesk(
   });
 
   if (!response.ok) {
-    logger.error(`Failed to upload to Zendesk: ${await response.text()}`);
-    throw new Error(`Failed to upload to Zendesk: ${response}`);
+    safeLog('error', `Failed to upload to Zendesk:`, response);
+    throw new Error(`Failed to upload to Zendesk`);
   }
 
   const data = (await response.json()) as ZendeskResponse;
@@ -149,8 +142,7 @@ async function uploadFileFromUrlToZendesk(
 
 async function getFileInfoFromSlack(
   slackConnection: SlackConnection,
-  fileId: string,
-  logger: EdgeWithExecutionContext
+  fileId: string
 ): Promise<any> {
   try {
     const response = await fetch(
@@ -167,12 +159,12 @@ async function getFileInfoFromSlack(
     const responseData = (await response.json()) as SlackResponse;
 
     if (!responseData.ok) {
-      logger.error(`Error getting Slack file info: ${responseData.error}`);
+      safeLog('error', `Error getting Slack file info:`, responseData);
       throw new Error(`Error getting Slack file info: ${responseData.error}`);
     }
     return responseData.file;
   } catch (error) {
-    logger.error(`Error in getFileInfoFromSlack: ${error}`);
+    safeLog('error', `Error in getFileInfoFromSlack:`, error);
     throw error;
   }
 }

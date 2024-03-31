@@ -7,6 +7,7 @@ import { Env } from '@/interfaces/env.interface';
 import { initializeDb } from '@/lib/drizzle';
 import { eq } from 'drizzle-orm';
 import { subscription } from '@/lib/schema';
+import { safeLog } from '@/lib/logging';
 
 export class SyncSubscriptionHandler extends OpenAPIRoute {
   static schema: OpenAPIRouteSchema = {
@@ -24,7 +25,7 @@ export class SyncSubscriptionHandler extends OpenAPIRoute {
       const url = new URL(request.url);
       const subscriptionId = url.searchParams.get('subscription_id');
       if (!subscriptionId) {
-        console.error('Missing required parameters');
+        safeLog('error', 'Missing required parameters');
         return new Response('Missing required parameters', { status: 400 });
       }
 
@@ -35,13 +36,13 @@ export class SyncSubscriptionHandler extends OpenAPIRoute {
       });
 
       if (!subscriptionInfo) {
-        console.error('No subscription found');
+        safeLog('error', 'No subscription found');
         return new Response('No subscription found', { status: 404 });
       }
       const productId = subscriptionInfo.stripeProductId;
 
       if (!productId) {
-        console.error('No product found');
+        safeLog('error', 'No product found');
         return new Response('No product found', { status: 404 });
       }
 
@@ -53,7 +54,7 @@ export class SyncSubscriptionHandler extends OpenAPIRoute {
 
       return new Response('Ok', { status: 200 });
     } catch (error) {
-      console.error(`Error syncing subscription: ${error}`);
+      safeLog('error', `Error syncing subscription: ${error}`);
       return new Response('Error syncing subscription', { status: 500 });
     }
   }

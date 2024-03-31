@@ -282,8 +282,6 @@ function stripSignatureFromMessage(
   message: string | undefined | null,
   signature: string | undefined | null
 ): string {
-  safeLog('log', 'message:', message);
-  safeLog('log', 'signature:', signature);
   // Return the original message if it exists, otherwise return an empty string
   if (!message) {
     return '';

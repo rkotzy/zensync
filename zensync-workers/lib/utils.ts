@@ -217,7 +217,10 @@ export async function getSlackConnection(
 ): Promise<SlackConnection | null | undefined> {
   try {
     const connection = await db.query.slackConnection.findFirst({
-      where: eq(slackConnection.id, connectionId)
+      where: eq(slackConnection.id, connectionId),
+      with: {
+        subscription: true
+      }
     });
 
     if (connection) {

@@ -47,13 +47,12 @@ export class ZendeskEventHandler extends OpenAPIRoute {
       return new Response('Missing last_updated_at', { status: 400 });
     }
 
-    // Ignore messages if last_updated_at === created_at
-    // TODO: - This would ignore messages sent in same minute. Can we store a base64 string instead?
-    // Should log in Sentry probably?
-    if (requestBody.last_updated_at === requestBody.created_at) {
-      safeLog('log', 'Message is not an update, skipping');
-      return new Response('Ok', { status: 200 });
-    }
+    // // Ignore messages if last_updated_at === created_at
+    // // TODO: - This would ignore messages sent in same minute. Can we store a hash / etag instead?
+    // if (requestBody.last_updated_at === requestBody.created_at) {
+    //   safeLog('log', 'Message is not an update, skipping');
+    //   return new Response('Ok', { status: 200 });
+    // }
 
     // Authenticate the request and get slack connection Id
     const slackConnectionId = await authenticateRequest(request, db);

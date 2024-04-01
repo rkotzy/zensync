@@ -37,6 +37,12 @@ export class ZendeskEventHandler extends OpenAPIRoute {
       return new Response('Ok', { status: 200 });
     }
 
+    // Ignore messages from ticket merges
+    if (isFromTicketMerge(requestBody.message)) {
+      safeLog('log', 'Message matches ticket merge, skipping');
+      return new Response('Ok', { status: 200 });
+    }
+
     // Authenticate the request and get slack connection Id
     const slackConnectionId = await authenticateRequest(request, db);
     if (!slackConnectionId) {
@@ -286,4 +292,12 @@ function isFromZensync(requestBody: any): boolean {
     (typeof requestBody.message === 'string' &&
       requestBody.message.endsWith('_(View in Slack)_'))
   );
+}
+
+function isFromTicketMerge(input: string | null | undefined): boolean {
+  if (!input) {
+    return false;
+  }
+  const regex = /^Requests (.+) were closed and merged into this request.$/;
+  return regex.test(input);
 }

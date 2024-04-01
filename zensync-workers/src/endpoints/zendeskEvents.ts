@@ -298,6 +298,13 @@ function isFromTicketMerge(input: string | null | undefined): boolean {
   if (!input) {
     return false;
   }
-  const regex = /^Requests (.+) were closed and merged into this request.$/;
+  const pattern = [
+    '^Requests\\s*(.+)\\s*were closed and merged into this request.$',
+    '|Request\\s*(.+)\\s*was closed and merged into this request.\\s*(.+)$',
+    '|This request was closed and merged into request\\s*(.+)$'
+  ].join('');
+
+  const regex = new RegExp(pattern, 's');
+
   return regex.test(input);
 }

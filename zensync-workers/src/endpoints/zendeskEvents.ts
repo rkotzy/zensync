@@ -32,27 +32,10 @@ export class ZendeskEventHandler extends OpenAPIRoute {
     // Save some database calls if it's a message from Zensync
 
     // Ignore messages from Zensync
-    if (
-      typeof requestBody.current_user_external_id === 'string' &&
-      requestBody.current_user_external_id.startsWith('zensync')
-    ) {
+    if (isFromZensync(requestBody)) {
       safeLog('log', 'Message from Zensync, skipping');
       return new Response('Ok', { status: 200 });
     }
-
-    // Make sure we have the last updated ticket time
-    const ticketLastUpdatedAt = requestBody.last_updated_at;
-    if (!ticketLastUpdatedAt) {
-      safeLog('error', 'Missing last_updated_at');
-      return new Response('Missing last_updated_at', { status: 400 });
-    }
-
-    // // Ignore messages if last_updated_at === created_at
-    // // TODO: - This would ignore messages sent in same minute. Can we store a hash / etag instead?
-    // if (requestBody.last_updated_at === requestBody.created_at) {
-    //   safeLog('log', 'Message is not an update, skipping');
-    //   return new Response('Ok', { status: 200 });
-    // }
 
     // Authenticate the request and get slack connection Id
     const slackConnectionId = await authenticateRequest(request, db);
@@ -294,4 +277,13 @@ function stripSignatureFromMessage(
 
   // Remove the signature from the end of the message
   return message.slice(0, message.length - signature.length);
+}
+
+function isFromZensync(requestBody: any): boolean {
+  return (
+    (typeof requestBody.current_user_external_id === 'string' &&
+      requestBody.current_user_external_id.startsWith('zensync')) ||
+    (typeof requestBody.message === 'string' &&
+      requestBody.message.endsWith('_(View in Slack)_'))
+  );
 }

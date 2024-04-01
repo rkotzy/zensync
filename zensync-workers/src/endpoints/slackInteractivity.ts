@@ -324,8 +324,8 @@ async function saveZendeskCredentials(
           all: [
             {
               field: 'status',
-              operator: 'less_than',
-              value: 'closed'
+              operator: 'greater_than',
+              value: 'new'
             },
             {
               field: 'role',
@@ -336,11 +336,6 @@ async function saveZendeskCredentials(
               field: 'current_tags',
               operator: 'includes',
               value: 'zensync'
-            },
-            {
-              field: 'current_via_id',
-              operator: 'is_not',
-              value: '5'
             },
             {
               field: 'comment_is_public',

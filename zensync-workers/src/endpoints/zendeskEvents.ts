@@ -224,10 +224,12 @@ async function sendSlackMessage(
   try {
     const message = requestBody.message;
     const signature = requestBody.current_user_signature;
+    const strippedMessage = stripSignatureFromMessage(message, signature);
+    const formattedMessage = zendeskToSlackMarkdown(strippedMessage);
 
     const body = JSON.stringify({
       channel: slackChannelId,
-      text: stripSignatureFromMessage(message, signature),
+      text: formattedMessage,
       thread_ts: parentMessageId,
       username: username,
       icon_url: imageUrl
@@ -307,4 +309,13 @@ function isFromTicketMerge(input: string | null | undefined): boolean {
   const regex = new RegExp(pattern, 's');
 
   return regex.test(input);
+}
+
+function zendeskToSlackMarkdown(zendeskMessage: string): string {
+  // Replace Zendesk bold (**text**) with Slack bold (*text*)
+  let slackMessage = zendeskMessage.replace(/\*\*(.*?)\*\*/g, '*$1*');
+
+  // Other transformations could be added here if necessary
+
+  return slackMessage;
 }

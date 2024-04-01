@@ -1243,7 +1243,7 @@ function generateHTMLPermalink(
   }.slack.com/archives/${messageData.channel}/p${messageData.ts.replace(
     '.',
     ''
-  )}?ref=zensync">View in Slack</a>)</i></p>`;
+  )}">View in Slack</a>)</i></p>`;
 }
 
 function slackMarkdownToHtml(markdown: string): string {

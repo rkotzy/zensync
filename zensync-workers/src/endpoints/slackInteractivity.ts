@@ -398,7 +398,6 @@ async function saveZendeskCredentials(
       .insert(zendeskConnection)
       .values({
         encryptedZendeskApiKey: encryptedApiKey,
-        encryptedToken: ,
         zendeskDomain: zendeskDomain,
         zendeskEmail: zendeskEmail,
         slackConnectionId: connection.id,
@@ -610,7 +609,7 @@ async function openZendeskConfigurationModal(
             type: 'section',
             text: {
               type: 'mrkdwn',
-              text: 'Visit our <https://slacktozendesk.com/docs|documentation> for any questions or help connecting to Zendesk.'
+              text: 'Visit our <https://slacktozendesk.com/docs/getting-started/connecting-zendesk|documentation> for any questions or help connecting to Zendesk.'
             }
           },
           {

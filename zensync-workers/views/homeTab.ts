@@ -74,8 +74,7 @@ export async function handleAppHomeOpened(
                     : 'Edit Zendesk Connection',
                 emoji: true
               },
-              // action_id: InteractivityActionId.CONFIGURE_ZENDESK_BUTTON_TAPPED,
-              url: await buildZendeskOauthURL(connection, key),
+              action_id: InteractivityActionId.CONFIGURE_ZENDESK_BUTTON_TAPPED,
               ...(zendeskInfo?.status !== 'ACTIVE' && { style: 'primary' })
             }
           ]
@@ -361,19 +360,23 @@ function buildUpgradeCTA(
   ];
 }
 
-async function buildZendeskOauthURL(
-  connection: SlackConnection,
-  key: CryptoKey
-): Promise<string> {
-  const timestamp = new Date().getTime();
-  const state = await encryptData(`${timestamp}:${connection.id}`, key);
-  const encodedState = encodeURIComponent(state);
-  const client_id = 1234;
-  const redirect_uri = encodeURIComponent('https://api.slacktozendesk.com/v1/zendesk/auth/callback');
-  const scope = encodeURIComponent('tickets:read tickets:write users:read users:write webhooks:read webhooks:write triggers:read triggers:write');
-  
-  const url = `https://d3v-wtf.zendesk.com/oauth/authorizations/new?client_id=${client_id}&response_type=code&redirect_uri=${redirect_uri}&scope=${scope}&state=${encodedState}`;
-  console.log(`Returning URL: ${url}`);
-  
-  return url;
-}
+// async function buildZendeskOauthURL(
+//   connection: SlackConnection,
+//   key: CryptoKey
+// ): Promise<string> {
+//   const timestamp = new Date().getTime();
+//   const state = await encryptData(`${timestamp}:${connection.id}`, key);
+//   const encodedState = encodeURIComponent(state);
+//   const client_id = 'slacktozendesk';
+//   const redirect_uri = encodeURIComponent(
+//     'https://api.slacktozendesk.com/v1/zendesk/auth/callback'
+//   );
+//   const scope = encodeURIComponent(
+//     'tickets:read tickets:write users:read users:write webhooks:read webhooks:write triggers:read triggers:write'
+//   );
+
+//   const url = `https://d3v-wtf.zendesk.com/oauth/authorizations/new?client_id=${client_id}&response_type=code&redirect_uri=${redirect_uri}&scope=${scope}&state=${encodedState}`;
+//   console.log(`Returning URL: ${url}`);
+
+//   return url;
+// }

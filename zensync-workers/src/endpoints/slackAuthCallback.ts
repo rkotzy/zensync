@@ -211,7 +211,7 @@ export class SlackAuthCallback extends OpenAPIRoute {
       }
     } catch (error) {
       safeLog('error', error);
-      return new Response('Error saving access token.', { status: 500 });
+      return new Response('Error saving Slack access token.', { status: 500 });
     }
 
     await posthog.shutdown();

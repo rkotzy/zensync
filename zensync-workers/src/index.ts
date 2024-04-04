@@ -3,7 +3,7 @@ import { ZendeskEventHandler } from './endpoints/zendeskEvents';
 import { SlackInteractivityHandler } from './endpoints/slackInteractivity';
 import { SlackAuthRedirect } from './endpoints/slackAuthRedirect';
 import { SlackAuthCallback } from './endpoints/slackAuthCallback';
-import { ZendeskAuthCallback } from './endpoints/zendeskAuthCallback';
+//import { ZendeskAuthCallback } from './endpoints/zendeskAuthCallback';
 import { SlackEventHandler } from './endpoints/slackEvents';
 import { StripeEventHandler } from './endpoints/stripeEvents';
 import { SyncSubscriptionHandler } from './endpoints/syncSubscription';
@@ -12,7 +12,7 @@ import { QueueMessageHandler } from './queues/queueHandler';
 export const router = OpenAPIRouter();
 const message = new QueueMessageHandler();
 
-router.get(`/v1/zendesk/auth/callback`, ZendeskAuthCallback);
+//router.get(`/v1/zendesk/auth/callback`, ZendeskAuthCallback);
 router.post(`/v1/zendesk/events`, ZendeskEventHandler);
 router.post(`/v1/slack/interactivity`, SlackInteractivityHandler);
 router.get(`/v1/slack/auth/redirect`, SlackAuthRedirect);

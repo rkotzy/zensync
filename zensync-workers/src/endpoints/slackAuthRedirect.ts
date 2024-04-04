@@ -1,7 +1,9 @@
 import { OpenAPIRoute } from '@cloudflare/itty-router-openapi';
-import { initializeDb } from '@/lib/drizzle';
-import { slackOauthState } from '@/lib/schema';
 import { Env } from '@/interfaces/env.interface';
+import {
+  encryptData,
+  importEncryptionKeyFromEnvironment
+} from '@/lib/encryption';
 import { safeLog } from '@/lib/logging';
 
 export class SlackAuthRedirect extends OpenAPIRoute {
@@ -11,22 +13,21 @@ export class SlackAuthRedirect extends OpenAPIRoute {
     context: any,
     data: Record<string, any>
   ) {
-    const state = crypto.randomUUID();
-
+    let state: string;
     try {
-      const db = initializeDb(env);
-      await db.insert(slackOauthState).values({
-        id: state
-      });
+      const timestamp = new Date().getTime();
+      const key = await importEncryptionKeyFromEnvironment(env);
+      state = await encryptData(`${timestamp}:${env.SLACK_OAUTH_STATE}`, key);
     } catch (error) {
       safeLog('error', error);
-      return new Response(JSON.stringify({ error: 'Error saving state.' }), {
+      return new Response(JSON.stringify({ error: 'Error setting state.' }), {
         status: 500,
         headers: {
           'Content-Type': 'application/json'
         }
       });
     }
+
     const scopes = [
       'team:read',
       'channels:read',

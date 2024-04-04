@@ -4,15 +4,12 @@ import {
   Query
 } from '@cloudflare/itty-router-openapi';
 import { initializeDb } from '@/lib/drizzle';
-import {
-  slackOauthState,
-  slackConnection,
-  SlackConnection
-} from '@/lib/schema';
+import { slackConnection, SlackConnection } from '@/lib/schema';
 import { eq } from 'drizzle-orm';
 import { SlackResponse } from '@/interfaces/slack-api.interface';
 import {
   encryptData,
+  decryptData,
   importEncryptionKeyFromEnvironment
 } from '@/lib/encryption';
 import { Env } from '@/interfaces/env.interface';
@@ -49,19 +46,12 @@ export class SlackAuthCallback extends OpenAPIRoute {
 
     const posthog = initializePosthog(env);
     const db = initializeDb(env);
+    const encryptionKey = await importEncryptionKeyFromEnvironment(env);
 
-    const slackOauthStateResponse = await db.query.slackOauthState.findFirst({
-      where: eq(slackOauthState.id, state)
-    });
-
-    // Check if state exists and is not expired
-    if (
-      !slackOauthStateResponse ||
-      new Date().getTime() -
-        new Date(slackOauthStateResponse.createdAt).getTime() >
-        600000 // 10 minutes validity
-    ) {
-      return new Response('Invalid or expired state. Try again.', {
+    // Parse date and connection id from state
+    const decryptedState = await decryptData(state, encryptionKey);
+    if (!decryptedState || !(await isValidState(decryptedState, env))) {
+      return new Response('Invalid or expired auth session. Try again.', {
         status: 401
       });
     }
@@ -141,7 +131,6 @@ export class SlackAuthCallback extends OpenAPIRoute {
       teamId = team.id;
 
       // Encrypt the access token before saving to db
-      const encryptionKey = await importEncryptionKeyFromEnvironment(env);
       const encryptedToken = await encryptData(accessToken, encryptionKey);
 
       const connectionInfo = await db
@@ -223,6 +212,28 @@ export class SlackAuthCallback extends OpenAPIRoute {
       }
     });
   }
+}
+
+async function isValidState(state: string, env: Env): Promise<boolean> {
+  const [timestamp, slackOauthState] = state.split(':');
+
+  if (!timestamp || !slackOauthState) {
+    return false;
+  }
+
+  const timestampDate = parseInt(timestamp, 10);
+  const now = new Date().getTime();
+
+  if (now - timestampDate > 600000) {
+    // 10 minutes validity
+    return false;
+  }
+
+  if (slackOauthState !== env.SLACK_OAUTH_STATE) {
+    return false;
+  }
+
+  return true;
 }
 
 function responseHtml(teamId: string, appId: string): string {

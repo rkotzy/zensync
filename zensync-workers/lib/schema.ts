@@ -10,20 +10,6 @@ import {
 } from 'drizzle-orm/pg-core';
 import { InferSelectModel, relations } from 'drizzle-orm';
 
-// This table stores the state parameter that is passed to the Slack OAuth.
-// This is used to prevent CSRF attacks and is a temporary value. We can
-// delete any values beyond a certain age (e.g. 10 minutes) safely.
-export const slackOauthState = pgTable('slack_oauth_states', {
-  id: uuid('id').primaryKey().notNull(),
-  createdAt: timestamp('created_at', {
-    mode: 'date',
-    withTimezone: true,
-    precision: 3
-  })
-    .defaultNow()
-    .notNull()
-});
-
 // A Slack connection represents a connection to a Slack workspace that
 // is associated to an organization. It should be initiated by a Slack
 // admin whenever possible.

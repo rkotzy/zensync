@@ -398,6 +398,7 @@ async function saveZendeskCredentials(
       .insert(zendeskConnection)
       .values({
         encryptedZendeskApiKey: encryptedApiKey,
+        encryptedToken: ,
         zendeskDomain: zendeskDomain,
         zendeskEmail: zendeskEmail,
         slackConnectionId: connection.id,

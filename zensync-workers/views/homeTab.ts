@@ -12,6 +12,7 @@ import * as schema from '@/lib/schema';
 import { fetchZendeskCredentials, InteractivityActionId } from '@/lib/utils';
 import { isSubscriptionActive } from '@/lib/utils';
 import { safeLog } from '@/lib/logging';
+import { encryptData } from '@/lib/encryption';
 
 const PENDING_UPGRADE = 'PENDING_UPGRADE';
 
@@ -73,7 +74,8 @@ export async function handleAppHomeOpened(
                     : 'Edit Zendesk Connection',
                 emoji: true
               },
-              action_id: InteractivityActionId.CONFIGURE_ZENDESK_BUTTON_TAPPED,
+              // action_id: InteractivityActionId.CONFIGURE_ZENDESK_BUTTON_TAPPED,
+              url: await buildZendeskOauthURL(connection, key),
               ...(zendeskInfo?.status !== 'ACTIVE' && { style: 'primary' })
             }
           ]
@@ -357,4 +359,21 @@ function buildUpgradeCTA(
       type: 'divider'
     }
   ];
+}
+
+async function buildZendeskOauthURL(
+  connection: SlackConnection,
+  key: CryptoKey
+): Promise<string> {
+  const timestamp = new Date().getTime();
+  const state = await encryptData(`${timestamp}:${connection.id}`, key);
+  const encodedState = encodeURIComponent(state);
+  const client_id = 1234;
+  const redirect_uri = encodeURIComponent('https://api.slacktozendesk.com/v1/zendesk/auth/callback');
+  const scope = encodeURIComponent('tickets:read tickets:write users:read users:write webhooks:read webhooks:write triggers:read triggers:write');
+  
+  const url = `https://d3v-wtf.zendesk.com/oauth/authorizations/new?client_id=${client_id}&response_type=code&redirect_uri=${redirect_uri}&scope=${scope}&state=${encodedState}`;
+  console.log(`Returning URL: ${url}`);
+  
+  return url;
 }

@@ -48,12 +48,17 @@ export class SlackAuthCallback extends OpenAPIRoute {
     const db = initializeDb(env);
     const encryptionKey = await importEncryptionKeyFromEnvironment(env);
 
-    // Parse date and connection id from state
-    const decryptedState = await decryptData(state, encryptionKey);
-    if (!decryptedState || !(await isValidState(decryptedState, env))) {
-      return new Response('Invalid or expired auth session. Try again.', {
-        status: 401
-      });
+    try {
+      // Parse date and connection id from state
+      const decryptedState = await decryptData(state, encryptionKey);
+      if (!decryptedState || !(await isValidState(decryptedState, env))) {
+        return new Response('Invalid or expired auth session. Try again.', {
+          status: 401
+        });
+      }
+    } catch (error) {
+      safeLog('error', error);
+      return new Response('Invalid state.', { status: 401 });
     }
 
     let accessToken: string;

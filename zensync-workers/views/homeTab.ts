@@ -54,31 +54,7 @@ export async function handleAppHomeOpened(
           type: 'divider'
         },
         ...buildUpgradeCTA(channelInfos, connection, env),
-        {
-          type: 'section',
-          text: {
-            type: 'mrkdwn',
-            text: 'Manage your connection with Zendesk through the button below.'
-          }
-        },
-        {
-          type: 'actions',
-          elements: [
-            {
-              type: 'button',
-              text: {
-                type: 'plain_text',
-                text:
-                  zendeskInfo?.status !== 'ACTIVE'
-                    ? 'Connect to Zendesk'
-                    : 'Edit Zendesk Connection',
-                emoji: true
-              },
-              action_id: InteractivityActionId.CONFIGURE_ZENDESK_BUTTON_TAPPED,
-              ...(zendeskInfo?.status !== 'ACTIVE' && { style: 'primary' })
-            }
-          ]
-        },
+        ...connectToZendeskHelper(zendeskInfo),
         {
           type: 'divider'
         },
@@ -103,24 +79,7 @@ export async function handleAppHomeOpened(
           type: 'divider'
         },
         ...createChannelSections(channelInfos),
-        {
-          type: 'divider'
-        },
-        {
-          type: 'actions',
-          elements: [
-            {
-              type: 'button',
-              text: {
-                type: 'plain_text',
-                text: 'Account Details',
-                emoji: true
-              },
-              action_id:
-                InteractivityActionId.OPEN_ACCOUNT_SETTINGS_BUTTON_TAPPED
-            }
-          ]
-        }
+        ...buildAccountDetailsSection()
       ]
     };
 
@@ -356,6 +315,73 @@ function buildUpgradeCTA(
     },
     {
       type: 'divider'
+    }
+  ];
+}
+
+function connectToZendeskHelper(zendeskInfo: ZendeskConnection): any {
+  if (zendeskInfo?.status !== 'ACTIVE') {
+    return [
+      {
+        type: 'section',
+        text: {
+          type: 'mrkdwn',
+          text: 'Connect Zendesk to start syncing tickets.'
+        }
+      },
+      {
+        type: 'actions',
+        elements: [
+          {
+            type: 'button',
+            text: {
+              type: 'plain_text',
+              text: 'Configure Zendesk',
+              emoji: true
+            },
+            action_id: InteractivityActionId.CONFIGURE_ZENDESK_BUTTON_TAPPED,
+            style: 'primary'
+          }
+        ]
+      }
+    ];
+  }
+
+  return [];
+}
+
+function buildAccountDetailsSection(): any {
+  return [
+    {
+      type: 'header',
+      text: {
+        type: 'plain_text',
+        text: `Account Settings`,
+        emoji: true
+      }
+    },
+    {
+      type: 'actions',
+      elements: [
+        {
+          type: 'button',
+          text: {
+            type: 'plain_text',
+            text: 'Zendesk Connection',
+            emoji: true
+          },
+          action_id: InteractivityActionId.CONFIGURE_ZENDESK_BUTTON_TAPPED
+        },
+        {
+          type: 'button',
+          text: {
+            type: 'plain_text',
+            text: 'Subscription Details',
+            emoji: true
+          },
+          action_id: InteractivityActionId.OPEN_ACCOUNT_SETTINGS_BUTTON_TAPPED
+        }
+      ]
     }
   ];
 }

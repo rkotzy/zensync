@@ -518,7 +518,7 @@ async function openAccountSettings(
         type: 'modal',
         title: {
           type: 'plain_text',
-          text: 'Account Details',
+          text: 'Subscription Details',
           emoji: true
         },
         blocks: [
@@ -596,7 +596,7 @@ async function openZendeskConfigurationModal(
         },
         submit: {
           type: 'plain_text',
-          text: 'Connect',
+          text: `${zendeskInfo ? 'Update' : 'Connect'}`,
           emoji: true
         },
         close: {
@@ -640,6 +640,9 @@ async function openZendeskConfigurationModal(
             element: {
               type: 'plain_text_input',
               action_id: InteractivityActionId.ZENDESK_API_KEY_TEXT_FIELD,
+              initial_value: `${
+                zendeskInfo?.encryptedZendeskApiKey ? '<hidden>' : ''
+              }`,
               placeholder: {
                 type: 'plain_text',
                 text: '•••••••••••••••••••••••••'

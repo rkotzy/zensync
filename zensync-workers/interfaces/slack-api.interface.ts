@@ -10,6 +10,7 @@ export interface SlackResponse {
   file?: any;
   channel?: any;
   profile?: any;
+  messages?: any[];
 }
 
 export interface SlackTeam {

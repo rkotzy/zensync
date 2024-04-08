@@ -4,7 +4,7 @@ import {
   timestamp,
   text,
   boolean,
-  pgEnum,
+  jsonb,
   unique,
   index
 } from 'drizzle-orm/pg-core';
@@ -46,7 +46,8 @@ export const slackConnection = pgTable('slack_connections', {
     }),
   stripeCustomerId: text('stripe_customer_id'),
   supportSlackChannelId: text('support_slack_channel_id'),
-  supportSlackChannelName: text('support_slack_channel_name')
+  supportSlackChannelName: text('support_slack_channel_name'),
+  globalSettings: jsonb('global_settings').notNull().default('{}')
 });
 
 export type SlackConnection = InferSelectModel<typeof slackConnection> & {
@@ -123,7 +124,8 @@ export const channel = pgTable(
       precision: 3
     }),
     tags: text('tags').array(),
-    status: text('status')
+    status: text('status'),
+    globalSettingsOverrides: jsonb('global_settings_overrides')
   },
   table => ({
     channels_slack_connection_slack_channel_unique: unique().on(
@@ -162,7 +164,7 @@ export const conversation = pgTable(
     zendeskTicketId: text('zendesk_ticket_id').notNull(),
     slackParentMessageId: text('slack_parent_message_id').notNull(),
     slackAuthorUserId: text('slack_author_user_id').notNull(),
-    latestSlackMessageId: text('latest_slack_message_id')
+    latestSlackMessageId: text('latest_slack_message_id').notNull()
   },
   table => ({
     conversations_channel_zendesk_ticket_unique: unique().on(
@@ -175,6 +177,8 @@ export const conversation = pgTable(
     )
   })
 );
+
+export type Conversation = InferSelectModel<typeof conversation>;
 
 export const conversationRelations = relations(conversation, ({ one }) => ({
   channel: one(channel, {

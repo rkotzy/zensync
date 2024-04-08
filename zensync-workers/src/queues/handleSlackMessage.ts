@@ -1,10 +1,11 @@
 import { initializeDb } from '@/lib/drizzle';
-import { eq, and, is } from 'drizzle-orm';
+import { eq, and, sql } from 'drizzle-orm';
 import {
   channel,
   SlackConnection,
   ZendeskConnection,
-  conversation
+  conversation,
+  Conversation
 } from '@/lib/schema';
 import { FollowUpTicket } from '@/interfaces/follow-up-ticket.interface';
 import {
@@ -27,6 +28,10 @@ import { importEncryptionKeyFromEnvironment } from '@/lib/encryption';
 import { getChannelsByProductId } from '@/interfaces/products.interface';
 import Stripe from 'stripe';
 import { safeLog } from '@/lib/logging';
+import {
+  GlobalSettingDefaults,
+  GlobalSettings
+} from '@/interfaces/global-settings.interface';
 
 const MISSING_ZENDESK_CREDENTIALS_MESSAGE =
   'Zendesk credentials are missing or inactive. Configure them in the Zensync app settings to start syncing messages.';
@@ -724,7 +729,6 @@ async function handleMessage(
         connection,
         db,
         env,
-        messageData.channel,
         parentMessageId ?? messageData.ts,
         zendeskUserId,
         fileUploadTokens,
@@ -740,9 +744,58 @@ async function handleMessage(
   }
 
   // See if "same-sender timeframe" applies
-  const existingConversationId = await sameSenderConversationId();
-  if (existingConversationId) {
-    // Add message to existing conversation
+  const existingConversation = await sameSenderInTimeframeConversation(
+    connection,
+    messageData,
+    db
+  );
+  if (existingConversation) {
+    // Send message to existing Zendesk ticket
+    try {
+      await sendTicketReplyOrFallbackToNewTicket(
+        existingConversation.zendeskTicketId,
+        existingConversation.id,
+        messageData,
+        zendeskCredentials,
+        connection,
+        db,
+        env,
+        zendeskUserId,
+        fileUploadTokens,
+        isPublic,
+        status,
+        analyticsIdempotencyKey
+      );
+
+      await db
+        .update(conversation)
+        .set({
+          updatedAt: new Date(),
+          slackParentMessageId: messageData.ts,
+          latestSlackMessageId: messageData.ts
+        })
+        .where(eq(conversation.id, existingConversation.id));
+
+      await singleEventAnalyticsLogger(
+        messageData.user,
+        'message_reply',
+        connection.appId,
+        messageData.channel,
+        messageData.ts,
+        analyticsIdempotencyKey,
+        {
+          is_public: isPublic,
+          has_attachments: fileUploadTokens && fileUploadTokens.length > 0,
+          source: 'slack',
+          same_sender_timeframe: true
+        },
+        env,
+        null
+      );
+    } catch (error) {
+      safeLog('error', `Error handling same sender reply:`, error);
+      throw error;
+    }
     return;
   }
 
@@ -771,13 +824,6 @@ function getParentMessageId(event: SlackMessageData): string | null {
     return event.thread_ts;
   }
 
-  return null;
-}
-
-async function sameSenderConversationId(): Promise<string | null> {
-  // Get the most recent conversation for this channel
-  // If the sender is the same and within timeframe, return the conversation ID
-  // Otherwise, return null
   return null;
 }
 
@@ -893,7 +939,6 @@ async function handleThreadReply(
   slackConnectionInfo: SlackConnection,
   db: NeonHttpDatabase<typeof schema>,
   env: Env,
-  channelId: string,
   slackParentMessageId: string,
   authorId: number,
   fileUploadTokens: string[] | undefined,
@@ -911,7 +956,7 @@ async function handleThreadReply(
     .innerJoin(channel, eq(conversation.channelId, channel.id))
     .where(
       and(
-        eq(channel.slackChannelIdentifier, channelId),
+        eq(channel.slackChannelIdentifier, messageData.channel),
         eq(conversation.slackParentMessageId, slackParentMessageId),
         eq(channel.slackConnectionId, slackConnectionInfo.id)
       )
@@ -931,7 +976,7 @@ async function handleThreadReply(
       slackConnectionInfo,
       db,
       env,
-      channelId,
+      messageData.channel,
       authorId,
       fileUploadTokens,
       isPublic,
@@ -939,13 +984,41 @@ async function handleThreadReply(
     );
   }
 
+  return await sendTicketReplyOrFallbackToNewTicket(
+    conversationInfo[0].zendeskTicketId,
+    conversationInfo[0].id,
+    messageData,
+    zendeskCredentials,
+    slackConnectionInfo,
+    db,
+    env,
+    authorId,
+    fileUploadTokens,
+    isPublic,
+    status,
+    analyticsIdempotencyKey
+  );
+}
+
+async function sendTicketReplyOrFallbackToNewTicket(
+  zendeskTicketId: string,
+  conversationId: string,
+  messageData: SlackMessageData,
+  zendeskCredentials: ZendeskConnection,
+  slackConnectionInfo: SlackConnection,
+  db: NeonHttpDatabase<typeof schema>,
+  env: Env,
+  authorId: number,
+  fileUploadTokens: string[] | undefined,
+  isPublic: boolean,
+  status: string = 'open',
+  analyticsIdempotencyKey: string | null
+) {
   // Create ticket comment indepotently using Slack message ID + channel ID?
-  const idempotencyKey = channelId + messageData.ts;
+  const idempotencyKey = messageData.channel + messageData.ts;
   const zendeskAuthToken = btoa(
     `${zendeskCredentials.zendeskEmail}/token:${zendeskCredentials.zendeskApiKey}`
   );
-  const zendeskTicketId = conversationInfo[0].zendeskTicketId;
-  const conversationId = conversationInfo[0].id;
 
   let htmlBody = slackMarkdownToHtml(messageData.text);
   if (!htmlBody || htmlBody === '') {
@@ -1021,7 +1094,7 @@ async function handleThreadReply(
         .where(eq(conversation.id, conversationId));
 
       // Update the channel activity
-      await updateChannelActivity(slackConnectionInfo, channelId, db);
+      await updateChannelActivity(slackConnectionInfo, messageData.channel, db);
 
       await singleEventAnalyticsLogger(
         messageData.user,
@@ -1231,6 +1304,74 @@ async function handleNewConversation(
   } catch (error) {
     safeLog('error', `Error updating channel activity:`, error);
     throw error;
+  }
+}
+
+async function sameSenderInTimeframeConversation(
+  connection: SlackConnection,
+  currentMessage: SlackMessageData,
+  db: NeonHttpDatabase<typeof schema>
+): Promise<Conversation | null> {
+  try {
+    // get the latest conversation from database
+    const latestConversation = await db
+      .select({
+        conversation: conversation
+      })
+      .from(conversation)
+      .innerJoin(channel, eq(conversation.channelId, channel.id))
+      .where(
+        and(
+          eq(channel.slackConnectionId, connection.id),
+          eq(channel.slackChannelIdentifier, currentMessage.channel)
+        )
+      )
+      .orderBy(sql`CAST(${conversation.slackParentMessageId} AS DECIMAL) DESC`)
+      .limit(1);
+
+    if (!latestConversation || latestConversation.length === 0) {
+      return null;
+    }
+
+    // 1. Check if the latest message is from the current user
+    if (
+      latestConversation[0].conversation.slackAuthorUserId !==
+      currentMessage.user
+    ) {
+      return null;
+    }
+
+    // 2. Check that there are no thread replies yet to the message
+    if (
+      latestConversation[0].conversation.latestSlackMessageId !==
+      latestConversation[0].conversation.slackParentMessageId
+    ) {
+      return null;
+    }
+
+    // 3. Check if the latest message is within the timeframe
+    const latestMessageTs = parseFloat(
+      latestConversation[0].conversation.slackParentMessageId
+    );
+    const currentMessageTs = parseFloat(currentMessage.ts);
+    const timeDiff = currentMessageTs - latestMessageTs;
+    const glabalSettings: GlobalSettings = connection.globalSettings || {};
+    const timeframeSeconds =
+      glabalSettings.sameSenderTimeframe ||
+      GlobalSettingDefaults.sameSenderTimeframe;
+
+    if (timeDiff >= 0 && timeDiff <= timeframeSeconds) {
+      return latestConversation[0].conversation;
+    } else {
+      return null;
+    }
+  } catch (error) {
+    safeLog(
+      'error',
+      `Error checking sameSenderInTimeframe conversation:`,
+      error
+    );
+    return null;
   }
 }
 

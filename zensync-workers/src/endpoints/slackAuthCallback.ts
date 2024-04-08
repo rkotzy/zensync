@@ -15,6 +15,7 @@ import {
 import { Env } from '@/interfaces/env.interface';
 import { initializePosthog } from '@/lib/posthog';
 import { safeLog } from '@/lib/logging';
+import { GlobalSettingDefaults } from '@/interfaces/global-settings.interface';
 
 export class SlackAuthCallback extends OpenAPIRoute {
   static schema: OpenAPIRouteSchema = {
@@ -152,7 +153,8 @@ export class SlackAuthCallback extends OpenAPIRoute {
           authedUserId: authedUser,
           botUserId: botUserId,
           appId: appId,
-          status: 'ACTIVE'
+          status: 'ACTIVE',
+          globalSettings: GlobalSettingDefaults
         })
         .onConflictDoUpdate({
           target: slackConnection.slackTeamId,

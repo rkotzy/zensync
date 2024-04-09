@@ -127,6 +127,8 @@ export const channel = pgTable(
     tags: text('tags').array(),
     status: text('status'),
     globalSettingsOverrides: jsonb('global_settings_overrides')
+      .notNull()
+      .default('{}')
   },
   table => ({
     channels_slack_connection_slack_channel_unique: unique().on(

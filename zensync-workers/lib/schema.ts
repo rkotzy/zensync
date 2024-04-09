@@ -136,6 +136,10 @@ export const channel = pgTable(
     idx_channels_slack_connection_is_member: index().on(
       table.slackConnectionId,
       table.isMember
+    ),
+    idx_channels_slack_connection_slack_channel_identifier: index().on(
+      table.slackConnectionId,
+      table.slackChannelIdentifier
     )
   })
 );
@@ -164,9 +168,7 @@ export const conversation = pgTable(
       .references(() => channel.id, { onDelete: 'cascade' }),
     zendeskTicketId: text('zendesk_ticket_id').notNull(),
     slackParentMessageId: text('slack_parent_message_id').notNull(),
-    slackParentMessageTs: numeric('slack_parent_message_ts', {
-      precision: 8
-    }),
+    slackParentMessageTs: numeric('slack_parent_message_ts'),
     slackAuthorUserId: text('slack_author_user_id').notNull(),
     latestSlackMessageId: text('latest_slack_message_id').notNull()
   },
@@ -178,7 +180,11 @@ export const conversation = pgTable(
     conversations_channel_slack_message_unique: unique().on(
       table.channelId,
       table.slackParentMessageId
-    )
+    ),
+    idx_conversations_slack_parent_message_ts: index().on(
+      table.slackParentMessageTs
+    ),
+    idx_conversations_channel_id: index().on(table.channelId)
   })
 );
 

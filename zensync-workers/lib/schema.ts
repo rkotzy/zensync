@@ -6,7 +6,8 @@ import {
   boolean,
   jsonb,
   unique,
-  index
+  index,
+  numeric
 } from 'drizzle-orm/pg-core';
 import { InferSelectModel, relations } from 'drizzle-orm';
 
@@ -163,6 +164,9 @@ export const conversation = pgTable(
       .references(() => channel.id, { onDelete: 'cascade' }),
     zendeskTicketId: text('zendesk_ticket_id').notNull(),
     slackParentMessageId: text('slack_parent_message_id').notNull(),
+    slackParentMessageTs: numeric('slack_parent_message_ts', {
+      precision: 8
+    }),
     slackAuthorUserId: text('slack_author_user_id').notNull(),
     latestSlackMessageId: text('latest_slack_message_id').notNull()
   },

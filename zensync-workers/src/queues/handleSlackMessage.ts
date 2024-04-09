@@ -772,6 +772,7 @@ async function handleMessage(
         .set({
           updatedAt: new Date(),
           slackParentMessageId: messageData.ts,
+          slackParentMessageTs: messageData.ts,
           latestSlackMessageId: messageData.ts
         })
         .where(eq(conversation.id, existingConversation.id));
@@ -956,9 +957,9 @@ async function handleThreadReply(
     .innerJoin(channel, eq(conversation.channelId, channel.id))
     .where(
       and(
+        eq(channel.slackConnectionId, slackConnectionInfo.id),
         eq(channel.slackChannelIdentifier, messageData.channel),
-        eq(conversation.slackParentMessageId, slackParentMessageId),
-        eq(channel.slackConnectionId, slackConnectionInfo.id)
+        eq(conversation.slackParentMessageId, slackParentMessageId)
       )
     )
     .limit(1);
@@ -1281,6 +1282,7 @@ async function handleNewConversation(
         id: conversationUuid,
         channelId: channelInfo.id,
         slackParentMessageId: messageData.ts,
+        slackParentMessageTs: messageData.ts,
         zendeskTicketId: ticketId,
         slackAuthorUserId: messageData.user,
         latestSlackMessageId: messageData.ts
@@ -1326,7 +1328,7 @@ async function sameSenderInTimeframeConversation(
           eq(channel.slackChannelIdentifier, currentMessage.channel)
         )
       )
-      .orderBy(sql`CAST(${conversation.slackParentMessageId} AS DECIMAL) DESC`)
+      .orderBy(sql`${conversation.slackParentMessageTs} desc nulls last`)
       .limit(1);
 
     if (!latestConversation || latestConversation.length === 0) {

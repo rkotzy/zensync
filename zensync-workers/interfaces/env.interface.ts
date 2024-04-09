@@ -18,4 +18,5 @@ export interface Env {
   ZENDESK_OAUTH_SECRET: string;
   SLACK_OAUTH_STATE: string;
   HYPERDRIVE: Hyperdrive;
+  DBSQLITE: D1Database;
 }

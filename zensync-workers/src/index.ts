@@ -1,4 +1,5 @@
 import { OpenAPIRouter } from '@cloudflare/itty-router-openapi';
+import { injectDB } from '@/lib/middleware';
 import { ZendeskEventHandler } from './endpoints/zendeskEvents';
 import { SlackInteractivityHandler } from './endpoints/slackInteractivity';
 import { SlackAuthRedirect } from './endpoints/slackAuthRedirect';
@@ -13,13 +14,13 @@ export const router = OpenAPIRouter();
 const message = new QueueMessageHandler();
 
 //router.get(`/v1/zendesk/auth/callback`, ZendeskAuthCallback);
-router.post(`/v1/zendesk/events`, ZendeskEventHandler);
-router.post(`/v1/slack/interactivity`, SlackInteractivityHandler);
-router.get(`/v1/slack/auth/redirect`, SlackAuthRedirect);
-router.get(`/v1/slack/auth/callback`, SlackAuthCallback);
-router.post(`/v1/slack/events`, SlackEventHandler);
-router.post(`/v1/stripe/events`, StripeEventHandler);
-router.post(`/internal/syncSubscription`, SyncSubscriptionHandler);
+router.post(`/v1/zendesk/events`, injectDB, ZendeskEventHandler);
+router.post(`/v1/slack/interactivity`, injectDB, SlackInteractivityHandler);
+router.get(`/v1/slack/auth/redirect`, injectDB, SlackAuthRedirect);
+router.get(`/v1/slack/auth/callback`, injectDB, SlackAuthCallback);
+router.post(`/v1/slack/events`, injectDB, SlackEventHandler);
+router.post(`/v1/stripe/events`, injectDB, StripeEventHandler);
+router.post(`/internal/syncSubscription`, injectDB, SyncSubscriptionHandler);
 
 // 404 for everything else
 router.all('*', () =>

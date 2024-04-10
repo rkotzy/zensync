@@ -1,4 +1,4 @@
-import { eq, and, sql } from 'drizzle-orm';
+import { eq, and, desc } from 'drizzle-orm';
 import {
   channel,
   SlackConnection,
@@ -772,7 +772,6 @@ async function handleMessage(
         .set({
           updatedAt: new Date().toISOString(),
           slackParentMessageId: messageData.ts,
-          slackParentMessageTs: messageData.ts,
           latestSlackMessageId: messageData.ts
         })
         .where(eq(conversation.id, existingConversation.id));
@@ -1284,7 +1283,6 @@ async function handleNewConversation(
         publicId: conversationUuid,
         channelId: channelInfo.id,
         slackParentMessageId: messageData.ts,
-        slackParentMessageTs: messageData.ts,
         zendeskTicketId: ticketId,
         slackAuthorUserId: messageData.user,
         latestSlackMessageId: messageData.ts
@@ -1330,7 +1328,7 @@ async function sameSenderInTimeframeConversation(
           eq(channel.slackChannelIdentifier, currentMessage.channel)
         )
       )
-      .orderBy(sql`${conversation.slackParentMessageTs} desc nulls last`)
+      .orderBy(desc(conversation.slackParentMessageId))
       .limit(1);
 
     if (!latestConversation || latestConversation.length === 0) {
@@ -1364,7 +1362,10 @@ async function sameSenderInTimeframeConversation(
       glabalSettings.sameSenderTimeframe ||
       GlobalSettingDefaults.sameSenderTimeframe;
 
-    if (timeDiff >= 0 && timeDiff <= timeframeSeconds) {
+    if (
+      timeframeSeconds !== 0 ||
+      (timeDiff >= 0 && timeDiff <= timeframeSeconds)
+    ) {
       return latestConversation[0].conversation;
     } else {
       return null;

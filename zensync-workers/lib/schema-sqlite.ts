@@ -130,7 +130,6 @@ export const conversation = sqliteTable(
       .references(() => channel.id, { onDelete: 'cascade' }),
     zendeskTicketId: text('zendesk_ticket_id').notNull(),
     slackParentMessageId: text('slack_parent_message_id').notNull(),
-    slackParentMessageTs: text('slack_parent_message_ts'),
     slackAuthorUserId: text('slack_author_user_id').notNull(),
     latestSlackMessageId: text('latest_slack_message_id').notNull()
   },
@@ -143,9 +142,9 @@ export const conversation = sqliteTable(
       table.channelId,
       table.slackParentMessageId
     ),
-    idx_conversations_slack_parent_message_ts: index(
-      'idx_conversations_slack_parent_message_ts'
-    ).on(table.slackParentMessageTs),
+    idx_conversations_slack_parent_message_id: index(
+      'idx_conversations_slack_parent_message_id'
+    ).on(table.slackParentMessageId),
     idx_conversations_channel_id: index('idx_conversations_channel_id').on(
       table.channelId
     )

@@ -1,6 +1,5 @@
 import { eq, and } from 'drizzle-orm';
 import {
-  verifySlackRequest,
   findSlackConnectionByAppId,
   InteractivityActionId,
   fetchZendeskCredentials
@@ -42,12 +41,6 @@ export class SlackInteractivityHandler {
 
     // Parse the request body
     const textClone = request.clone();
-
-    // Verify the Slack request
-    if (!(await verifySlackRequest(textClone, env))) {
-      safeLog('warn', 'Slack verification failed!');
-      return new Response('Verification failed', { status: 200 });
-    }
 
     const requestBody = await request.formData();
     const payloadString = requestBody.get('payload');

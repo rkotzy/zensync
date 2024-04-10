@@ -1,4 +1,4 @@
-import { findSlackConnectionByAppId, verifySlackRequest } from '@/lib/utils';
+import { findSlackConnectionByAppId } from '@/lib/utils';
 import { SlackConnection } from '@/lib/schema-sqlite';
 import { SlackEvent } from '@/interfaces/slack-api.interface';
 import { Env } from '@/interfaces/env.interface';
@@ -34,14 +34,6 @@ export class SlackEventHandler {
     //     }
     //   });
     // }
-
-    // Verify the Slack request
-    if (!(await verifySlackRequest(textClone, env))) {
-      safeLog('warn', 'Slack verification failed!');
-      return new Response('Verification failed', {
-        status: 200
-      });
-    }
 
     ///////////////////////////////////////
     // Handle events that require an organization details

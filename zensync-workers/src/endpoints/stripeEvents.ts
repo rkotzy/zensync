@@ -16,35 +16,17 @@ export class StripeEventHandler {
     context: any,
     data: Record<string, any>
   ) {
-    const body = await request.text();
-
-    safeLog('log', 'Stripe event received:', body);
-
-    const stripe = new Stripe(env.STRIPE_API_KEY);
-    const sig = request.headers.get('stripe-signature');
-
-    let event: Stripe.Event;
-    try {
-      event = await stripe.webhooks.constructEventAsync(
-        body,
-        sig,
-        env.STRIPE_ENDPOINT_SECRET
-      );
-
-      // Handle the event
-      switch (event.type) {
-        case 'customer.subscription.deleted':
-          await updateCustomerSubscription(event.data.object, request.db, env);
-          break;
-        case 'customer.subscription.updated':
-          await updateCustomerSubscription(event.data.object, request.db, env);
-          break;
-        default:
-          safeLog('log', `Unhandled event type ${event.type}`);
-      }
-    } catch (error) {
-      safeLog('error', `Error constructing Stripe event:`, error);
-      return new Response(`Webhook error ${error}`, { status: 400 });
+    // Handle the event
+    const event = request.stripeEvent;
+    switch (event.type) {
+      case 'customer.subscription.deleted':
+        await updateCustomerSubscription(event.data.object, request.db, env);
+        break;
+      case 'customer.subscription.updated':
+        await updateCustomerSubscription(event.data.object, request.db, env);
+        break;
+      default:
+        safeLog('log', `Unhandled event type ${event.type}`);
     }
 
     // Return a response to acknowledge receipt of the event

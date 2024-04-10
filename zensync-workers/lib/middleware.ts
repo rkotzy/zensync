@@ -1,8 +1,7 @@
 import { Env } from '@/interfaces/env.interface';
 import { getSlackConnectionFromId, initializeDb } from './database';
 import { RequestInterface } from '@/interfaces/request.interface';
-import { DrizzleD1Database } from 'drizzle-orm/d1';
-import * as schema from './schema-sqlite';
+import Stripe from 'stripe';
 import { eq } from 'drizzle-orm';
 import { zendeskConnection, slackConnection } from '@/lib/schema-sqlite';
 import { safeLog } from './logging';
@@ -19,7 +18,7 @@ export async function injectDB(request: RequestInterface, env: Env) {
 // Verify Slack request and associated helpers
 //////////////////////////////////////////////
 
-export async function verifySlackRequest(request: Request, env: Env) {
+export async function verifySlackRequest(request: RequestInterface, env: Env) {
   const signingSecret = env.SLACK_SIGNING_SECRET;
   const timestamp = request.headers.get('x-slack-request-timestamp');
   const slackSignature = request.headers.get('x-slack-signature');
@@ -124,7 +123,11 @@ export async function verifyZendeskWebhookAndSetSlackConnection(
     }
 
     // Get the slack connection
-    const slackConnectionInfo = await getSlackConnectionFromId(request.db, env, connection.slackConnectionId);
+    const slackConnectionInfo = await getSlackConnectionFromId(
+      request.db,
+      env,
+      connection.slackConnectionId
+    );
     if (!slackConnectionInfo) {
       safeLog('error', 'No slack connection found');
       return new Response('Verification failed', {
@@ -139,5 +142,29 @@ export async function verifyZendeskWebhookAndSetSlackConnection(
     return new Response('Unknown verification error', {
       status: 500
     });
+  }
+}
+
+///////////////////////////////////////////////
+// Verify Stripe webook
+//////////////////////////////////////////////
+
+export async function verifyStripeWebhook(request: RequestInterface, env: Env) {
+  try {
+    const body = await request.text();
+
+    const stripe = new Stripe(env.STRIPE_API_KEY);
+    const sig = request.headers.get('stripe-signature');
+
+    const event = await stripe.webhooks.constructEventAsync(
+      body,
+      sig,
+      env.STRIPE_ENDPOINT_SECRET
+    );
+
+    request.stripeEvent = event;
+  } catch (error) {
+    safeLog('error', `Error constructing Stripe event:`, error);
+    return new Response(`Webhook error ${error}`, { status: 400 });
   }
 }

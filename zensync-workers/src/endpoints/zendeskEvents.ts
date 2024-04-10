@@ -1,11 +1,13 @@
-import { OpenAPIRoute } from '@cloudflare/itty-router-openapi';
-import { initializeDb } from '@/lib/drizzle';
 import { eq } from 'drizzle-orm';
-import { zendeskConnection, SlackConnection, conversation } from '@/lib/schema';
-import * as schema from '@/lib/schema';
+import {
+  zendeskConnection,
+  SlackConnection,
+  conversation
+} from '@/lib/schema-sqlite';
+import * as schema from '@/lib/schema-sqlite';
 import { SlackResponse } from '@/interfaces/slack-api.interface';
 import { ZendeskEvent } from '@/interfaces/zendesk-api.interface';
-import { NeonHttpDatabase } from 'drizzle-orm/neon-http';
+import { DrizzleD1Database } from 'drizzle-orm/d1';
 import { Env } from '@/interfaces/env.interface';
 import {
   getSlackConnection,
@@ -14,16 +16,17 @@ import {
 } from '@/lib/utils';
 import bcrypt from 'bcryptjs';
 import { safeLog } from '@/lib/logging';
+import { RequestInterface } from '@/interfaces/request.interface';
 
-export class ZendeskEventHandler extends OpenAPIRoute {
+export class ZendeskEventHandler {
   async handle(
-    request: Request,
+    request: RequestInterface,
     env: Env,
     context: any,
     data: Record<string, any>
   ) {
     // Initialize the database
-    const db = initializeDb(env);
+    const db = request.db;
 
     const requestBody = (await request.json()) as ZendeskEvent;
 
@@ -151,8 +154,8 @@ async function getSlackUserByEmail(
 
 async function authenticateRequest(
   request: Request,
-  db: NeonHttpDatabase<typeof schema>
-): Promise<string | null> {
+  db: DrizzleD1Database<typeof schema>
+): Promise<number | null> {
   try {
     const authorizationHeader = request.headers.get('authorization');
     const webhookId = request.headers.get('x-zendesk-webhook-id');

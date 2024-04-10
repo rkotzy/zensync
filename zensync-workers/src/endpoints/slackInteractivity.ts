@@ -1,5 +1,3 @@
-import { OpenAPIRoute } from '@cloudflare/itty-router-openapi';
-import { initializeDb } from '@/lib/drizzle';
 import { eq, and } from 'drizzle-orm';
 import {
   verifySlackRequest,
@@ -7,9 +5,13 @@ import {
   InteractivityActionId,
   fetchZendeskCredentials
 } from '@/lib/utils';
-import { SlackConnection, zendeskConnection, channel } from '@/lib/schema';
-import * as schema from '@/lib/schema';
-import { NeonHttpDatabase } from 'drizzle-orm/neon-http';
+import {
+  SlackConnection,
+  zendeskConnection,
+  channel
+} from '@/lib/schema-sqlite';
+import * as schema from '@/lib/schema-sqlite';
+import { DrizzleD1Database } from 'drizzle-orm/d1';
 import { ZendeskResponse } from '@/interfaces/zendesk-api.interface';
 import { SlackResponse } from '@/interfaces/slack-api.interface';
 import { Env } from '@/interfaces/env.interface';
@@ -23,16 +25,17 @@ import { handleAppHomeOpened } from '@/views/homeTab';
 import { getBillingPortalConfiguration } from '@/interfaces/products.interface';
 import { initializePosthog } from '@/lib/posthog';
 import { safeLog } from '@/lib/logging';
+import { RequestInterface } from '@/interfaces/request.interface';
 
-export class SlackInteractivityHandler extends OpenAPIRoute {
+export class SlackInteractivityHandler {
   async handle(
-    request: Request,
+    request: RequestInterface,
     env: Env,
     context: any,
     data: Record<string, any>
   ) {
     // Initialize the database
-    const db = initializeDb(env);
+    const db = request.db;
 
     // Initialize the encryption key
     const encryptionKey = await importEncryptionKeyFromEnvironment(env);
@@ -236,7 +239,7 @@ async function saveZendeskCredentials(
   payload: any,
   connection: SlackConnection,
   env: Env,
-  db: NeonHttpDatabase<typeof schema>,
+  db: DrizzleD1Database<typeof schema>,
   key: CryptoKey
 ): Promise<void> {
   const values = payload.view?.state.values;
@@ -409,7 +412,7 @@ async function saveZendeskCredentials(
       .onConflictDoUpdate({
         target: zendeskConnection.slackConnectionId,
         set: {
-          updatedAt: new Date(),
+          updatedAt: new Date().toISOString(),
           encryptedZendeskApiKey: encryptedApiKey,
           zendeskDomain: zendeskDomain,
           zendeskEmail: zendeskEmail,
@@ -452,7 +455,7 @@ async function openAccountSettings(
   payload: any,
   connection: SlackConnection,
   env: Env,
-  db: NeonHttpDatabase<typeof schema>
+  db: DrizzleD1Database<typeof schema>
 ) {
   const triggerId = payload.trigger_id;
 
@@ -566,7 +569,7 @@ async function openAccountSettings(
 async function openZendeskConfigurationModal(
   payload: any,
   connection: SlackConnection,
-  db: NeonHttpDatabase<typeof schema>,
+  db: DrizzleD1Database<typeof schema>,
   env: Env,
   key: CryptoKey
 ) {
@@ -695,7 +698,7 @@ async function openChannelConfigurationModal(
   actionId: string,
   payload: any,
   connection: SlackConnection,
-  db: NeonHttpDatabase<typeof schema>
+  db: DrizzleD1Database<typeof schema>
 ) {
   const triggerId = payload.trigger_id;
   if (!triggerId) {
@@ -727,7 +730,7 @@ async function openChannelConfigurationModal(
     const activityDate = channelInfo.latestActivityAt;
 
     const createdAtTimestamp = Math.floor(
-      channelInfo.createdAt.getTime() / 1000
+      new Date(channelInfo.createdAt).getTime() / 1000
     );
     const fallbackText = 'No message activity';
 
@@ -736,7 +739,9 @@ async function openChannelConfigurationModal(
 
     // Only process latestActivityAt if it is not null
     if (activityDate) {
-      const latestActivityTimestamp = Math.floor(activityDate.getTime() / 1000);
+      const latestActivityTimestamp = Math.floor(
+        new Date(activityDate).getTime() / 1000
+      );
       lastActivityString = `Last message on <!date^${latestActivityTimestamp}^{date_short} at {time}|${fallbackText}>`;
     }
 
@@ -836,7 +841,7 @@ async function openChannelConfigurationModal(
 async function updateChannelConfiguration(
   payload: any,
   connection: SlackConnection,
-  db: NeonHttpDatabase<typeof schema>,
+  db: DrizzleD1Database<typeof schema>,
   key: CryptoKey,
   env: Env
 ) {

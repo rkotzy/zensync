@@ -3,11 +3,9 @@ import {
   OpenAPIRouteSchema,
   Query
 } from '@cloudflare/itty-router-openapi';
-import { initializeDb } from '@/lib/drizzle';
-import { slackConnection, zendeskConnection } from '@/lib/schema';
+import { slackConnection } from '@/lib/schema-sqlite';
 import { eq } from 'drizzle-orm';
 import {
-  encryptData,
   decryptData,
   importEncryptionKeyFromEnvironment
 } from '@/lib/encryption';
@@ -15,19 +13,11 @@ import { Env } from '@/interfaces/env.interface';
 import { initializePosthog } from '@/lib/posthog';
 import { safeLog } from '@/lib/logging';
 import { ZendeskResponse } from '@/interfaces/zendesk-api.interface';
+import { RequestInterface } from '@/interfaces/request.interface';
 
-export class ZendeskAuthCallback extends OpenAPIRoute {
-  static schema: OpenAPIRouteSchema = {
-    parameters: {
-      code: Query(String, { required: false }),
-      state: Query(String, { required: false }),
-      error: Query(String, { required: false }),
-      error_description: Query(String, { required: false })
-    }
-  };
-
+export class ZendeskAuthCallback {
   async handle(
-    request: Request,
+    request: RequestInterface,
     env: Env,
     context: any,
     data: Record<string, any>
@@ -56,12 +46,13 @@ export class ZendeskAuthCallback extends OpenAPIRoute {
     }
 
     const posthog = initializePosthog(env);
-    const db = initializeDb(env);
+    const db = request.db;
     const encryptionKey = await importEncryptionKeyFromEnvironment(env);
 
     // Parse date and connection id from state
     const decryptedState = await decryptData(state, encryptionKey);
-    const [timestamp, connectionId] = decryptedState.split(':');
+    const [timestamp, connectionIdString] = decryptedState.split(':');
+    const connectionId = parseInt(connectionIdString);
 
     if (!timestamp || !connectionId) {
       return new Response('Invalid state. Try again.', { status: 401 });

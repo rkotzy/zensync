@@ -1,5 +1,5 @@
 import { drizzle } from 'drizzle-orm/d1';
-import * as schema from './sqlite-schema';
+import * as schema from './schema-sqlite';
 import { Env } from '@/interfaces/env.interface';
 
 export function initializeDb(env: Env) {

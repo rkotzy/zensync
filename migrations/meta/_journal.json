@@ -1,1 +1,34 @@
-{"version":"5","dialect":"pg","entries":[]}
+{
+  "version": "5",
+  "dialect": "pg",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "5",
+      "when": 1712714366427,
+      "tag": "0000_faulty_genesis",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1712727155459,
+      "tag": "0001_curvy_talos",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1712728363795,
+      "tag": "0002_nostalgic_captain_stacy",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "5",
+      "when": 1712728566601,
+      "tag": "0003_parched_rawhide_kid",
+      "breakpoints": true
+    }
+  ]
+}

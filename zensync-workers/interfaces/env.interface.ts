@@ -17,6 +17,5 @@ export interface Env {
   INTERNAL_SLACKBOT_ACCESS_TOKEN: string;
   ZENDESK_OAUTH_SECRET: string;
   SLACK_OAUTH_STATE: string;
-  HYPERDRIVE: Hyperdrive;
   DBSQLITE: D1Database;
 }

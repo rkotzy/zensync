@@ -1,4 +1,4 @@
-import { NeonHttpDatabase } from 'drizzle-orm/neon-http';
+import { DrizzleD1Database } from 'drizzle-orm/d1';
 import { eq, and, desc, is } from 'drizzle-orm';
 import { Env } from '@/interfaces/env.interface';
 import {
@@ -6,9 +6,9 @@ import {
   ZendeskConnection,
   channel,
   Channel
-} from '@/lib/schema';
+} from '@/lib/schema-sqlite';
 import { SlackResponse } from '@/interfaces/slack-api.interface';
-import * as schema from '@/lib/schema';
+import * as schema from '@/lib/schema-sqlite';
 import { fetchZendeskCredentials, InteractivityActionId } from '@/lib/utils';
 import { isSubscriptionActive } from '@/lib/utils';
 import { safeLog } from '@/lib/logging';
@@ -19,7 +19,7 @@ const PENDING_UPGRADE = 'PENDING_UPGRADE';
 export async function handleAppHomeOpened(
   slackUserId: string,
   connection: SlackConnection,
-  db: NeonHttpDatabase<typeof schema>,
+  db: DrizzleD1Database<typeof schema>,
   env: Env,
   key: CryptoKey
 ) {
@@ -112,7 +112,7 @@ export async function handleAppHomeOpened(
 
 async function fetchHomeTabData(
   slackConnection: SlackConnection,
-  db: NeonHttpDatabase<typeof schema>,
+  db: DrizzleD1Database<typeof schema>,
   env: Env,
   key: CryptoKey
 ): Promise<[ZendeskConnection | null, Channel[]]> {

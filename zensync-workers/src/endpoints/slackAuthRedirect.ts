@@ -1,14 +1,14 @@
-import { OpenAPIRoute } from '@cloudflare/itty-router-openapi';
 import { Env } from '@/interfaces/env.interface';
 import {
   encryptData,
   importEncryptionKeyFromEnvironment
 } from '@/lib/encryption';
 import { safeLog } from '@/lib/logging';
+import { RequestInterface } from '@/interfaces/request.interface';
 
-export class SlackAuthRedirect extends OpenAPIRoute {
+export class SlackAuthRedirect {
   async handle(
-    request: Request,
+    request: RequestInterface,
     env: Env,
     context: any,
     data: Record<string, any>

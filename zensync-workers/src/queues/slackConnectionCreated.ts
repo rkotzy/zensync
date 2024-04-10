@@ -1,7 +1,11 @@
-import { initializeDb } from '@/lib/drizzle';
+import { initializeDb } from '@/lib/database';
 import { eq } from 'drizzle-orm';
 import { Env } from '@/interfaces/env.interface';
-import { SlackConnection, slackConnection, subscription } from '@/lib/schema';
+import {
+  SlackConnection,
+  slackConnection,
+  subscription
+} from '@/lib/schema-sqlite';
 import { SlackResponse } from '@/interfaces/slack-api.interface';
 import { createStripeAccount } from '@/lib/utils';
 import { safeLog } from '@/lib/logging';
@@ -172,11 +176,19 @@ async function setupCustomerInStripe(
         stripeProductId: env.DEFAULT_STRIPE_PRODUCT_ID,
         // Conditionally include startedAt only if currentPeriodStart exists
         ...(stripeAccount.currentPeriodStart
-          ? { periodStart: new Date(stripeAccount.currentPeriodStart * 1000) }
+          ? {
+              periodStart: new Date(
+                stripeAccount.currentPeriodStart * 1000
+              ).toISOString()
+            }
           : {}),
         // Conditionally include endsAt only if currentPeriodEnd exists
         ...(stripeAccount.currentPeriodEnd
-          ? { periodEnd: new Date(stripeAccount.currentPeriodEnd * 1000) }
+          ? {
+              periodEnd: new Date(
+                stripeAccount.currentPeriodEnd * 1000
+              ).toISOString()
+            }
           : {})
       })
       .onConflictDoNothing()

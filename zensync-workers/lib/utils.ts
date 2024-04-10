@@ -6,15 +6,15 @@ import {
   SlackConnection,
   channel,
   Channel
-} from '@/lib/schema';
-import * as schema from '@/lib/schema';
-import { NeonHttpDatabase } from 'drizzle-orm/neon-http';
+} from '@/lib/schema-sqlite';
+import * as schema from '@/lib/schema-sqlite';
 import { Env } from '@/interfaces/env.interface';
 import { decryptData, importEncryptionKeyFromEnvironment } from './encryption';
 import Stripe from 'stripe';
 import { PostHog } from 'posthog-node';
 import { initializePosthog } from './posthog';
 import { safeLog } from './logging';
+import { DrizzleD1Database } from 'drizzle-orm/d1';
 
 export enum InteractivityActionId {
   // Zendesk modal details
@@ -130,8 +130,8 @@ function timingSafeEqual(a: string, b: string): boolean {
 }
 
 export async function fetchZendeskCredentials(
-  slackConnectionId: string,
-  db: NeonHttpDatabase<typeof schema>,
+  slackConnectionId: number,
+  db: DrizzleD1Database<typeof schema>,
   env: Env,
   key?: CryptoKey
 ): Promise<ZendeskConnection | null | undefined> {
@@ -172,7 +172,7 @@ export async function fetchZendeskCredentials(
 
 export async function findSlackConnectionByAppId(
   appId: string | undefined,
-  db: NeonHttpDatabase<typeof schema>,
+  db: DrizzleD1Database<typeof schema>,
   env: Env,
   key?: CryptoKey
 ): Promise<SlackConnection | null | undefined> {
@@ -210,8 +210,8 @@ export async function findSlackConnectionByAppId(
 }
 
 export async function getSlackConnection(
-  connectionId: string,
-  db: NeonHttpDatabase<typeof schema>,
+  connectionId: number,
+  db: DrizzleD1Database<typeof schema>,
   env: Env,
   key?: CryptoKey
 ): Promise<SlackConnection | null | undefined> {
@@ -255,17 +255,16 @@ export function isSubscriptionActive(
   const periodEnd = connection.subscription.periodEnd;
   const bufferMilliseconds =
     env.SUBSCRIPTION_EXPIRATION_BUFFER_HOURS * 60 * 60 * 1000; // Convert hours to milliseconds
-  const expirationDateWithBuffer = new Date(
-    periodEnd.getTime() + bufferMilliseconds
-  );
+  const expirationDateWithBuffer =
+    new Date(periodEnd).getTime() + bufferMilliseconds;
 
-  return expirationDateWithBuffer >= new Date(); // Return true if subscription is active (not yet expired)
+  return expirationDateWithBuffer >= new Date().getTime(); // Return true if subscription is active (not yet expired)
 }
 
 export async function getChannelInfo(
   channelId: string,
-  slackConnectionId: string,
-  db: NeonHttpDatabase<typeof schema>
+  slackConnectionId: number,
+  db: DrizzleD1Database<typeof schema>
 ): Promise<Channel | null | undefined> {
   try {
     const channelInfo = await db.query.channel.findFirst({
@@ -289,9 +288,9 @@ export function isChannelEligibleForMessaging(channel: Channel): boolean {
 export async function updateChannelActivity(
   slackConnection: SlackConnection,
   channelId: string,
-  db: NeonHttpDatabase<typeof schema>
+  db: DrizzleD1Database<typeof schema>
 ): Promise<void> {
-  const now = new Date();
+  const now = new Date().toISOString();
 
   await db
     .update(channel)

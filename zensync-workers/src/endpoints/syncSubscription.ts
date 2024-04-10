@@ -1,22 +1,12 @@
-import {
-  OpenAPIRoute,
-  OpenAPIRouteSchema,
-  Query
-} from '@cloudflare/itty-router-openapi';
 import { Env } from '@/interfaces/env.interface';
-import { initializeDb } from '@/lib/drizzle';
 import { eq } from 'drizzle-orm';
-import { subscription } from '@/lib/schema';
+import { subscription } from '@/lib/schema-sqlite';
 import { safeLog } from '@/lib/logging';
+import { RequestInterface } from '@/interfaces/request.interface';
 
-export class SyncSubscriptionHandler extends OpenAPIRoute {
-  static schema: OpenAPIRouteSchema = {
-    parameters: {
-      subscription_id: Query(String)
-    }
-  };
+export class SyncSubscriptionHandler {
   async handle(
-    request: Request,
+    request: RequestInterface,
     env: Env,
     context: any,
     data: Record<string, any>
@@ -29,7 +19,7 @@ export class SyncSubscriptionHandler extends OpenAPIRoute {
         return new Response('Missing required parameters', { status: 400 });
       }
 
-      const db = initializeDb(env);
+      const db = request.db;
 
       const subscriptionInfo = await db.query.subscription.findFirst({
         where: eq(subscription.stripeSubscriptionId, subscriptionId)

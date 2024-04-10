@@ -1,7 +1,7 @@
-import { initializeDb } from '@/lib/drizzle';
-import { NeonHttpDatabase } from 'drizzle-orm/neon-http';
-import * as schema from '@/lib/schema';
-import { channel, SlackConnection } from '@/lib/schema';
+import { initializeDb } from '@/lib/database';
+import { DrizzleD1Database } from 'drizzle-orm/d1';
+import * as schema from '@/lib/schema-sqlite';
+import { channel, SlackConnection } from '@/lib/schema-sqlite';
 import { eq, and } from 'drizzle-orm';
 import { Env } from '@/interfaces/env.interface';
 import { safeLog } from '@/lib/logging';
@@ -24,13 +24,13 @@ export async function slackAppUninstalled(requestJson: any, env: Env) {
 }
 
 async function leaveAllChannels(
-  db: NeonHttpDatabase<typeof schema>,
-  connectionId: string
+  db: DrizzleD1Database<typeof schema>,
+  connectionId: number
 ) {
   try {
     await db
       .update(channel)
-      .set({ isMember: false, updatedAt: new Date() })
+      .set({ isMember: false, updatedAt: new Date().toISOString() })
       .where(
         and(
           eq(channel.slackConnectionId, connectionId),

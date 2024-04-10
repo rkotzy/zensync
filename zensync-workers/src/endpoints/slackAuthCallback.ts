@@ -1,11 +1,4 @@
-import {
-  OpenAPIRoute,
-  OpenAPIRouteSchema,
-  Query
-} from '@cloudflare/itty-router-openapi';
-import { initializeDb } from '@/lib/drizzle';
-import { slackConnection, SlackConnection } from '@/lib/schema';
-import { eq } from 'drizzle-orm';
+import { slackConnection, SlackConnection } from '@/lib/schema-sqlite';
 import { SlackResponse } from '@/interfaces/slack-api.interface';
 import {
   encryptData,
@@ -16,17 +9,11 @@ import { Env } from '@/interfaces/env.interface';
 import { initializePosthog } from '@/lib/posthog';
 import { safeLog } from '@/lib/logging';
 import { GlobalSettingDefaults } from '@/interfaces/global-settings.interface';
+import { RequestInterface } from '@/interfaces/request.interface';
 
-export class SlackAuthCallback extends OpenAPIRoute {
-  static schema: OpenAPIRouteSchema = {
-    parameters: {
-      code: Query(String),
-      state: Query(String)
-    }
-  };
-
+export class SlackAuthCallback {
   async handle(
-    request: Request,
+    request: RequestInterface,
     env: Env,
     context: any,
     data: Record<string, any>
@@ -46,7 +33,7 @@ export class SlackAuthCallback extends OpenAPIRoute {
     }
 
     const posthog = initializePosthog(env);
-    const db = initializeDb(env);
+    const db = request.db;
     const encryptionKey = await importEncryptionKeyFromEnvironment(env);
 
     try {
@@ -159,7 +146,7 @@ export class SlackAuthCallback extends OpenAPIRoute {
         .onConflictDoUpdate({
           target: slackConnection.slackTeamId,
           set: {
-            updatedAt: new Date(),
+            updatedAt: new Date().toISOString(),
             name: team.name,
             domain: team.domain,
             iconUrl: team.icon.image_132,

@@ -1,29 +1,21 @@
-import { OpenAPIRoute } from '@cloudflare/itty-router-openapi';
-import { initializeDb } from '@/lib/drizzle';
 import { eq } from 'drizzle-orm';
-import { zendeskConnection, SlackConnection, conversation } from '@/lib/schema';
-import * as schema from '@/lib/schema';
+import { SlackConnection, conversation } from '@/lib/schema-sqlite';
 import { SlackResponse } from '@/interfaces/slack-api.interface';
 import { ZendeskEvent } from '@/interfaces/zendesk-api.interface';
-import { NeonHttpDatabase } from 'drizzle-orm/neon-http';
 import { Env } from '@/interfaces/env.interface';
-import {
-  getSlackConnection,
-  isSubscriptionActive,
-  singleEventAnalyticsLogger
-} from '@/lib/utils';
-import bcrypt from 'bcryptjs';
+import { isSubscriptionActive, singleEventAnalyticsLogger } from '@/lib/utils';
 import { safeLog } from '@/lib/logging';
+import { RequestInterface } from '@/interfaces/request.interface';
 
-export class ZendeskEventHandler extends OpenAPIRoute {
+export class ZendeskEventHandler {
   async handle(
-    request: Request,
+    request: RequestInterface,
     env: Env,
     context: any,
     data: Record<string, any>
   ) {
     // Initialize the database
-    const db = initializeDb(env);
+    const db = request.db;
 
     const requestBody = (await request.json()) as ZendeskEvent;
 
@@ -43,13 +35,6 @@ export class ZendeskEventHandler extends OpenAPIRoute {
       return new Response('Ok', { status: 200 });
     }
 
-    // Authenticate the request and get slack connection Id
-    const slackConnectionId = await authenticateRequest(request, db);
-    if (!slackConnectionId) {
-      safeLog('warn', 'Unauthorized');
-      return new Response('Unauthorized', { status: 401 });
-    }
-
     // Get the conversation from external_id
     const conversationInfo = await db.query.conversation.findFirst({
       where: eq(conversation.id, requestBody.external_id),
@@ -67,28 +52,17 @@ export class ZendeskEventHandler extends OpenAPIRoute {
     }
 
     // To be safe I should double-check the organization_id owns the channel_id
+    const slackConnectionInfo = request.slackConnection;
     if (
       !conversationInfo.channel ||
       !conversationInfo.channel.slackChannelIdentifier ||
-      conversationInfo.channel.slackConnectionId !== slackConnectionId
+      conversationInfo.channel.slackConnectionId !== slackConnectionInfo.id
     ) {
       safeLog(
         'error',
-        `Invalid Ids: ${slackConnectionId} !== ${conversationInfo}`
+        `Invalid Ids: ${slackConnectionInfo.id} !== ${conversationInfo}`
       );
       return new Response('Invalid Ids', { status: 401 });
-    }
-
-    // Get the full slack connection info
-    const slackConnectionInfo = await getSlackConnection(
-      slackConnectionId,
-      db,
-      env
-    );
-
-    if (!slackConnectionInfo) {
-      safeLog('error', `No Slack connection found for id ${slackConnectionId}`);
-      return new Response('No Slack connection found', { status: 404 });
     }
 
     // Make sure the subscription is active
@@ -146,50 +120,6 @@ async function getSlackUserByEmail(
   } catch (error) {
     safeLog('error', `Error in getSlackUserByEmail:`, error);
     throw error;
-  }
-}
-
-async function authenticateRequest(
-  request: Request,
-  db: NeonHttpDatabase<typeof schema>
-): Promise<string | null> {
-  try {
-    const authorizationHeader = request.headers.get('authorization');
-    const webhookId = request.headers.get('x-zendesk-webhook-id');
-    const bearerToken = authorizationHeader?.replace('Bearer ', '');
-
-    if (!bearerToken) {
-      safeLog('error', 'Missing bearer token');
-      return null;
-    }
-
-    const url = new URL(request.url);
-
-    if (!webhookId) {
-      safeLog('error', 'Missing webhook id');
-      return null;
-    }
-
-    const connection = await db.query.zendeskConnection.findFirst({
-      where: eq(zendeskConnection.zendeskWebhookId, webhookId)
-    });
-
-    if (!connection) {
-      safeLog('error', `Invalid webhook Id ${webhookId}`);
-      return null;
-    }
-
-    const hashedToken = connection.hashedWebhookBearerToken;
-    const isValid = await bcrypt.compare(bearerToken, hashedToken);
-    if (!isValid) {
-      safeLog('error', 'Invalid bearer token');
-      return null;
-    }
-
-    return connection.slackConnectionId;
-  } catch (error) {
-    safeLog('error', 'Error in authenticateRequest:', error);
-    return null;
   }
 }
 

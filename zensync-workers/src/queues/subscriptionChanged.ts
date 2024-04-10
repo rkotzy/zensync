@@ -1,7 +1,7 @@
-import { initializeDb } from '@/lib/drizzle';
-import { NeonHttpDatabase } from 'drizzle-orm/neon-http';
-import * as schema from '@/lib/schema';
-import { slackConnection, channel } from '@/lib/schema';
+import { initializeDb } from '@/lib/database';
+import { DrizzleD1Database } from 'drizzle-orm/d1';
+import * as schema from '@/lib/schema-sqlite';
+import { slackConnection, channel } from '@/lib/schema-sqlite';
 import { eq, and, asc, lte, gt, isNull } from 'drizzle-orm';
 import { Env } from '@/interfaces/env.interface';
 import { getChannelsByProductId } from '@/interfaces/products.interface';
@@ -22,7 +22,7 @@ export async function stripeSubscriptionChanged(requestJson: any, env: Env) {
 }
 
 async function updateChannelStatus(
-  db: NeonHttpDatabase<typeof schema>,
+  db: DrizzleD1Database<typeof schema>,
   requestJson: any
 ) {
   // Get current Stripe subscription
@@ -72,13 +72,13 @@ async function updateChannelStatus(
 }
 
 async function deactivateChannels(
-  db: NeonHttpDatabase<typeof schema>,
-  connectionId: string,
-  beyondLimit: Date
+  db: DrizzleD1Database<typeof schema>,
+  connectionId: number,
+  beyondLimit: string
 ) {
   const deactivateChannels = await db
     .update(channel)
-    .set({ status: PENDING_UPGRADE, updatedAt: new Date() })
+    .set({ status: PENDING_UPGRADE, updatedAt: new Date().toISOString() })
     .where(
       and(
         eq(channel.slackConnectionId, connectionId),
@@ -96,15 +96,15 @@ async function deactivateChannels(
 }
 
 async function activateChannels(
-  db: NeonHttpDatabase<typeof schema>,
-  connectionId: string,
-  upToLimit: Date
+  db: DrizzleD1Database<typeof schema>,
+  connectionId: number,
+  upToLimit: string
 ) {
   safeLog('log', `Activating channels up to ${upToLimit}`);
 
   const activatedChannels = await db
     .update(channel)
-    .set({ status: null, updatedAt: new Date() })
+    .set({ status: null, updatedAt: new Date().toISOString() })
     .where(
       and(
         eq(channel.slackConnectionId, connectionId),
@@ -122,14 +122,14 @@ async function activateChannels(
 }
 
 async function activateAllChannels(
-  db: NeonHttpDatabase<typeof schema>,
-  connectionId: string
+  db: DrizzleD1Database<typeof schema>,
+  connectionId: number
 ) {
   safeLog('log', `Activating all channels`);
 
   await db
     .update(channel)
-    .set({ status: null, updatedAt: new Date() })
+    .set({ status: null, updatedAt: new Date().toISOString() })
     .where(
       and(
         eq(channel.slackConnectionId, connectionId),

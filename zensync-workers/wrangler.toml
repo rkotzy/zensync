@@ -12,9 +12,10 @@ DEFAULT_STRIPE_PRODUCT_ID = "prod_PYxuYByQ6U1tCK"
 SUBSCRIPTION_EXPIRATION_BUFFER_HOURS = 36
 POSTHOG_ANALYTICS_KEY = "phc_rkaF4Q2PWbZWvIVFWNsmFdBlfZewnFAwQ2MaC33mSHd"
 
-[[hyperdrive]]
-binding = "HYPERDRIVE"
-id = "db1a8884a9774e799992945b38aefdba"
+[[d1_databases]]
+binding = "DBSQLITE"
+database_name = "zensync-prod-d1"
+database_id = "b6cf337d-0b0c-4048-be79-e8cedf577c01"
 
 [[queues.producers]]
 queue = "process-slack-messages"

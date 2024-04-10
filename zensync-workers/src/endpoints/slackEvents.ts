@@ -1,17 +1,16 @@
-import { OpenAPIRoute } from '@cloudflare/itty-router-openapi';
-import { initializeDb } from '@/lib/drizzle';
-import { findSlackConnectionByAppId, verifySlackRequest } from '@/lib/utils';
-import { SlackConnection } from '@/lib/schema';
+import { findSlackConnectionByAppId } from '@/lib/utils';
+import { SlackConnection } from '@/lib/schema-sqlite';
 import { SlackEvent } from '@/interfaces/slack-api.interface';
 import { Env } from '@/interfaces/env.interface';
 import { importEncryptionKeyFromEnvironment } from '@/lib/encryption';
 import { handleAppHomeOpened } from '@/views/homeTab';
 import { isSubscriptionActive, singleEventAnalyticsLogger } from '@/lib/utils';
 import { safeLog } from '@/lib/logging';
+import { RequestInterface } from '@/interfaces/request.interface';
 
-export class SlackEventHandler extends OpenAPIRoute {
+export class SlackEventHandler {
   async handle(
-    request: Request,
+    request: RequestInterface,
     env: Env,
     context: any,
     data: Record<string, any>
@@ -36,19 +35,11 @@ export class SlackEventHandler extends OpenAPIRoute {
     //   });
     // }
 
-    // Verify the Slack request
-    if (!(await verifySlackRequest(textClone, env))) {
-      safeLog('warn', 'Slack verification failed!');
-      return new Response('Verification failed', {
-        status: 200
-      });
-    }
-
     ///////////////////////////////////////
     // Handle events that require an organization details
     ///////////////////////////////////////
 
-    const db = initializeDb(env);
+    const db = request.db;
     const encryptionKey = await importEncryptionKeyFromEnvironment(env);
 
     // Find the corresponding slack connection details

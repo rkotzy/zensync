@@ -1,8 +1,8 @@
 import { SlackResponse } from '@/interfaces/slack-api.interface';
 import { ZendeskResponse } from '@/interfaces/zendesk-api.interface';
-import { ZendeskConnection, SlackConnection } from '@/lib/schema';
+import { ZendeskConnection, SlackConnection } from '@/lib/schema-sqlite';
 import { fetchZendeskCredentials } from '@/lib/utils';
-import { initializeDb } from '@/lib/drizzle';
+import { initializeDb } from '@/lib/database';
 import { Env } from '@/interfaces/env.interface';
 import { Buffer } from 'node:buffer';
 import { safeLog } from '@/lib/logging';

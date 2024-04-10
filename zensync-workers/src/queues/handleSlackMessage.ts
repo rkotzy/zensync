@@ -1,12 +1,11 @@
-import { initializeDb } from '@/lib/drizzle';
-import { eq, and, sql } from 'drizzle-orm';
+import { eq, and, desc } from 'drizzle-orm';
 import {
   channel,
   SlackConnection,
   ZendeskConnection,
   conversation,
   Conversation
-} from '@/lib/schema';
+} from '@/lib/schema-sqlite';
 import { FollowUpTicket } from '@/interfaces/follow-up-ticket.interface';
 import {
   SlackMessageData,
@@ -21,8 +20,8 @@ import {
   singleEventAnalyticsLogger
 } from '@/lib/utils';
 import { Env } from '@/interfaces/env.interface';
-import { NeonHttpDatabase } from 'drizzle-orm/neon-http';
-import * as schema from '@/lib/schema';
+import { DrizzleD1Database } from 'drizzle-orm/d1';
+import * as schema from '@/lib/schema-sqlite';
 import { ZendeskResponse } from '@/interfaces/zendesk-api.interface';
 import { importEncryptionKeyFromEnvironment } from '@/lib/encryption';
 import { getChannelsByProductId } from '@/interfaces/products.interface';
@@ -32,6 +31,7 @@ import {
   GlobalSettingDefaults,
   GlobalSettings
 } from '@/interfaces/global-settings.interface';
+import { initializeDb } from '@/lib/database';
 
 const MISSING_ZENDESK_CREDENTIALS_MESSAGE =
   'Zendesk credentials are missing or inactive. Configure them in the Zensync app settings to start syncing messages.';
@@ -41,7 +41,7 @@ const eventHandlers: Record<
   (
     body: any,
     connection: SlackConnection,
-    db: NeonHttpDatabase<typeof schema>,
+    db: DrizzleD1Database<typeof schema>,
     env: Env,
     key: CryptoKey,
     analyticsIdempotencyKey: string | null
@@ -112,7 +112,7 @@ export async function handleMessageFromSlack(requestJson: any, env: Env) {
 async function handleChannelJoined(
   request: any,
   connection: SlackConnection,
-  db: NeonHttpDatabase<typeof schema>,
+  db: DrizzleD1Database<typeof schema>,
   env: Env,
   key: CryptoKey,
   analyticsIdempotencyKey: string | null
@@ -232,7 +232,7 @@ async function handleChannelJoined(
       .onConflictDoUpdate({
         target: [channel.slackConnectionId, channel.slackChannelIdentifier],
         set: {
-          updatedAt: new Date(),
+          updatedAt: new Date().toISOString(),
           type: channelType,
           isMember: true,
           name: channelName,
@@ -351,7 +351,7 @@ function getChannelType(channelData: any): string | null {
 async function handleChannelLeft(
   request: any,
   connection: SlackConnection,
-  db: NeonHttpDatabase<typeof schema>,
+  db: DrizzleD1Database<typeof schema>,
   env: Env,
   key: CryptoKey,
   analyticsIdempotencyKey: string | null
@@ -363,7 +363,7 @@ async function handleChannelLeft(
     await db
       .update(channel)
       .set({
-        updatedAt: new Date(),
+        updatedAt: new Date().toISOString(),
         isMember: false
       })
       .where(
@@ -393,7 +393,7 @@ async function handleChannelLeft(
 async function handleChannelUnarchive(
   request: any,
   connection: SlackConnection,
-  db: NeonHttpDatabase<typeof schema>,
+  db: DrizzleD1Database<typeof schema>,
   env: Env,
   key: CryptoKey,
   analyticsIdempotencyKey: string | null
@@ -408,7 +408,7 @@ async function handleChannelUnarchive(
     await db
       .update(channel)
       .set({
-        updatedAt: new Date(),
+        updatedAt: new Date().toISOString(),
         isMember: true
       })
       .where(
@@ -438,7 +438,7 @@ async function handleChannelUnarchive(
 async function handleChannelNameChanged(
   request: any,
   connection: SlackConnection,
-  db: NeonHttpDatabase<typeof schema>,
+  db: DrizzleD1Database<typeof schema>,
   env: Env,
   key: CryptoKey
 ) {
@@ -448,7 +448,7 @@ async function handleChannelNameChanged(
     await db
       .update(channel)
       .set({
-        updatedAt: new Date(),
+        updatedAt: new Date().toISOString(),
         name: eventData.channel.name
       })
       .where(
@@ -466,7 +466,7 @@ async function handleChannelNameChanged(
 async function handleChannelIdChanged(
   request: any,
   connection: SlackConnection,
-  db: NeonHttpDatabase<typeof schema>,
+  db: DrizzleD1Database<typeof schema>,
   env: Env,
   key: CryptoKey
 ) {
@@ -476,7 +476,7 @@ async function handleChannelIdChanged(
     await db
       .update(channel)
       .set({
-        updatedAt: new Date(),
+        updatedAt: new Date().toISOString(),
         slackChannelIdentifier: eventData.new_channel_id
       })
       .where(
@@ -494,7 +494,7 @@ async function handleChannelIdChanged(
 async function handleFileUpload(
   request: any,
   connection: SlackConnection,
-  db: NeonHttpDatabase<typeof schema>,
+  db: DrizzleD1Database<typeof schema>,
   env: Env,
   key: CryptoKey,
   analyticsIdempotencyKey: string | null
@@ -552,7 +552,7 @@ async function handleFileUpload(
 async function handleMessageEdit(
   request: any,
   connection: SlackConnection,
-  db: NeonHttpDatabase<typeof schema>,
+  db: DrizzleD1Database<typeof schema>,
   env: Env,
   key: CryptoKey,
   analyticsIdempotencyKey: string | null
@@ -603,7 +603,7 @@ async function handleMessageEdit(
 async function handleMessageDeleted(
   request: any,
   connection: SlackConnection,
-  db: NeonHttpDatabase<typeof schema>,
+  db: DrizzleD1Database<typeof schema>,
   env: Env,
   key: CryptoKey,
   analyticsIdempotencyKey: string | null
@@ -657,7 +657,7 @@ async function handleMessageDeleted(
 async function handleMessage(
   request: any,
   connection: SlackConnection,
-  db: NeonHttpDatabase<typeof schema>,
+  db: DrizzleD1Database<typeof schema>,
   env: Env,
   key: CryptoKey,
   analyticsIdempotencyKey: string | null,
@@ -754,7 +754,7 @@ async function handleMessage(
     try {
       await sendTicketReplyOrFallbackToNewTicket(
         existingConversation.zendeskTicketId,
-        existingConversation.id,
+        existingConversation.publicId,
         messageData,
         zendeskCredentials,
         connection,
@@ -770,9 +770,8 @@ async function handleMessage(
       await db
         .update(conversation)
         .set({
-          updatedAt: new Date(),
+          updatedAt: new Date().toISOString(),
           slackParentMessageId: messageData.ts,
-          slackParentMessageTs: messageData.ts,
           latestSlackMessageId: messageData.ts
         })
         .where(eq(conversation.id, existingConversation.id));
@@ -938,7 +937,7 @@ async function handleThreadReply(
   messageData: SlackMessageData,
   zendeskCredentials: ZendeskConnection,
   slackConnectionInfo: SlackConnection,
-  db: NeonHttpDatabase<typeof schema>,
+  db: DrizzleD1Database<typeof schema>,
   env: Env,
   slackParentMessageId: string,
   authorId: number,
@@ -951,6 +950,7 @@ async function handleThreadReply(
   const conversationInfo = await db
     .select({
       id: conversation.id,
+      publicId: conversation.publicId,
       zendeskTicketId: conversation.zendeskTicketId
     })
     .from(conversation)
@@ -987,7 +987,7 @@ async function handleThreadReply(
 
   return await sendTicketReplyOrFallbackToNewTicket(
     conversationInfo[0].zendeskTicketId,
-    conversationInfo[0].id,
+    conversationInfo[0].publicId,
     messageData,
     zendeskCredentials,
     slackConnectionInfo,
@@ -1003,11 +1003,11 @@ async function handleThreadReply(
 
 async function sendTicketReplyOrFallbackToNewTicket(
   zendeskTicketId: string,
-  conversationId: string,
+  conversationPublicId: string,
   messageData: SlackMessageData,
   zendeskCredentials: ZendeskConnection,
   slackConnectionInfo: SlackConnection,
-  db: NeonHttpDatabase<typeof schema>,
+  db: DrizzleD1Database<typeof schema>,
   env: Env,
   authorId: number,
   fileUploadTokens: string[] | undefined,
@@ -1063,7 +1063,7 @@ async function sendTicketReplyOrFallbackToNewTicket(
     if (isPublic) {
       const followUpTicket: FollowUpTicket = {
         sourceTicketId: zendeskTicketId,
-        conversationId: conversationId
+        conversationPublicId: conversationPublicId
       };
 
       return await handleNewConversation(
@@ -1089,10 +1089,10 @@ async function sendTicketReplyOrFallbackToNewTicket(
       await db
         .update(conversation)
         .set({
-          updatedAt: new Date(),
+          updatedAt: new Date().toISOString(),
           latestSlackMessageId: messageData.ts
         })
-        .where(eq(conversation.id, conversationId));
+        .where(eq(conversation.publicId, conversationPublicId));
 
       // Update the channel activity
       await updateChannelActivity(slackConnectionInfo, messageData.channel, db);
@@ -1137,7 +1137,7 @@ async function handleNewConversation(
   messageData: SlackMessageData,
   zendeskCredentials: ZendeskConnection,
   slackConnectionInfo: SlackConnection,
-  db: NeonHttpDatabase<typeof schema>,
+  db: DrizzleD1Database<typeof schema>,
   env: Env,
   channelId: string,
   authorId: number,
@@ -1174,7 +1174,8 @@ async function handleNewConversation(
   );
 
   // Set the primary key for the conversation
-  let conversationUuid = followUpTicket?.conversationId ?? crypto.randomUUID();
+  let conversationUuid =
+    followUpTicket?.conversationPublicId ?? crypto.randomUUID();
 
   let htmlBody = slackMarkdownToHtml(messageData.text);
   if (!htmlBody || htmlBody === '') {
@@ -1264,11 +1265,11 @@ async function handleNewConversation(
       await db
         .update(conversation)
         .set({
-          updatedAt: new Date(),
+          updatedAt: new Date().toISOString(),
           zendeskTicketId: ticketId,
           latestSlackMessageId: messageData.ts
         })
-        .where(eq(conversation.id, conversationUuid));
+        .where(eq(conversation.publicId, conversationUuid));
     } catch (error) {
       safeLog('error', `Error updating conversation:`, error);
       safeLog('error', 'Failed payload:', {
@@ -1279,10 +1280,9 @@ async function handleNewConversation(
   } else {
     try {
       await db.insert(conversation).values({
-        id: conversationUuid,
+        publicId: conversationUuid,
         channelId: channelInfo.id,
         slackParentMessageId: messageData.ts,
-        slackParentMessageTs: messageData.ts,
         zendeskTicketId: ticketId,
         slackAuthorUserId: messageData.user,
         latestSlackMessageId: messageData.ts
@@ -1312,7 +1312,7 @@ async function handleNewConversation(
 async function sameSenderInTimeframeConversation(
   connection: SlackConnection,
   currentMessage: SlackMessageData,
-  db: NeonHttpDatabase<typeof schema>
+  db: DrizzleD1Database<typeof schema>
 ): Promise<Conversation | null> {
   try {
     // get the latest conversation from database
@@ -1328,7 +1328,7 @@ async function sameSenderInTimeframeConversation(
           eq(channel.slackChannelIdentifier, currentMessage.channel)
         )
       )
-      .orderBy(sql`${conversation.slackParentMessageTs} desc nulls last`)
+      .orderBy(desc(conversation.slackParentMessageId))
       .limit(1);
 
     if (!latestConversation || latestConversation.length === 0) {
@@ -1362,7 +1362,10 @@ async function sameSenderInTimeframeConversation(
       glabalSettings.sameSenderTimeframe ||
       GlobalSettingDefaults.sameSenderTimeframe;
 
-    if (timeDiff >= 0 && timeDiff <= timeframeSeconds) {
+    if (
+      timeframeSeconds !== 0 ||
+      (timeDiff >= 0 && timeDiff <= timeframeSeconds)
+    ) {
       return latestConversation[0].conversation;
     } else {
       return null;

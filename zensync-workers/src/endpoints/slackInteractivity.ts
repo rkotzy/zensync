@@ -1,10 +1,5 @@
-import { eq, and } from 'drizzle-orm';
 import { InteractivityActionId, fetchZendeskCredentials } from '@/lib/utils';
-import {
-  SlackConnection,
-  zendeskConnection,
-  channel
-} from '@/lib/schema-sqlite';
+import { SlackConnection } from '@/lib/schema-sqlite';
 import * as schema from '@/lib/schema-sqlite';
 import { DrizzleD1Database } from 'drizzle-orm/d1';
 import { ZendeskResponse } from '@/interfaces/zendesk-api.interface';
@@ -21,6 +16,13 @@ import { getBillingPortalConfiguration } from '@/interfaces/products.interface';
 import { initializePosthog } from '@/lib/posthog';
 import { safeLog } from '@/lib/logging';
 import { RequestInterface } from '@/interfaces/request.interface';
+import { ZendeskConnectionCreate } from '@/interfaces/zendesk-api.interface';
+import {
+  createOrUpdateZendeskConnection,
+  getChannels,
+  getChannel,
+  updateChannel
+} from '@/lib/database';
 
 export class SlackInteractivityHandler {
   async handle(
@@ -362,31 +364,16 @@ async function saveZendeskCredentials(
     const salt = await bcrypt.genSalt(10);
     const hashedWebhookToken = await bcrypt.hash(webhookToken, salt);
 
-    await db
-      .insert(zendeskConnection)
-      .values({
-        encryptedZendeskApiKey: encryptedApiKey,
-        zendeskDomain: zendeskDomain,
-        zendeskEmail: zendeskEmail,
-        slackConnectionId: connection.id,
-        status: 'ACTIVE',
-        zendeskTriggerId: zendeskTriggerId,
-        zendeskWebhookId: zendeskWebhookId,
-        hashedWebhookBearerToken: hashedWebhookToken
-      })
-      .onConflictDoUpdate({
-        target: zendeskConnection.slackConnectionId,
-        set: {
-          updatedAt: new Date().toISOString(),
-          encryptedZendeskApiKey: encryptedApiKey,
-          zendeskDomain: zendeskDomain,
-          zendeskEmail: zendeskEmail,
-          hashedWebhookBearerToken: hashedWebhookToken,
-          zendeskTriggerId: zendeskTriggerId,
-          zendeskWebhookId: zendeskWebhookId,
-          status: 'ACTIVE'
-        }
-      });
+    await createOrUpdateZendeskConnection(db, {
+      encryptedApiKey,
+      zendeskDomain,
+      zendeskEmail,
+      slackConnectionId: connection.id,
+      status: 'ACTIVE',
+      zendeskTriggerId: zendeskTriggerId,
+      zendeskWebhookId: zendeskWebhookId,
+      hashedWebhookToken
+    } as ZendeskConnectionCreate);
 
     const slackUserId = payload.user?.id;
     if (slackUserId) {
@@ -442,16 +429,7 @@ async function openAccountSettings(
     const stripeProductId = connection.subscription?.stripeProductId;
     const stripe = new Stripe(env.STRIPE_API_KEY);
 
-    const limitedChannels = await db
-      .select({ id: channel.id })
-      .from(channel)
-      .where(
-        and(
-          eq(channel.slackConnectionId, connection.id),
-          eq(channel.isMember, true)
-        )
-      )
-      .limit(4);
+    const limitedChannels = await getChannels(db, connection.id, true, 4);
 
     const billingPortalConfiguration = getBillingPortalConfiguration(
       limitedChannels.length
@@ -680,12 +658,7 @@ async function openChannelConfigurationModal(
     }
 
     // Fetch channel info from the database
-    const channelInfo = await db.query.channel.findFirst({
-      where: and(
-        eq(channel.slackConnectionId, connection.id),
-        eq(channel.slackChannelIdentifier, channelId)
-      )
-    });
+    const channelInfo = await getChannel(db, connection.id, channelId);
 
     if (!channelInfo) {
       safeLog('error', `No channel found for ID: ${channelId}`);
@@ -886,18 +859,13 @@ async function updateChannelConfiguration(
     }
 
     // Update the values in the database
-    await db
-      .update(channel)
-      .set({
-        defaultAssigneeEmail: channelOwnerEmail ?? null,
-        tags: tagsArray
-      })
-      .where(
-        and(
-          eq(channel.slackConnectionId, connection.id),
-          eq(channel.slackChannelIdentifier, channelId)
-        )
-      );
+    await updateChannel(
+      db,
+      connection.id,
+      channelId,
+      channelOwnerEmail,
+      tagsArray
+    );
 
     // Reload the home view
     const slackUserId = payload.user?.id;

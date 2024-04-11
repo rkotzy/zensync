@@ -18,3 +18,13 @@ export interface ZendeskEvent {
 export interface ZendeskResponse {
   [key: string]: any;
 }
+
+export interface ZendeskConnectionCreate {
+  zendeskDomain: string;
+  zendeskEmail: string;
+  encryptedApiKey: string;
+  slackConnectionId: number;
+  zendeskTriggerId: string;
+  zendeskWebhookId: string;
+  hashedWebhookToken: string;
+}

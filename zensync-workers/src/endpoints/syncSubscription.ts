@@ -1,8 +1,7 @@
 import { Env } from '@/interfaces/env.interface';
-import { eq } from 'drizzle-orm';
-import { subscription } from '@/lib/schema-sqlite';
 import { safeLog } from '@/lib/logging';
 import { RequestInterface } from '@/interfaces/request.interface';
+import { getSubscription } from '@/lib/database';
 
 export class SyncSubscriptionHandler {
   async handle(
@@ -21,9 +20,7 @@ export class SyncSubscriptionHandler {
 
       const db = request.db;
 
-      const subscriptionInfo = await db.query.subscription.findFirst({
-        where: eq(subscription.stripeSubscriptionId, subscriptionId)
-      });
+      const subscriptionInfo = await getSubscription(db, subscriptionId);
 
       if (!subscriptionInfo) {
         safeLog('error', 'No subscription found');

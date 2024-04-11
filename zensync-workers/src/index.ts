@@ -13,7 +13,6 @@ import { SlackEventHandler } from './endpoints/slackEvents';
 import { StripeEventHandler } from './endpoints/stripeEvents';
 import { SyncSubscriptionHandler } from './endpoints/syncSubscription';
 import { QueueMessageHandler } from './queues/queueHandler';
-import { parse } from 'path';
 
 export const router = OpenAPIRouter();
 const message = new QueueMessageHandler();

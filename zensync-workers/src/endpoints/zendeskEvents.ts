@@ -1,11 +1,11 @@
-import { eq } from 'drizzle-orm';
-import { SlackConnection, conversation } from '@/lib/schema-sqlite';
+import { SlackConnection } from '@/lib/schema-sqlite';
 import { SlackResponse } from '@/interfaces/slack-api.interface';
 import { ZendeskEvent } from '@/interfaces/zendesk-api.interface';
 import { Env } from '@/interfaces/env.interface';
 import { isSubscriptionActive, singleEventAnalyticsLogger } from '@/lib/utils';
 import { safeLog } from '@/lib/logging';
 import { RequestInterface } from '@/interfaces/request.interface';
+import { getConversation } from '@/lib/database';
 
 export class ZendeskEventHandler {
   async handle(
@@ -36,12 +36,7 @@ export class ZendeskEventHandler {
     }
 
     // Get the conversation from external_id
-    const conversationInfo = await db.query.conversation.findFirst({
-      where: eq(conversation.publicId, requestBody.external_id),
-      with: {
-        channel: true
-      }
-    });
+    const conversationInfo = await getConversation(db, requestBody.external_id);
 
     if (!conversationInfo?.slackParentMessageId) {
       safeLog(

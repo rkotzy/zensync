@@ -1,5 +1,3 @@
-import { eq } from 'drizzle-orm';
-import { subscription, slackConnection } from '@/lib/schema-sqlite';
 import { Env } from '@/interfaces/env.interface';
 import Stripe from 'stripe';
 import { initializePosthog } from '@/lib/posthog';
@@ -8,6 +6,10 @@ import { safeLog } from '@/lib/logging';
 import { RequestInterface } from '@/interfaces/request.interface';
 import { DrizzleD1Database } from 'drizzle-orm/d1';
 import * as schema from '@/lib/schema-sqlite';
+import {
+  getSlackConnectionFromStripeSubscription,
+  updateStripeSubscriptionId
+} from '@/lib/database';
 
 export class StripeEventHandler {
   async handle(
@@ -43,22 +45,10 @@ async function updateCustomerSubscription(
     const subscriptionId = data.id;
     const productId = data.items.data[0].price.product.toString();
 
-    const slackConnectionInfo = await db
-      .select()
-      .from(slackConnection)
-      .fullJoin(
-        subscription,
-        eq(slackConnection.subscriptionId, subscription.id)
-      )
-      .where(eq(subscription.stripeSubscriptionId, subscriptionId))
-      .limit(1);
-
-    if (!slackConnectionInfo[0]) {
-      safeLog('error', `Subscription not found: ${subscriptionId}`);
-      throw new Error(`Subscription not found: ${subscriptionId}`);
-    }
-
-    const connectionInfo = slackConnectionInfo[0];
+    const connectionInfo = await getSlackConnectionFromStripeSubscription(
+      db,
+      subscriptionId
+    );
     const subscriptionInfo = connectionInfo.subscriptions;
 
     if (new Date(subscriptionInfo.updatedAt) > new Date(data.created * 1000)) {
@@ -76,16 +66,15 @@ async function updateCustomerSubscription(
       ? new Date(data.canceled_at * 1000).toISOString()
       : null;
 
-    await db
-      .update(subscription)
-      .set({
-        updatedAt: new Date(data.created * 1000).toISOString(),
-        periodStart: currentPeriodStart,
-        periodEnd: currentPeriodEnd,
-        canceledAt: canceledAt,
-        ...(productId ? { stripeProductId: productId } : {})
-      })
-      .where(eq(subscription.stripeSubscriptionId, subscriptionId));
+    await updateStripeSubscriptionId(
+      db,
+      subscriptionId,
+      data.created,
+      currentPeriodStart,
+      currentPeriodEnd,
+      canceledAt,
+      productId
+    );
 
     // Fire off the queue to update channels
     await env.STRIPE_SUBSCRIPTION_CHANGED_QUEUE_BINDING.send({

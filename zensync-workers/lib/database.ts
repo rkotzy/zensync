@@ -10,13 +10,38 @@ export function initializeDb(env: Env) {
   return db;
 }
 
-export async function getSlackConnectionFromId(
+export async function getSlackConnection(
   db: DrizzleD1Database<typeof schema>,
   env: Env,
-  id: number
+  searchKey: 'id',
+  searchValue: number
+): Promise<SlackConnection | null | undefined>;
+
+export async function getSlackConnection(
+  db: DrizzleD1Database<typeof schema>,
+  env: Env,
+  searchKey: 'appId',
+  searchValue: string
+): Promise<SlackConnection | null | undefined>;
+
+export async function getSlackConnection(
+  db: DrizzleD1Database<typeof schema>,
+  env: Env,
+  searchKey: any,
+  searchValue: any
 ): Promise<SlackConnection | null | undefined> {
+  let whereCondition;
+
+  if (searchKey === 'id') {
+    whereCondition = eq(slackConnection.id, searchValue);
+  } else if (searchKey === 'appId') {
+    whereCondition = eq(slackConnection.appId, searchValue);
+  } else {
+    throw new Error('Invalid search key');
+  }
+
   const connection = await db.query.slackConnection.findFirst({
-    where: eq(slackConnection.id, id),
+    where: whereCondition,
     with: {
       subscription: true
     }

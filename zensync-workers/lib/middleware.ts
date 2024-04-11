@@ -1,11 +1,12 @@
 import { Env } from '@/interfaces/env.interface';
-import { getSlackConnectionFromId, initializeDb } from './database';
+import { getSlackConnection, initializeDb } from './database';
 import { RequestInterface } from '@/interfaces/request.interface';
 import Stripe from 'stripe';
 import { eq } from 'drizzle-orm';
-import { zendeskConnection, slackConnection } from '@/lib/schema-sqlite';
+import { zendeskConnection } from '@/lib/schema-sqlite';
 import { safeLog } from './logging';
 import bcrypt from 'bcryptjs';
+import { SlackEvent } from '@/interfaces/slack-api.interface';
 
 ///////////////////////////////////////////////
 // Inject the database to the request objece
@@ -18,43 +19,76 @@ export async function injectDB(request: RequestInterface, env: Env) {
 // Verify Slack request and associated helpers
 //////////////////////////////////////////////
 
-export async function verifySlackRequest(request: RequestInterface, env: Env) {
-  const signingSecret = env.SLACK_SIGNING_SECRET;
-  const timestamp = request.headers.get('x-slack-request-timestamp');
-  const slackSignature = request.headers.get('x-slack-signature');
-  const body = await request.clone().text();
+export async function verifySlackRequestAndSetSlackConnection(
+  request: RequestInterface,
+  env: Env
+) {
+  try {
+    const signingSecret = env.SLACK_SIGNING_SECRET;
+    const timestamp = request.headers.get('x-slack-request-timestamp');
+    const slackSignature = request.headers.get('x-slack-signature');
+    const body = await request.clone().text();
 
-  const basestring = `v0:${timestamp}:${body}`;
+    const basestring = `v0:${timestamp}:${body}`;
 
-  // Convert the Slack signing secret and the basestring to Uint8Array
-  const encoder = new TextEncoder();
-  const keyData = encoder.encode(signingSecret);
-  const data = encoder.encode(basestring);
+    // Convert the Slack signing secret and the basestring to Uint8Array
+    const encoder = new TextEncoder();
+    const keyData = encoder.encode(signingSecret);
+    const data = encoder.encode(basestring);
 
-  // Import the signing secret key for use with HMAC
-  const cryptoKey = await crypto.subtle.importKey(
-    'raw',
-    keyData,
-    { name: 'HMAC', hash: 'SHA-256' },
-    false,
-    ['sign']
-  );
+    // Import the signing secret key for use with HMAC
+    const cryptoKey = await crypto.subtle.importKey(
+      'raw',
+      keyData,
+      { name: 'HMAC', hash: 'SHA-256' },
+      false,
+      ['sign']
+    );
 
-  // Create HMAC and get the signature as hex string
-  const signatureBuffer = await crypto.subtle.sign('HMAC', cryptoKey, data);
-  const mySignature = Array.from(new Uint8Array(signatureBuffer))
-    .map(byte => byte.toString(16).padStart(2, '0'))
-    .join('');
+    // Create HMAC and get the signature as hex string
+    const signatureBuffer = await crypto.subtle.sign('HMAC', cryptoKey, data);
+    const mySignature = Array.from(new Uint8Array(signatureBuffer))
+      .map(byte => byte.toString(16).padStart(2, '0'))
+      .join('');
 
-  const computedSignature = `v0=${mySignature}`;
+    const computedSignature = `v0=${mySignature}`;
 
-  // Compare the computed signature and the Slack signature
-  const isValid = timingSafeEqual(computedSignature, slackSignature || '');
+    // Compare the computed signature and the Slack signature
+    const isValid = timingSafeEqual(computedSignature, slackSignature || '');
 
-  if (!isValid) {
-    safeLog('warn', 'Slack verification failed!');
-    return new Response('Verification failed', {
-      status: 200
+    if (!isValid) {
+      safeLog('warn', 'Slack verification failed!');
+      return new Response('Verification failed', {
+        status: 200
+      });
+    }
+
+    // Get the slack connection
+    const requestBody = (await request.clone().json()) as SlackEvent;
+    const slackConnectionInfo = await getSlackConnection(
+      request.db,
+      env,
+      'appId',
+      requestBody.api_app_id
+    );
+
+    if (!slackConnectionInfo) {
+      safeLog('error', 'No slack connection found');
+      return new Response('Verification failed', {
+        status: 200
+      });
+    }
+
+    // Set the slack connection to the request object
+    request.slackConnection = slackConnectionInfo;
+  } catch (error) {
+    safeLog(
+      'error',
+      'Error in verifySlackRequestAndSetSlackConnection:',
+      error
+    );
+    return new Response('Unknown verification error', {
+      status: 500
     });
   }
 }
@@ -123,9 +157,10 @@ export async function verifyZendeskWebhookAndSetSlackConnection(
     }
 
     // Get the slack connection
-    const slackConnectionInfo = await getSlackConnectionFromId(
+    const slackConnectionInfo = await getSlackConnection(
       request.db,
       env,
+      'id',
       connection.slackConnectionId
     );
     if (!slackConnectionInfo) {
@@ -138,7 +173,11 @@ export async function verifyZendeskWebhookAndSetSlackConnection(
     // Set the slack connection to the request object
     request.slackConnection = slackConnectionInfo;
   } catch (error) {
-    safeLog('error', 'Error in authenticateRequest:', error);
+    safeLog(
+      'error',
+      'Error in verifyZendeskWebhookAndSetSlackConnection:',
+      error
+    );
     return new Response('Unknown verification error', {
       status: 500
     });

@@ -1,6 +1,6 @@
 import { OpenAPIRouter } from '@cloudflare/itty-router-openapi';
 import {
-  verifySlackRequest,
+  verifySlackRequestAndSetSlackConnection,
   injectDB,
   verifyZendeskWebhookAndSetSlackConnection
 } from '@/lib/middleware';
@@ -25,7 +25,7 @@ router.post(
 
 router.post(
   `/v1/slack/interactivity`,
-  verifySlackRequest,
+  verifySlackRequestAndSetSlackConnection,
   injectDB,
   new SlackInteractivityHandler()
 );
@@ -36,7 +36,7 @@ router.get(`/v1/slack/auth/callback`, injectDB, new SlackAuthCallback());
 
 router.post(
   `/v1/slack/events`,
-  verifySlackRequest,
+  verifySlackRequestAndSetSlackConnection,
   injectDB,
   new SlackEventHandler()
 );

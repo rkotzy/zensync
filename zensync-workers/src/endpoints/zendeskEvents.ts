@@ -1,11 +1,10 @@
-import { SlackConnection } from '@/lib/schema-sqlite';
-import { SlackResponse } from '@/interfaces/slack-api.interface';
 import { ZendeskEvent } from '@/interfaces/zendesk-api.interface';
 import { Env } from '@/interfaces/env.interface';
 import { isSubscriptionActive, singleEventAnalyticsLogger } from '@/lib/utils';
 import { safeLog } from '@/lib/logging';
 import { RequestInterface } from '@/interfaces/request.interface';
 import { getConversationFromPublicId } from '@/lib/database';
+import { sendSlackMessage } from '@/lib/slack-api';
 
 export class ZendeskEventHandler {
   async handle(
@@ -21,8 +20,6 @@ export class ZendeskEventHandler {
 
     safeLog('log', 'Zendesk event received:', requestBody);
 
-    // Save some database calls if it's a message from Zensync
-
     // Ignore messages from Zensync
     if (isFromZensync(requestBody)) {
       safeLog('log', 'Message from Zensync, skipping');
@@ -36,7 +33,7 @@ export class ZendeskEventHandler {
     }
     
     try {
-      // Get the conversation from external_id
+      // Get the conversation from external_id on the event
       const conversationInfo = await getConversationFromPublicId(
         db,
         requestBody.external_id
@@ -69,6 +66,8 @@ export class ZendeskEventHandler {
         safeLog('log', 'Subscription is not active, ignoring');
         return new Response('Ok', { status: 200 });
       }
+
+      // Send the message into Slack
       await sendSlackMessage(
         requestBody,
         slackConnectionInfo,
@@ -83,135 +82,6 @@ export class ZendeskEventHandler {
 
     return new Response('Ok', { status: 202 });
   }
-}
-
-async function getSlackUserByEmail(
-  connection: SlackConnection,
-  email: string
-): Promise<{ userId: string; username: string | undefined; imageUrl: string }> {
-  try {
-    const response = await fetch(
-      `https://slack.com/api/users.lookupByEmail?email=${email}`,
-      {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-          Authorization: `Bearer ${connection.token}`
-        }
-      }
-    );
-
-    const responseData = (await response.json()) as SlackResponse;
-
-    if (!responseData.ok) {
-      throw new Error(`Error getting Slack user: ${responseData.error}`);
-    }
-
-    const userId = responseData.user.id;
-    const username =
-      responseData.user.profile?.display_name ||
-      responseData.user.profile?.real_name ||
-      undefined;
-    const imageUrl = responseData.user.profile.image_192;
-    return { userId, username, imageUrl };
-  } catch (error) {
-    safeLog('error', `Error in getSlackUserByEmail:`, error);
-    throw error;
-  }
-}
-
-async function sendSlackMessage(
-  requestBody: any,
-  connection: SlackConnection,
-  parentMessageId: string,
-  slackChannelId: string,
-  env: Env
-) {
-  let username: string | undefined;
-  let imageUrl: string | undefined;
-
-  let slackUser: {
-    userId: string;
-    username: string;
-    imageUrl: string;
-  };
-  try {
-    if (requestBody.current_user_email) {
-      slackUser = await getSlackUserByEmail(
-        connection,
-        requestBody.current_user_email
-      );
-      username = slackUser.username || requestBody.current_user_name;
-      imageUrl = slackUser.imageUrl;
-    }
-  } catch (error) {
-    safeLog('warn', `Error getting Slack user: ${error}`);
-  }
-
-  try {
-    const message = requestBody.message;
-    const signature = requestBody.current_user_signature;
-    const strippedMessage = stripSignatureFromMessage(message, signature);
-    const formattedMessage = zendeskToSlackMarkdown(strippedMessage);
-
-    const body = JSON.stringify({
-      channel: slackChannelId,
-      text: formattedMessage,
-      thread_ts: parentMessageId,
-      username: username,
-      icon_url: imageUrl
-    });
-
-    const response = await fetch('https://slack.com/api/chat.postMessage', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${connection.token}`
-      },
-      body: body
-    });
-
-    const responseData = (await response.json()) as SlackResponse;
-
-    if (!responseData.ok) {
-      throw new Error(`Error posting message: ${responseData.error}`);
-    }
-  } catch (error) {
-    safeLog('error', `Error in sendSlackMessage:`, error);
-    throw error;
-  }
-
-  await singleEventAnalyticsLogger(
-    slackUser.userId,
-    'message_reply',
-    connection.appId,
-    slackChannelId,
-    null,
-    null,
-    {
-      source: 'zendesk'
-    },
-    env,
-    null
-  );
-}
-
-function stripSignatureFromMessage(
-  message: string | undefined | null,
-  signature: string | undefined | null
-): string {
-  // Return the original message if it exists, otherwise return an empty string
-  if (!message) {
-    return '';
-  }
-
-  // If there's no signature, or the signature is not at the end, return the original message
-  if (!signature || !message.endsWith(signature)) {
-    return message;
-  }
-
-  // Remove the signature from the end of the message
-  return message.slice(0, message.length - signature.length);
 }
 
 function isFromZensync(requestBody: any): boolean {
@@ -236,13 +106,4 @@ function isFromTicketMerge(input: string | null | undefined): boolean {
   const regex = new RegExp(pattern, 's');
 
   return regex.test(input);
-}
-
-function zendeskToSlackMarkdown(zendeskMessage: string): string {
-  // Replace Zendesk bold (**text**) with Slack bold (*text*)
-  let slackMessage = zendeskMessage.replace(/\*\*(.*?)\*\*/g, '*$1*');
-
-  // Other transformations could be added here if necessary
-
-  return slackMessage;
 }

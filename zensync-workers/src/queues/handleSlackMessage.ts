@@ -41,6 +41,7 @@ import {
   GlobalSettings
 } from '@/interfaces/global-settings.interface';
 import { initializeDb } from '@/lib/database';
+import { postEphemeralMessage, getSlackUser } from '@/lib/slack-api';
 
 const MISSING_ZENDESK_CREDENTIALS_MESSAGE =
   'Zendesk credentials are missing or inactive. Configure them in the Zensync app settings to start syncing messages.';
@@ -242,36 +243,6 @@ async function handleChannelJoined(
   } catch (error) {
     safeLog('error', 'Error saving channel to database:', error);
     throw error;
-  }
-}
-
-async function postEphemeralMessage(
-  channelId: string,
-  userId: string,
-  text: string,
-  connection: SlackConnection,
-  env: Env
-): Promise<void> {
-  const postEphemeralParams = new URLSearchParams({
-    channel: channelId,
-    user: userId,
-    text: text
-  });
-
-  const ephemeralResponse = await fetch(
-    `https://slack.com/api/chat.postEphemeral?${postEphemeralParams.toString()}`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        Authorization: `Bearer ${connection.token}`
-      }
-    }
-  );
-
-  if (!ephemeralResponse.ok) {
-    safeLog('error', `Failed to post ephemeral message:`, ephemeralResponse);
-    // We don't throw here since it's not critical if message isn't sent
   }
 }
 
@@ -825,56 +796,6 @@ async function getOrCreateZendeskUser(
     return responseData.user.id;
   } catch (error) {
     safeLog('error', `Error creating or updating user:`, error);
-    throw error;
-  }
-}
-
-function extractProfileImageUrls(slackImageUrl: string): {
-  gravatarUrl: string;
-  slackUrl: string | null;
-} {
-  const [gravatarUrl, slackUrl] = slackImageUrl.split('&d=');
-  return {
-    gravatarUrl,
-    slackUrl: slackUrl ? decodeURIComponent(slackUrl) : null
-  };
-}
-
-async function getSlackUser(
-  connection: SlackConnection,
-  userId: string
-): Promise<{ username: string | undefined; imageUrl: string }> {
-  try {
-    const response = await fetch(
-      `https://slack.com/api/users.profile.get?user=${userId}`,
-      {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-          Authorization: `Bearer ${connection.token}`
-        }
-      }
-    );
-
-    const responseData = (await response.json()) as SlackResponse;
-
-    if (!responseData.ok) {
-      throw new Error(`Error getting Slack user: ${responseData.error}`);
-    }
-
-    const username =
-      responseData.profile.display_name ||
-      responseData.profile.real_name ||
-      undefined;
-
-    const { gravatarUrl, slackUrl } = extractProfileImageUrls(
-      responseData.profile.image_72
-    );
-
-    const imageUrl = slackUrl || gravatarUrl;
-    return { username, imageUrl };
-  } catch (error) {
-    safeLog('error', `Error in getSlackUser:`, error);
     throw error;
   }
 }

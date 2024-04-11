@@ -3,7 +3,6 @@ import { SlackConnection } from '@/lib/schema-sqlite';
 import * as schema from '@/lib/schema-sqlite';
 import { DrizzleD1Database } from 'drizzle-orm/d1';
 import { ZendeskResponse } from '@/interfaces/zendesk-api.interface';
-import { SlackResponse } from '@/interfaces/slack-api.interface';
 import { Env } from '@/interfaces/env.interface';
 import {
   importEncryptionKeyFromEnvironment,
@@ -24,6 +23,7 @@ import {
   updateChannelSettings,
   getZendeskCredentials
 } from '@/lib/database';
+import { openSlackModal } from '@/lib/slack-api';
 
 export class SlackInteractivityHandler {
   async handle(
@@ -383,24 +383,6 @@ async function saveZendeskCredentials(
   } catch (error) {
     safeLog('error', error);
     throw error;
-  }
-}
-
-async function openSlackModal(body: any, connection: SlackConnection) {
-  const response = await fetch('https://slack.com/api/views.open', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${connection.token}`
-    },
-    body: body
-  });
-
-  const responseData = (await response.json()) as SlackResponse;
-
-  if (!responseData.ok) {
-    safeLog('error', 'Error opening modal:', responseData);
-    throw new Error(`Error opening modal: ${JSON.stringify(responseData)}`);
   }
 }
 

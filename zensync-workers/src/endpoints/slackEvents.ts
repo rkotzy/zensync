@@ -1,4 +1,3 @@
-import { findSlackConnectionByAppId } from '@/lib/utils';
 import { SlackConnection } from '@/lib/schema-sqlite';
 import { SlackEvent } from '@/interfaces/slack-api.interface';
 import { Env } from '@/interfaces/env.interface';
@@ -43,23 +42,7 @@ export class SlackEventHandler {
     const encryptionKey = await importEncryptionKeyFromEnvironment(env);
 
     // Find the corresponding slack connection details
-    const connectionDetails = await findSlackConnectionByAppId(
-      requestBody.api_app_id,
-      db,
-      env,
-      encryptionKey
-    );
-
-    if (!connectionDetails) {
-      safeLog(
-        'warn',
-        `No slack connection found for app ID: ${requestBody.api_app_id}.`
-      );
-
-      return new Response('Invalid api_app_id', {
-        status: 404
-      });
-    }
+    const slackConnectionInfo = request.slackConnection;
 
     const eventType = requestBody.event?.type;
     const eventSubtype = requestBody.event?.subtype;
@@ -71,7 +54,7 @@ export class SlackEventHandler {
         try {
           await handleAppHomeOpened(
             slackUserId,
-            connectionDetails,
+            slackConnectionInfo,
             db,
             env,
             encryptionKey
@@ -80,7 +63,7 @@ export class SlackEventHandler {
           await singleEventAnalyticsLogger(
             slackUserId,
             'app_home_opened',
-            connectionDetails.appId,
+            slackConnectionInfo.appId,
             null,
             requestBody.event_time,
             null,
@@ -98,15 +81,15 @@ export class SlackEventHandler {
         safeLog('error', 'No slackUserId found in app_home_opened event');
       }
     } else if (
-      isSubscriptionActive(connectionDetails, env) &&
+      isSubscriptionActive(slackConnectionInfo, env) &&
       (isMessageToQueue(eventType, eventSubtype) ||
         (eventType === 'message' &&
-          isPayloadEligibleForTicket(requestBody, connectionDetails)))
+          isPayloadEligibleForTicket(requestBody, slackConnectionInfo)))
     ) {
       try {
         await env.PROCESS_SLACK_MESSAGES_QUEUE_BINDING.send({
           eventBody: requestBody,
-          connectionDetails: connectionDetails
+          connectionDetails: slackConnectionInfo
         });
       } catch (error) {
         safeLog('error', `Error publishing message queue: ${error.message}`);
@@ -116,13 +99,13 @@ export class SlackEventHandler {
       }
     } else if (
       eventSubtype === 'file_share' &&
-      isSubscriptionActive(connectionDetails, env)
+      isSubscriptionActive(slackConnectionInfo, env)
     ) {
       // handle file_share messages differently by processing the file first
       try {
         await env.UPLOAD_FILES_TO_ZENDESK_QUEUE_BINDING.send({
           eventBody: requestBody,
-          connectionDetails: connectionDetails
+          connectionDetails: slackConnectionInfo
         });
       } catch (error) {
         safeLog('error', `Error publishing file to queue: ${error.message}`);
@@ -135,7 +118,7 @@ export class SlackEventHandler {
       try {
         await env.SLACK_APP_UNINSTALLED_QUEUE_BINDING.send({
           eventBody: requestBody,
-          connectionDetails: connectionDetails
+          connectionDetails: slackConnectionInfo
         });
       } catch (error) {
         safeLog(

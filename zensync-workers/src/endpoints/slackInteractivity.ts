@@ -1,9 +1,5 @@
 import { eq, and } from 'drizzle-orm';
-import {
-  findSlackConnectionByAppId,
-  InteractivityActionId,
-  fetchZendeskCredentials
-} from '@/lib/utils';
+import { InteractivityActionId, fetchZendeskCredentials } from '@/lib/utils';
 import {
   SlackConnection,
   zendeskConnection,
@@ -56,27 +52,14 @@ export class SlackInteractivityHandler {
     safeLog('log', 'Payload recieved:', payload);
 
     // Find the corresponding organization connection details
-    const slackConnectionDetails = await findSlackConnectionByAppId(
-      payload.api_app_id,
-      db,
-      env,
-      encryptionKey
-    );
-
-    if (!slackConnectionDetails) {
-      safeLog(
-        'error',
-        `No organization found for team ID: ${payload.api_app_id}.`
-      );
-      return new Response('Invalid api_app_id', { status: 404 });
-    }
+    const slackConnectionInfo = request.slackConnection;
 
     const actionId = getFirstActionId(payload);
 
     // Set up the analytics client
     const posthog = initializePosthog(env);
     const analyticsDistinctId = payload.user?.id;
-    const analyticsCompanyId = slackConnectionDetails.appId;
+    const analyticsCompanyId = slackConnectionInfo.appId;
 
     // Handle the edit channel button tap
     if (
@@ -86,7 +69,7 @@ export class SlackInteractivityHandler {
         await openChannelConfigurationModal(
           actionId,
           payload,
-          slackConnectionDetails,
+          slackConnectionInfo,
           db
         );
       } catch (error) {
@@ -100,7 +83,7 @@ export class SlackInteractivityHandler {
       try {
         await openZendeskConfigurationModal(
           payload,
-          slackConnectionDetails,
+          slackConnectionInfo,
           db,
           env,
           encryptionKey
@@ -119,7 +102,7 @@ export class SlackInteractivityHandler {
       try {
         const response = await updateChannelConfiguration(
           payload,
-          slackConnectionDetails,
+          slackConnectionInfo,
           db,
           encryptionKey,
           env
@@ -141,7 +124,7 @@ export class SlackInteractivityHandler {
       try {
         await saveZendeskCredentials(
           payload,
-          slackConnectionDetails,
+          slackConnectionInfo,
           env,
           db,
           encryptionKey
@@ -164,7 +147,7 @@ export class SlackInteractivityHandler {
       actionId === InteractivityActionId.OPEN_ACCOUNT_SETTINGS_BUTTON_TAPPED
     ) {
       try {
-        await openAccountSettings(payload, slackConnectionDetails, env, db);
+        await openAccountSettings(payload, slackConnectionInfo, env, db);
 
         posthog.capture({
           distinctId: analyticsDistinctId,
@@ -184,7 +167,7 @@ export class SlackInteractivityHandler {
       if (userId) {
         await handleAppHomeOpened(
           userId,
-          slackConnectionDetails,
+          slackConnectionInfo,
           db,
           env,
           encryptionKey

@@ -35,11 +35,7 @@ export class SlackInteractivityHandler {
     // Initialize the encryption key
     const encryptionKey = await importEncryptionKeyFromEnvironment(env);
 
-    // Parse the request body
-    const textClone = request.clone();
-
-    const requestBody = await request.formData();
-    const payloadString = requestBody.get('payload');
+    const payloadString = request.bodyFormData.get('payload');
 
     // Make sure we have a payload
     if (typeof payloadString !== 'string') {

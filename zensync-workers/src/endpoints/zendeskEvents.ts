@@ -17,7 +17,7 @@ export class ZendeskEventHandler {
     // Initialize the database
     const db = request.db;
 
-    const requestBody = (await request.json()) as ZendeskEvent;
+    const requestBody = request.bodyJson as ZendeskEvent;
 
     safeLog('log', 'Zendesk event received:', requestBody);
 

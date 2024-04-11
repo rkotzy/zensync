@@ -14,13 +14,8 @@ export class SlackEventHandler {
     context: any,
     data: Record<string, any>
   ) {
-    // Clone the request before consuming since we
-    // need is as text and json
-    const jsonClone = request.clone();
-    const textClone = request.clone();
-
     // Parse the request body
-    const requestBody = (await jsonClone.json()) as SlackEvent;
+    const requestBody = request.bodyJson as SlackEvent;
     safeLog('log', 'Incoming Slack event:', request);
 
     // Check if this is a URL verification request from Slack

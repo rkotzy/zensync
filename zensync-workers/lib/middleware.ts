@@ -16,6 +16,45 @@ export async function injectDB(request: RequestInterface, env: Env) {
 }
 
 ///////////////////////////////////////////////
+// Parse the request body
+//////////////////////////////////////////////
+export async function parseRequest(request: RequestInterface, env: Env) {
+  try {
+    const requestCloneForText = request.clone();
+    const requestText = await requestCloneForText.text();
+
+    let requestJson;
+    try {
+      requestJson = JSON.parse(requestText);
+    } catch (error) {
+      requestJson = null;
+    }
+
+    const requestCloneForFormData = request.clone();
+    let formData;
+    try {
+      formData = await requestCloneForFormData.formData();
+      const formDataObject = {};
+      for (const [key, value] of formData.entries()) {
+        formDataObject[key] = value;
+      }
+      formData = formDataObject;
+    } catch (error) {
+      formData = null;
+    }
+
+    request.bodyRaw = requestText;
+    request.bodyJson = requestJson;
+    request.bodyFormData = formData;
+  } catch (error) {
+    console.error('Error parsing request:', error);
+    return new Response('Error parsing request', {
+      status: 500
+    });
+  }
+}
+
+///////////////////////////////////////////////
 // Verify Slack request and associated helpers
 //////////////////////////////////////////////
 
@@ -24,12 +63,12 @@ export async function verifySlackRequestAndSetSlackConnection(
   env: Env
 ) {
   try {
+    const requestString = request.bodyRaw;
     const signingSecret = env.SLACK_SIGNING_SECRET;
     const timestamp = request.headers.get('x-slack-request-timestamp');
     const slackSignature = request.headers.get('x-slack-signature');
-    const body = await request.clone().text();
 
-    const basestring = `v0:${timestamp}:${body}`;
+    const basestring = `v0:${timestamp}:${requestString}`;
 
     // Convert the Slack signing secret and the basestring to Uint8Array
     const encoder = new TextEncoder();
@@ -64,12 +103,12 @@ export async function verifySlackRequestAndSetSlackConnection(
     }
 
     // Get the slack connection
-    const requestBody = (await request.clone().json()) as SlackEvent;
+    const requestJson = request.bodyJson as SlackEvent;
     const slackConnectionInfo = await getSlackConnection(
       request.db,
       env,
       'appId',
-      requestBody.api_app_id
+      requestJson.api_app_id
     );
 
     if (!slackConnectionInfo) {
@@ -79,7 +118,7 @@ export async function verifySlackRequestAndSetSlackConnection(
       });
     }
 
-    // Set the slack connection to the request object
+    // Update the request object
     request.slackConnection = slackConnectionInfo;
   } catch (error) {
     safeLog(
@@ -190,7 +229,7 @@ export async function verifyZendeskWebhookAndSetSlackConnection(
 
 export async function verifyStripeWebhook(request: RequestInterface, env: Env) {
   try {
-    const body = await request.text();
+    const body = request.bodyRaw;
 
     const stripe = new Stripe(env.STRIPE_API_KEY);
     const sig = request.headers.get('stripe-signature');

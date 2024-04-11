@@ -102,6 +102,35 @@ export async function verifySlackRequestAndSetSlackConnection(
       });
     }
 
+    // Extract the app id from the request
+    let appId: string = null;
+    if (request.bodyJson) {
+      appId = request.bodyJson.api_app_id;
+    } else if (request.bodyFormData) {
+      const payloadString = request.bodyFormData.payload;
+      // Make sure we have a payload
+      if (typeof payloadString !== 'string') {
+        safeLog(
+          'error',
+          'No payload string in form body',
+          request.bodyFormData
+        );
+        return new Response('Invalid payload', { status: 200 });
+      }
+
+      // Parse the JSON string into an object
+      const payload = JSON.parse(payloadString);
+      request.bodyJson = payload;
+      appId = payload.api_app_id;
+    }
+
+    if (!appId) {
+      safeLog('error', 'No api_app_id found in request', request.bodyRaw);
+      return new Response('Verification failed', {
+        status: 200
+      });
+    }
+
     // Get the slack connection
     const requestJson = request.bodyJson as SlackEvent;
     const slackConnectionInfo = await getSlackConnection(

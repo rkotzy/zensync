@@ -35,15 +35,8 @@ export class SlackInteractivityHandler {
     // Initialize the encryption key
     const encryptionKey = await importEncryptionKeyFromEnvironment(env);
 
-    const payloadString = request.bodyFormData.get('payload');
-
-    // Make sure we have a payload
-    if (typeof payloadString !== 'string') {
-      return new Response('Invalid payload', { status: 400 });
-    }
-
     // Parse the JSON string into an object
-    const payload = JSON.parse(payloadString);
+    const payload = request.bodyJson;
 
     safeLog('log', 'Payload recieved:', payload);
 

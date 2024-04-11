@@ -16,7 +16,7 @@ export class SlackEventHandler {
   ) {
     // Parse the request body
     const requestBody = request.bodyJson as SlackEvent;
-    safeLog('log', 'Incoming Slack event:', request);
+    safeLog('log', 'Incoming Slack event:', request.bodyJson);
 
     // Check if this is a URL verification request from Slack
     // if (requestBody.type === 'url_verification') {

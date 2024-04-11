@@ -12,7 +12,6 @@ import * as schema from '@/lib/schema-sqlite';
 import { fetchZendeskCredentials, InteractivityActionId } from '@/lib/utils';
 import { isSubscriptionActive } from '@/lib/utils';
 import { safeLog } from '@/lib/logging';
-import { encryptData } from '@/lib/encryption';
 
 const PENDING_UPGRADE = 'PENDING_UPGRADE';
 
@@ -152,10 +151,12 @@ function createChannelSections(channelInfos) {
     return [];
   }
 
-  return channelInfos.flatMap(info => {
+  return channelInfos.flatMap((info: Channel) => {
     const activityDate = info.latestActivityAt ?? info.createdAt;
-    const latestActivityTimestamp = Math.floor(activityDate.getTime() / 1000);
-    const fallbackText = activityDate.toLocaleDateString();
+    const latestActivityTimestamp = Math.floor(
+      new Date(activityDate).getTime() / 1000
+    );
+    const fallbackText = new Date(activityDate).toLocaleDateString();
 
     const slackFormattedDate = `<!date^${latestActivityTimestamp}^{date_short} at {time}|${fallbackText}>`;
 

@@ -37,7 +37,7 @@ export class ZendeskEventHandler {
 
     // Get the conversation from external_id
     const conversationInfo = await db.query.conversation.findFirst({
-      where: eq(conversation.id, requestBody.external_id),
+      where: eq(conversation.publicId, requestBody.external_id),
       with: {
         channel: true
       }

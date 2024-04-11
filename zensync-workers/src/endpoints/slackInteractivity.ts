@@ -21,7 +21,7 @@ import {
   createOrUpdateZendeskConnection,
   getChannels,
   getChannel,
-  updateChannel,
+  updateChannelSettings,
   getZendeskCredentials
 } from '@/lib/database';
 
@@ -860,7 +860,7 @@ async function updateChannelConfiguration(
     }
 
     // Update the values in the database
-    await updateChannel(
+    await updateChannelSettings(
       db,
       connection.id,
       channelId,

@@ -5,7 +5,7 @@ import { Env } from '@/interfaces/env.interface';
 import { isSubscriptionActive, singleEventAnalyticsLogger } from '@/lib/utils';
 import { safeLog } from '@/lib/logging';
 import { RequestInterface } from '@/interfaces/request.interface';
-import { getConversation } from '@/lib/database';
+import { getConversationFromPublicId } from '@/lib/database';
 
 export class ZendeskEventHandler {
   async handle(
@@ -34,39 +34,41 @@ export class ZendeskEventHandler {
       safeLog('log', 'Message matches ticket merge, skipping');
       return new Response('Ok', { status: 200 });
     }
-
-    // Get the conversation from external_id
-    const conversationInfo = await getConversation(db, requestBody.external_id);
-
-    if (!conversationInfo?.slackParentMessageId) {
-      safeLog(
-        'error',
-        `No conversation found for id ${requestBody.external_id}`
-      );
-      return new Response('No conversation found', { status: 404 });
-    }
-
-    // To be safe I should double-check the organization_id owns the channel_id
-    const slackConnectionInfo = request.slackConnection;
-    if (
-      !conversationInfo.channel ||
-      !conversationInfo.channel.slackChannelIdentifier ||
-      conversationInfo.channel.slackConnectionId !== slackConnectionInfo.id
-    ) {
-      safeLog(
-        'error',
-        `Invalid Ids: ${slackConnectionInfo.id} !== ${conversationInfo}`
-      );
-      return new Response('Invalid Ids', { status: 401 });
-    }
-
-    // Make sure the subscription is active
-    if (!isSubscriptionActive(slackConnectionInfo, env)) {
-      safeLog('log', 'Subscription is not active, ignoring');
-      return new Response('Ok', { status: 200 });
-    }
-
+    
     try {
+      // Get the conversation from external_id
+      const conversationInfo = await getConversationFromPublicId(
+        db,
+        requestBody.external_id
+      );
+
+      if (!conversationInfo?.slackParentMessageId) {
+        safeLog(
+          'error',
+          `No conversation found for id ${requestBody.external_id}`
+        );
+        return new Response('No conversation found', { status: 404 });
+      }
+
+      // To be safe I should double-check the organization_id owns the channel_id
+      const slackConnectionInfo = request.slackConnection;
+      if (
+        !conversationInfo.channel ||
+        !conversationInfo.channel.slackChannelIdentifier ||
+        conversationInfo.channel.slackConnectionId !== slackConnectionInfo.id
+      ) {
+        safeLog(
+          'error',
+          `Invalid Ids: ${slackConnectionInfo.id} !== ${conversationInfo}`
+        );
+        return new Response('Invalid Ids', { status: 401 });
+      }
+
+      // Make sure the subscription is active
+      if (!isSubscriptionActive(slackConnectionInfo, env)) {
+        safeLog('log', 'Subscription is not active, ignoring');
+        return new Response('Ok', { status: 200 });
+      }
       await sendSlackMessage(
         requestBody,
         slackConnectionInfo,

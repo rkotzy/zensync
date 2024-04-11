@@ -1,4 +1,4 @@
-import { InteractivityActionId, fetchZendeskCredentials } from '@/lib/utils';
+import { InteractivityActionId } from '@/lib/utils';
 import { SlackConnection } from '@/lib/schema-sqlite';
 import * as schema from '@/lib/schema-sqlite';
 import { DrizzleD1Database } from 'drizzle-orm/d1';
@@ -21,7 +21,8 @@ import {
   createOrUpdateZendeskConnection,
   getChannels,
   getChannel,
-  updateChannel
+  updateChannel,
+  getZendeskCredentials
 } from '@/lib/database';
 
 export class SlackInteractivityHandler {
@@ -429,7 +430,7 @@ async function openAccountSettings(
     const stripeProductId = connection.subscription?.stripeProductId;
     const stripe = new Stripe(env.STRIPE_API_KEY);
 
-    const limitedChannels = await getChannels(db, connection.id, true, 4);
+    const limitedChannels = await getChannels(db, connection.id, 4);
 
     const billingPortalConfiguration = getBillingPortalConfiguration(
       limitedChannels.length
@@ -523,10 +524,10 @@ async function openZendeskConfigurationModal(
     return;
   }
   try {
-    const zendeskInfo = await fetchZendeskCredentials(
-      connection.id,
+    const zendeskInfo = await getZendeskCredentials(
       db,
       env,
+      connection.id,
       key
     );
 

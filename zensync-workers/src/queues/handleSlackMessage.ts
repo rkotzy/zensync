@@ -1,10 +1,8 @@
-import { eq, and, desc } from 'drizzle-orm';
 import {
-  channel,
   SlackConnection,
   ZendeskConnection,
-  conversation,
-  Conversation
+  Conversation,
+  Channel
 } from '@/lib/schema-sqlite';
 import { FollowUpTicket } from '@/interfaces/follow-up-ticket.interface';
 import {
@@ -12,13 +10,24 @@ import {
   SlackResponse
 } from '@/interfaces/slack-api.interface';
 import {
-  fetchZendeskCredentials,
-  updateChannelActivity,
   isSubscriptionActive,
-  getChannelInfo,
   isChannelEligibleForMessaging,
   singleEventAnalyticsLogger
 } from '@/lib/utils';
+import {
+  getZendeskCredentials,
+  updateChannelActivity,
+  getChannel,
+  getChannels,
+  createOrUpdateChannel,
+  updateChannelMembership,
+  updateChannelName,
+  updateChannelIdentifier,
+  getConversation,
+  updateConversationLatestMessage,
+  createConversation,
+  getLatestConversation
+} from '@/lib/database';
 import { Env } from '@/interfaces/env.interface';
 import { DrizzleD1Database } from 'drizzle-orm/d1';
 import * as schema from '@/lib/schema-sqlite';
@@ -128,16 +137,7 @@ async function handleChannelJoined(
     let channelStatus: string | null = null;
 
     // Check channel limit
-    const limitedChannels = await db
-      .select({ id: channel.id })
-      .from(channel)
-      .where(
-        and(
-          eq(channel.slackConnectionId, connection.id),
-          eq(channel.isMember, true)
-        )
-      )
-      .limit(10);
+    const limitedChannels = await getChannels(db, connection.id, 10);
 
     const channelLimit = getChannelsByProductId(
       connection.subscription?.stripeProductId
@@ -167,10 +167,10 @@ async function handleChannelJoined(
     // We haven't exceeded the channel limit, so we can continue
 
     // Post an ephemeral message if there are no Zendesk credentials
-    const zendeskCredentials = await fetchZendeskCredentials(
-      connection.id,
+    const zendeskCredentials = await getZendeskCredentials(
       db,
       env,
+      connection.id,
       key
     );
 
@@ -218,28 +218,15 @@ async function handleChannelJoined(
       channelJoinResponseData.channel?.is_pending_ext_shared;
 
     // Save or update channel in database
-    await db
-      .insert(channel)
-      .values({
-        slackConnectionId: connection.id,
-        slackChannelIdentifier: channelId,
-        type: channelType,
-        isMember: true,
-        name: channelName,
-        isShared: isShared,
-        status: channelStatus
-      })
-      .onConflictDoUpdate({
-        target: [channel.slackConnectionId, channel.slackChannelIdentifier],
-        set: {
-          updatedAt: new Date().toISOString(),
-          type: channelType,
-          isMember: true,
-          name: channelName,
-          isShared: isShared,
-          status: channelStatus
-        }
-      });
+    await createOrUpdateChannel(
+      db,
+      connection.id,
+      channelId,
+      channelType,
+      channelName,
+      isShared,
+      channelStatus
+    );
 
     await singleEventAnalyticsLogger(
       eventData.inviter,
@@ -360,18 +347,7 @@ async function handleChannelLeft(
   const channelId = eventData.channel;
 
   try {
-    await db
-      .update(channel)
-      .set({
-        updatedAt: new Date().toISOString(),
-        isMember: false
-      })
-      .where(
-        and(
-          eq(channel.slackConnectionId, connection.id),
-          eq(channel.slackChannelIdentifier, channelId)
-        )
-      );
+    await updateChannelMembership(db, connection.id, channelId, false);
 
     await singleEventAnalyticsLogger(
       eventData.user,
@@ -405,18 +381,7 @@ async function handleChannelUnarchive(
   // and check plan limits, etc.
 
   try {
-    await db
-      .update(channel)
-      .set({
-        updatedAt: new Date().toISOString(),
-        isMember: true
-      })
-      .where(
-        and(
-          eq(channel.slackConnectionId, connection.id),
-          eq(channel.slackChannelIdentifier, channelId)
-        )
-      );
+    await updateChannelMembership(db, connection.id, channelId, true);
 
     await singleEventAnalyticsLogger(
       eventData.user,
@@ -445,18 +410,12 @@ async function handleChannelNameChanged(
   const eventData = request.event;
 
   try {
-    await db
-      .update(channel)
-      .set({
-        updatedAt: new Date().toISOString(),
-        name: eventData.channel.name
-      })
-      .where(
-        and(
-          eq(channel.slackConnectionId, connection.id),
-          eq(channel.slackChannelIdentifier, eventData.channel.id)
-        )
-      );
+    await updateChannelName(
+      db,
+      connection.id,
+      eventData.channel.id,
+      eventData.channel.name
+    );
   } catch (error) {
     safeLog('error', `Error updating channel name in database:`, error);
     throw error;
@@ -473,18 +432,12 @@ async function handleChannelIdChanged(
   const eventData = request.event;
 
   try {
-    await db
-      .update(channel)
-      .set({
-        updatedAt: new Date().toISOString(),
-        slackChannelIdentifier: eventData.new_channel_id
-      })
-      .where(
-        and(
-          eq(channel.slackConnectionId, connection.id),
-          eq(channel.slackChannelIdentifier, eventData.old_channel_id)
-        )
-      );
+    await updateChannelIdentifier(
+      db,
+      connection.id,
+      eventData.old_channel_id,
+      eventData.new_channel_id
+    );
   } catch (error) {
     safeLog('error', `Error updating channel Id in database`, error);
     throw error;
@@ -683,10 +636,10 @@ async function handleMessage(
   // Fetch Zendesk credentials
   let zendeskCredentials: ZendeskConnection | null;
   try {
-    zendeskCredentials = await fetchZendeskCredentials(
-      connection.id,
+    zendeskCredentials = await getZendeskCredentials(
       db,
       env,
+      connection.id,
       key
     );
   } catch (error) {
@@ -763,18 +716,10 @@ async function handleMessage(
         zendeskUserId,
         fileUploadTokens,
         isPublic,
+        true,
         status,
         analyticsIdempotencyKey
       );
-
-      await db
-        .update(conversation)
-        .set({
-          updatedAt: new Date().toISOString(),
-          slackParentMessageId: messageData.ts,
-          latestSlackMessageId: messageData.ts
-        })
-        .where(eq(conversation.id, existingConversation.id));
 
       await singleEventAnalyticsLogger(
         messageData.user,
@@ -811,6 +756,7 @@ async function handleMessage(
       zendeskUserId,
       fileUploadTokens,
       isPublic,
+      false,
       analyticsIdempotencyKey
     );
   } catch (error) {
@@ -947,29 +893,15 @@ async function handleThreadReply(
   analyticsIdempotencyKey: string | null
 ) {
   // get conversation from database
-  const conversationInfo = await db
-    .select({
-      id: conversation.id,
-      publicId: conversation.publicId,
-      zendeskTicketId: conversation.zendeskTicketId
-    })
-    .from(conversation)
-    .innerJoin(channel, eq(conversation.channelId, channel.id))
-    .where(
-      and(
-        eq(channel.slackConnectionId, slackConnectionInfo.id),
-        eq(channel.slackChannelIdentifier, messageData.channel),
-        eq(conversation.slackParentMessageId, slackParentMessageId)
-      )
-    )
-    .limit(1);
+  const conversationInfo = await getConversation(
+    db,
+    slackConnectionInfo.id,
+    messageData.channel,
+    slackParentMessageId
+  );
 
   // If no conversation found, create new ticket
-  if (
-    conversationInfo.length === 0 ||
-    !conversationInfo[0].zendeskTicketId ||
-    !conversationInfo[0].id
-  ) {
+  if (!conversationInfo) {
     safeLog('log', 'No conversation found, creating new ticket');
     return await handleNewConversation(
       messageData,
@@ -981,13 +913,14 @@ async function handleThreadReply(
       authorId,
       fileUploadTokens,
       isPublic,
+      false,
       analyticsIdempotencyKey
     );
   }
 
   return await sendTicketReplyOrFallbackToNewTicket(
-    conversationInfo[0].zendeskTicketId,
-    conversationInfo[0].publicId,
+    conversationInfo.zendeskTicketId,
+    conversationInfo.publicId,
     messageData,
     zendeskCredentials,
     slackConnectionInfo,
@@ -996,6 +929,7 @@ async function handleThreadReply(
     authorId,
     fileUploadTokens,
     isPublic,
+    false,
     status,
     analyticsIdempotencyKey
   );
@@ -1012,6 +946,7 @@ async function sendTicketReplyOrFallbackToNewTicket(
   authorId: number,
   fileUploadTokens: string[] | undefined,
   isPublic: boolean,
+  resetParentMessageId: boolean = false,
   status: string = 'open',
   analyticsIdempotencyKey: string | null
 ) {
@@ -1076,6 +1011,7 @@ async function sendTicketReplyOrFallbackToNewTicket(
         authorId,
         fileUploadTokens,
         true,
+        resetParentMessageId,
         analyticsIdempotencyKey,
         followUpTicket
       );
@@ -1086,13 +1022,13 @@ async function sendTicketReplyOrFallbackToNewTicket(
     // Was not a follow-up ticket, and no errors, so update the conversation
     try {
       // Update last message ID conversation
-      await db
-        .update(conversation)
-        .set({
-          updatedAt: new Date().toISOString(),
-          latestSlackMessageId: messageData.ts
-        })
-        .where(eq(conversation.publicId, conversationPublicId));
+      await updateConversationLatestMessage(
+        db,
+        conversationPublicId,
+        messageData.ts,
+        null,
+        resetParentMessageId
+      );
 
       // Update the channel activity
       await updateChannelActivity(slackConnectionInfo, messageData.channel, db);
@@ -1143,15 +1079,18 @@ async function handleNewConversation(
   authorId: number,
   fileUploadTokens: string[] | undefined,
   isPublic: boolean,
+  resetParentMessageId: boolean = false,
   analyticsIdempotencyKey: string | null,
   followUpTicket: FollowUpTicket | undefined = undefined
 ) {
-  // Fetch channel info
-  const channelInfo = await getChannelInfo(
-    channelId,
-    slackConnectionInfo.id,
-    db
-  );
+  let channelInfo: Channel | null;
+  try {
+    // Fetch channel info
+    channelInfo = await getChannel(db, slackConnectionInfo.id, channelId);
+  } catch (error) {
+    safeLog('error', `Error fetching channel info:`, error);
+    throw error;
+  }
 
   if (!channelInfo) {
     safeLog('error', `No channel found for ${channelId}`);
@@ -1262,14 +1201,13 @@ async function handleNewConversation(
   // Create or update conversation
   if (followUpTicket) {
     try {
-      await db
-        .update(conversation)
-        .set({
-          updatedAt: new Date().toISOString(),
-          zendeskTicketId: ticketId,
-          latestSlackMessageId: messageData.ts
-        })
-        .where(eq(conversation.publicId, conversationUuid));
+      await updateConversationLatestMessage(
+        db,
+        conversationUuid,
+        messageData.ts,
+        ticketId,
+        resetParentMessageId
+      );
     } catch (error) {
       safeLog('error', `Error updating conversation:`, error);
       safeLog('error', 'Failed payload:', {
@@ -1279,14 +1217,14 @@ async function handleNewConversation(
     }
   } else {
     try {
-      await db.insert(conversation).values({
-        publicId: conversationUuid,
-        channelId: channelInfo.id,
-        slackParentMessageId: messageData.ts,
-        zendeskTicketId: ticketId,
-        slackAuthorUserId: messageData.user,
-        latestSlackMessageId: messageData.ts
-      });
+      await createConversation(
+        db,
+        conversationUuid,
+        channelInfo.id,
+        messageData.ts,
+        ticketId,
+        messageData.user
+      );
     } catch (error) {
       safeLog('error', `Error creating conversation:`, error);
       safeLog('error', 'Failed payload:', {
@@ -1316,22 +1254,13 @@ async function sameSenderInTimeframeConversation(
 ): Promise<Conversation | null> {
   try {
     // get the latest conversation from database
-    const latestConversation = await db
-      .select({
-        conversation: conversation
-      })
-      .from(conversation)
-      .innerJoin(channel, eq(conversation.channelId, channel.id))
-      .where(
-        and(
-          eq(channel.slackConnectionId, connection.id),
-          eq(channel.slackChannelIdentifier, currentMessage.channel)
-        )
-      )
-      .orderBy(desc(conversation.slackParentMessageId))
-      .limit(1);
+    const latestConversation = await getLatestConversation(
+      db,
+      connection.id,
+      currentMessage.channel
+    );
 
-    if (!latestConversation || latestConversation.length === 0) {
+    if (!latestConversation) {
       return null;
     }
 

@@ -1,13 +1,16 @@
 import { DrizzleD1Database, drizzle } from 'drizzle-orm/d1';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, asc, isNull, gt, lte, desc } from 'drizzle-orm';
 import * as schema from './schema-sqlite';
 import {
   slackConnection,
   SlackConnection,
   zendeskConnection,
+  ZendeskConnection,
   channel,
+  Channel,
   subscription,
-  conversation
+  conversation,
+  Conversation
 } from './schema-sqlite';
 import { Env } from '@/interfaces/env.interface';
 import { importEncryptionKeyFromEnvironment, decryptData } from './encryption';
@@ -169,26 +172,23 @@ export async function createOrUpdateZendeskConnection(
 export async function getChannels(
   db: DrizzleD1Database<typeof schema>,
   slackConnectionId: number,
-  isMember?: boolean | null,
   limit?: number | null
 ) {
-  return await db
-    .select({ id: channel.id })
-    .from(channel)
-    .where(
-      and(
-        eq(channel.slackConnectionId, slackConnectionId),
-        isMember ? eq(channel.isMember, isMember) : undefined
-      )
-    )
-    .limit(limit ? limit : 1000);
+  return await db.query.channel.findMany({
+    where: and(
+      eq(channel.slackConnectionId, slackConnectionId),
+      eq(channel.isMember, true)
+    ),
+    orderBy: [asc(channel.createdAt)],
+    limit: limit ? limit : 1000
+  });
 }
 
 export async function getChannel(
   db: DrizzleD1Database<typeof schema>,
   slackConnectionId: number,
   slackChannelIdentifier: string
-) {
+): Promise<Channel | null> {
   return await db.query.channel.findFirst({
     where: and(
       eq(channel.slackConnectionId, slackConnectionId),
@@ -197,7 +197,40 @@ export async function getChannel(
   });
 }
 
-export async function updateChannel(
+export async function createOrUpdateChannel(
+  db: DrizzleD1Database<typeof schema>,
+  slackConnectionId: number,
+  slackChannelIdentifier: string,
+  slackChannelType: string,
+  slackChannelName: string,
+  isShared: boolean,
+  status: string
+) {
+  await db
+    .insert(channel)
+    .values({
+      slackConnectionId: slackConnectionId,
+      slackChannelIdentifier: slackChannelIdentifier,
+      type: slackChannelType,
+      isMember: true,
+      name: slackChannelName,
+      isShared: isShared,
+      status: status
+    })
+    .onConflictDoUpdate({
+      target: [channel.slackConnectionId, channel.slackChannelIdentifier],
+      set: {
+        updatedAt: new Date().toISOString(),
+        type: slackChannelType,
+        isMember: true,
+        name: slackChannelName,
+        isShared: isShared,
+        status: status
+      }
+    });
+}
+
+export async function updateChannelSettings(
   db: DrizzleD1Database<typeof schema>,
   slackConnectionId: number,
   slackChannelIdentifier: string,
@@ -216,6 +249,52 @@ export async function updateChannel(
         eq(channel.slackChannelIdentifier, slackChannelIdentifier)
       )
     );
+}
+
+export async function createSubscription(
+  db: DrizzleD1Database<typeof schema>,
+  env: Env,
+  stripeSubscriptionId: string,
+  currentPeriodStartTimestamp: number,
+  currentPeriodEndTimestamp: number
+) {
+  return await db
+    .insert(subscription)
+    .values({
+      stripeSubscriptionId: stripeSubscriptionId,
+      stripeProductId: env.DEFAULT_STRIPE_PRODUCT_ID,
+      // Conditionally include startedAt only if currentPeriodStart exists
+      ...(currentPeriodStartTimestamp
+        ? {
+            periodStart: new Date(
+              currentPeriodStartTimestamp * 1000
+            ).toISOString()
+          }
+        : {}),
+      // Conditionally include endsAt only if currentPeriodEnd exists
+      ...(currentPeriodEndTimestamp
+        ? {
+            periodEnd: new Date(currentPeriodEndTimestamp * 1000).toISOString()
+          }
+        : {})
+    })
+    .onConflictDoNothing()
+    .returning();
+}
+
+export async function attachSubscriptionToSlackConnection(
+  db: DrizzleD1Database<typeof schema>,
+  slackConnectionId: number,
+  subscriptionId: number,
+  stripeCustomerId: string
+) {
+  await db
+    .update(slackConnection)
+    .set({
+      stripeCustomerId: stripeCustomerId,
+      subscriptionId: subscriptionId
+    })
+    .where(eq(slackConnection.id, slackConnectionId));
 }
 
 export async function updateStripeSubscriptionId(
@@ -248,7 +327,7 @@ export async function getSubscription(
   });
 }
 
-export async function getConversation(
+export async function getConversationFromPublicId(
   db: DrizzleD1Database<typeof schema>,
   publicId: string
 ) {
@@ -258,4 +337,307 @@ export async function getConversation(
       channel: true
     }
   });
+}
+
+export async function createConversation(
+  db: DrizzleD1Database<typeof schema>,
+  publicId: string,
+  channelId: number,
+  slackParentMessageId: string,
+  zendeskTicketId: string,
+  slackAuthorUserId: string
+) {
+  await db.insert(conversation).values({
+    publicId: publicId,
+    channelId: channelId,
+    slackParentMessageId: slackParentMessageId,
+    zendeskTicketId: zendeskTicketId,
+    slackAuthorUserId: slackAuthorUserId,
+    latestSlackMessageId: slackParentMessageId
+  });
+}
+
+export async function getConversation(
+  db: DrizzleD1Database<typeof schema>,
+  slackConnectionId: number,
+  slackChannelIdentifier: string,
+  slackParentMessageId: string
+): Promise<Conversation | null> {
+  const conversationInfo = await db
+    .select({ conversation })
+    .from(conversation)
+    .innerJoin(channel, eq(conversation.channelId, channel.id))
+    .where(
+      and(
+        eq(channel.slackConnectionId, slackConnectionId),
+        eq(channel.slackChannelIdentifier, slackChannelIdentifier),
+        eq(conversation.slackParentMessageId, slackParentMessageId)
+      )
+    )
+    .limit(1);
+
+  if (!conversationInfo || conversationInfo.length === 0) {
+    return null;
+  }
+
+  return conversationInfo[0].conversation;
+}
+
+export async function getLatestConversation(
+  db: DrizzleD1Database<typeof schema>,
+  slackConnectionId: number,
+  slackChannelIdentifier: string
+): Promise<Conversation | null> {
+  const conversationInfo = await db
+    .select({ conversation })
+    .from(conversation)
+    .innerJoin(channel, eq(conversation.channelId, channel.id))
+    .where(
+      and(
+        eq(channel.slackConnectionId, slackConnectionId),
+        eq(channel.slackChannelIdentifier, slackChannelIdentifier)
+      )
+    )
+    .orderBy(desc(conversation.slackParentMessageId))
+    .limit(1);
+
+  if (!conversationInfo || conversationInfo.length === 0) {
+    return null;
+  }
+
+  return conversationInfo[0].conversation;
+}
+
+export async function updateConversationLatestMessage(
+  db: DrizzleD1Database<typeof schema>,
+  conversationPublicId: string,
+  slackMessageId: string,
+  zendeskTicketId?: string,
+  resetParentMessageId?: boolean
+) {
+  await db
+    .update(conversation)
+    .set({
+      updatedAt: new Date().toISOString(),
+      latestSlackMessageId: slackMessageId,
+      ...(zendeskTicketId ? { zendeskTicketId: zendeskTicketId } : {}),
+      ...(resetParentMessageId ? { slackParentMessageId: slackMessageId } : {})
+    })
+    .where(eq(conversation.publicId, conversationPublicId));
+}
+
+export async function updateChannelActivity(
+  slackConnection: SlackConnection,
+  channelId: string,
+  db: DrizzleD1Database<typeof schema>
+): Promise<void> {
+  const now = new Date().toISOString();
+
+  await db
+    .update(channel)
+    .set({
+      updatedAt: now,
+      latestActivityAt: now
+    })
+    .where(
+      and(
+        eq(channel.slackConnectionId, slackConnection.id),
+        eq(channel.slackChannelIdentifier, channelId)
+      )
+    );
+}
+
+export async function leaveAllChannels(
+  db: DrizzleD1Database<typeof schema>,
+  connectionId: number
+) {
+  await db
+    .update(channel)
+    .set({ isMember: false, updatedAt: new Date().toISOString() })
+    .where(
+      and(
+        eq(channel.slackConnectionId, connectionId),
+        eq(channel.isMember, true)
+      )
+    );
+}
+
+export async function updateChannelMembership(
+  db: DrizzleD1Database<typeof schema>,
+  slackConnectionId: number,
+  slackChannelIdentifier: string,
+  isMember: boolean
+) {
+  await db
+    .update(channel)
+    .set({
+      updatedAt: new Date().toISOString(),
+      isMember: isMember
+    })
+    .where(
+      and(
+        eq(channel.slackConnectionId, slackConnectionId),
+        eq(channel.slackChannelIdentifier, slackChannelIdentifier)
+      )
+    );
+}
+
+export async function updateChannelName(
+  db: DrizzleD1Database<typeof schema>,
+  slackConnectionId: number,
+  slackChannelIdentifier: string,
+  newChannelName: string
+) {
+  await db
+    .update(channel)
+    .set({
+      updatedAt: new Date().toISOString(),
+      name: newChannelName
+    })
+    .where(
+      and(
+        eq(channel.slackConnectionId, slackConnectionId),
+        eq(channel.slackChannelIdentifier, slackChannelIdentifier)
+      )
+    );
+}
+
+export async function updateChannelIdentifier(
+  db: DrizzleD1Database<typeof schema>,
+  slackConnectionId: number,
+  oldChannelIdentifier: string,
+  newChannelIdentifier: string
+) {
+  await db
+    .update(channel)
+    .set({
+      updatedAt: new Date().toISOString(),
+      slackChannelIdentifier: newChannelIdentifier
+    })
+    .where(
+      and(
+        eq(channel.slackConnectionId, slackConnectionId),
+        eq(channel.slackChannelIdentifier, oldChannelIdentifier)
+      )
+    );
+}
+
+export async function deactivateChannels(
+  db: DrizzleD1Database<typeof schema>,
+  connectionId: number,
+  beyondDate: string
+) {
+  return await db
+    .update(channel)
+    .set({ status: 'PENDING_UPGRADE', updatedAt: new Date().toISOString() })
+    .where(
+      and(
+        eq(channel.slackConnectionId, connectionId),
+        eq(channel.isMember, true),
+        isNull(channel.status),
+        gt(channel.createdAt, beyondDate)
+      )
+    )
+    .returning();
+}
+
+export async function activateChannels(
+  db: DrizzleD1Database<typeof schema>,
+  connectionId: number,
+  upToLimit: string
+) {
+  safeLog('log', `Activating channels up to ${upToLimit}`);
+
+  return await db
+    .update(channel)
+    .set({ status: null, updatedAt: new Date().toISOString() })
+    .where(
+      and(
+        eq(channel.slackConnectionId, connectionId),
+        eq(channel.isMember, true),
+        eq(channel.status, 'PENDING_UPGRADE'),
+        lte(channel.createdAt, upToLimit)
+      )
+    )
+    .returning();
+}
+
+export async function activateAllChannels(
+  db: DrizzleD1Database<typeof schema>,
+  connectionId: number
+) {
+  await db
+    .update(channel)
+    .set({ status: null, updatedAt: new Date().toISOString() })
+    .where(
+      and(
+        eq(channel.slackConnectionId, connectionId),
+        eq(channel.isMember, true),
+        eq(channel.status, 'PENDING_UPGRADE')
+      )
+    );
+}
+
+export async function setSharedSlackChannel(
+  db: DrizzleD1Database<typeof schema>,
+  slackConnectionInfo: SlackConnection,
+  slackChannelIdentifier: string
+) {
+  await db
+    .update(slackConnection)
+    .set({
+      supportSlackChannelId: slackChannelIdentifier,
+      supportSlackChannelName: `ext-zensync-${slackConnectionInfo.domain}`
+    })
+    .where(eq(slackConnection.id, slackConnectionInfo.id));
+}
+
+export async function getZendeskCredentialsFromWebhookId(
+  db: DrizzleD1Database<typeof schema>,
+  webhookId: string
+) {
+  return await db.query.zendeskConnection.findFirst({
+    where: eq(zendeskConnection.zendeskWebhookId, webhookId)
+  });
+}
+
+export async function getZendeskCredentials(
+  db: DrizzleD1Database<typeof schema>,
+  env: Env,
+  slackConnectionId: number,
+  key?: CryptoKey
+): Promise<ZendeskConnection | null | undefined> {
+  try {
+    const zendeskCredentials = await db.query.zendeskConnection.findFirst({
+      where: eq(zendeskConnection.slackConnectionId, slackConnectionId)
+    });
+    const zendeskDomain = zendeskCredentials?.zendeskDomain;
+    const zendeskEmail = zendeskCredentials?.zendeskEmail;
+    const encryptedZendeskApiKey = zendeskCredentials?.encryptedZendeskApiKey;
+
+    if (!zendeskDomain || !zendeskEmail || !encryptedZendeskApiKey) {
+      safeLog(
+        'log',
+        `No Zendesk credentials found for slack connection ${slackConnectionId}`
+      );
+      return null;
+    }
+
+    let encryptionKey = key;
+    if (!encryptionKey) {
+      encryptionKey = await importEncryptionKeyFromEnvironment(env);
+    }
+    const decryptedApiKey = await decryptData(
+      encryptedZendeskApiKey,
+      encryptionKey
+    );
+
+    return {
+      ...zendeskCredentials,
+      zendeskApiKey: decryptedApiKey
+    };
+  } catch (error) {
+    safeLog('error', `Error querying ZendeskConnections: ${error}`);
+    return undefined;
+  }
 }

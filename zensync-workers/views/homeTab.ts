@@ -9,9 +9,10 @@ import {
 } from '@/lib/schema-sqlite';
 import { SlackResponse } from '@/interfaces/slack-api.interface';
 import * as schema from '@/lib/schema-sqlite';
-import { fetchZendeskCredentials, InteractivityActionId } from '@/lib/utils';
+import { InteractivityActionId } from '@/lib/utils';
 import { isSubscriptionActive } from '@/lib/utils';
 import { safeLog } from '@/lib/logging';
+import { getZendeskCredentials } from '@/lib/database';
 
 const PENDING_UPGRADE = 'PENDING_UPGRADE';
 
@@ -116,10 +117,10 @@ async function fetchHomeTabData(
   key: CryptoKey
 ): Promise<[ZendeskConnection | null, Channel[]]> {
   try {
-    const zendeskInfo = await fetchZendeskCredentials(
-      slackConnection.id,
+    const zendeskInfo = await getZendeskCredentials(
       db,
       env,
+      slackConnection.id,
       key
     );
 

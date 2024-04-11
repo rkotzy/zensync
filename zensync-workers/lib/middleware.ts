@@ -1,5 +1,9 @@
 import { Env } from '@/interfaces/env.interface';
-import { getSlackConnection, initializeDb } from './database';
+import {
+  getSlackConnection,
+  getZendeskCredentialsFromWebhookId,
+  initializeDb
+} from './database';
 import { RequestInterface } from '@/interfaces/request.interface';
 import Stripe from 'stripe';
 import { eq } from 'drizzle-orm';
@@ -204,10 +208,10 @@ export async function verifyZendeskWebhookAndSetSlackConnection(
       });
     }
 
-    const connection = await request.db.query.zendeskConnection.findFirst({
-      where: eq(zendeskConnection.zendeskWebhookId, webhookId)
-    });
-
+    const connection = await getZendeskCredentialsFromWebhookId(
+      request.db,
+      webhookId
+    );
     if (!connection) {
       safeLog('error', `Invalid webhook Id ${webhookId}`);
       return new Response('Verification failed', {

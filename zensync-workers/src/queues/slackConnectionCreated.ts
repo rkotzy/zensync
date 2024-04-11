@@ -1,11 +1,11 @@
-import { initializeDb } from '@/lib/database';
-import { eq } from 'drizzle-orm';
-import { Env } from '@/interfaces/env.interface';
 import {
-  SlackConnection,
-  slackConnection,
-  subscription
-} from '@/lib/schema-sqlite';
+  attachSubscriptionToSlackConnection,
+  createSubscription,
+  initializeDb,
+  setSharedSlackChannel
+} from '@/lib/database';
+import { Env } from '@/interfaces/env.interface';
+import { SlackConnection } from '@/lib/schema-sqlite';
 import { SlackResponse } from '@/interfaces/slack-api.interface';
 import { createStripeAccount } from '@/lib/utils';
 import { safeLog } from '@/lib/logging';
@@ -99,13 +99,11 @@ async function setupSupportChannelInSlack(
     }
 
     // Step 3: Update slack channel in database
-    await db
-      .update(slackConnection)
-      .set({
-        supportSlackChannelId: createChannelResponseData.channel.id,
-        supportSlackChannelName: `ext-zensync-${connectionDetails.domain}`
-      })
-      .where(eq(slackConnection.id, connectionDetails.id));
+    await setSharedSlackChannel(
+      db,
+      connectionDetails,
+      createChannelResponseData.channel.id
+    );
 
     // Commenting this out for now so I can personally outreach to each channel
     // // Step 4: Send a message to the channel with a welcome message
@@ -169,30 +167,13 @@ async function setupCustomerInStripe(
       idempotencyKey
     );
 
-    const databaseSubscription = await db
-      .insert(subscription)
-      .values({
-        stripeSubscriptionId: stripeAccount.subscriptionId,
-        stripeProductId: env.DEFAULT_STRIPE_PRODUCT_ID,
-        // Conditionally include startedAt only if currentPeriodStart exists
-        ...(stripeAccount.currentPeriodStart
-          ? {
-              periodStart: new Date(
-                stripeAccount.currentPeriodStart * 1000
-              ).toISOString()
-            }
-          : {}),
-        // Conditionally include endsAt only if currentPeriodEnd exists
-        ...(stripeAccount.currentPeriodEnd
-          ? {
-              periodEnd: new Date(
-                stripeAccount.currentPeriodEnd * 1000
-              ).toISOString()
-            }
-          : {})
-      })
-      .onConflictDoNothing()
-      .returning({ insertedId: subscription.id });
+    const databaseSubscription = await createSubscription(
+      db,
+      env,
+      stripeAccount.subscriptionId,
+      stripeAccount.currentPeriodStart,
+      stripeAccount.currentPeriodEnd
+    );
 
     // If that failed for some reason throw an error, it's safe to retry
     if (!databaseSubscription || databaseSubscription.length === 0) {
@@ -200,13 +181,12 @@ async function setupCustomerInStripe(
       throw new Error('Error upserting subscription');
     }
 
-    await db
-      .update(slackConnection)
-      .set({
-        stripeCustomerId: stripeAccount.customerId,
-        subscriptionId: databaseSubscription[0].insertedId
-      })
-      .where(eq(slackConnection.id, connectionDetails.id));
+    await attachSubscriptionToSlackConnection(
+      db,
+      connectionDetails.id,
+      databaseSubscription[0].id,
+      stripeAccount.customerId
+    );
   } catch (error) {
     safeLog('error', 'Error in slackConnectionCreated:', error);
     throw new Error('Error in slackConnectionCreated');

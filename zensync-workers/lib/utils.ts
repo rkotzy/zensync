@@ -1,20 +1,9 @@
-import { eq, and } from 'drizzle-orm';
-import {
-  zendeskConnection,
-  ZendeskConnection,
-  slackConnection,
-  SlackConnection,
-  channel,
-  Channel
-} from '@/lib/schema-sqlite';
-import * as schema from '@/lib/schema-sqlite';
+import { SlackConnection, Channel } from '@/lib/schema-sqlite';
 import { Env } from '@/interfaces/env.interface';
-import { decryptData, importEncryptionKeyFromEnvironment } from './encryption';
 import Stripe from 'stripe';
 import { PostHog } from 'posthog-node';
 import { initializePosthog } from './posthog';
 import { safeLog } from './logging';
-import { DrizzleD1Database } from 'drizzle-orm/d1';
 
 export enum InteractivityActionId {
   // Zendesk modal details
@@ -78,47 +67,6 @@ function convertTimestampToDate(timestamp: number | string): Date {
   return new Date(timestampInMilliseconds);
 }
 
-export async function fetchZendeskCredentials(
-  slackConnectionId: number,
-  db: DrizzleD1Database<typeof schema>,
-  env: Env,
-  key?: CryptoKey
-): Promise<ZendeskConnection | null | undefined> {
-  try {
-    const zendeskCredentials = await db.query.zendeskConnection.findFirst({
-      where: eq(zendeskConnection.slackConnectionId, slackConnectionId)
-    });
-    const zendeskDomain = zendeskCredentials?.zendeskDomain;
-    const zendeskEmail = zendeskCredentials?.zendeskEmail;
-    const encryptedZendeskApiKey = zendeskCredentials?.encryptedZendeskApiKey;
-
-    if (!zendeskDomain || !zendeskEmail || !encryptedZendeskApiKey) {
-      safeLog(
-        'log',
-        `No Zendesk credentials found for slack connection ${slackConnectionId}`
-      );
-      return null;
-    }
-
-    let encryptionKey = key;
-    if (!encryptionKey) {
-      encryptionKey = await importEncryptionKeyFromEnvironment(env);
-    }
-    const decryptedApiKey = await decryptData(
-      encryptedZendeskApiKey,
-      encryptionKey
-    );
-
-    return {
-      ...zendeskCredentials,
-      zendeskApiKey: decryptedApiKey
-    };
-  } catch (error) {
-    safeLog('error', `Error querying ZendeskConnections: ${error}`);
-    return undefined;
-  }
-}
-
 export function isSubscriptionActive(
   connection: SlackConnection,
   env: Env
@@ -137,49 +85,8 @@ export function isSubscriptionActive(
   return expirationDateWithBuffer >= new Date().getTime(); // Return true if subscription is active (not yet expired)
 }
 
-export async function getChannelInfo(
-  channelId: string,
-  slackConnectionId: number,
-  db: DrizzleD1Database<typeof schema>
-): Promise<Channel | null | undefined> {
-  try {
-    const channelInfo = await db.query.channel.findFirst({
-      where: and(
-        eq(channel.slackConnectionId, slackConnectionId),
-        eq(channel.slackChannelIdentifier, channelId)
-      )
-    });
-
-    return channelInfo;
-  } catch (error) {
-    safeLog('error', `Error getting channel info for ${channelId}`, error);
-    return undefined;
-  }
-}
-
 export function isChannelEligibleForMessaging(channel: Channel): boolean {
   return channel.isMember && channel.status !== 'PENDING_UPGRADE';
-}
-
-export async function updateChannelActivity(
-  slackConnection: SlackConnection,
-  channelId: string,
-  db: DrizzleD1Database<typeof schema>
-): Promise<void> {
-  const now = new Date().toISOString();
-
-  await db
-    .update(channel)
-    .set({
-      updatedAt: now,
-      latestActivityAt: now
-    })
-    .where(
-      and(
-        eq(channel.slackConnectionId, slackConnection.id),
-        eq(channel.slackChannelIdentifier, channelId)
-      )
-    );
 }
 
 export async function createStripeAccount(

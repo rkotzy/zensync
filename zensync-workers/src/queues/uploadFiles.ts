@@ -1,8 +1,7 @@
 import { SlackResponse } from '@/interfaces/slack-api.interface';
 import { ZendeskResponse } from '@/interfaces/zendesk-api.interface';
 import { ZendeskConnection, SlackConnection } from '@/lib/schema-sqlite';
-import { fetchZendeskCredentials } from '@/lib/utils';
-import { initializeDb } from '@/lib/database';
+import { initializeDb, getZendeskCredentials } from '@/lib/database';
 import { Env } from '@/interfaces/env.interface';
 import { Buffer } from 'node:buffer';
 import { safeLog } from '@/lib/logging';
@@ -31,10 +30,10 @@ export async function uploadFilesToZendesk(requestJson: any, env: Env) {
   // Fetch Zendesk credentials
   let zendeskCredentials: ZendeskConnection | null;
   try {
-    zendeskCredentials = await fetchZendeskCredentials(
-      connectionDetails.id,
+    zendeskCredentials = await getZendeskCredentials(
       db,
-      env
+      env,
+      connectionDetails.id,
     );
   } catch (error) {
     safeLog('error', error);

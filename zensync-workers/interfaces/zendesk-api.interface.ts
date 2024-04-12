@@ -20,11 +20,13 @@ export interface ZendeskResponse {
 }
 
 export interface ZendeskConnectionCreate {
+  encryptedApiKey: string;
   zendeskDomain: string;
   zendeskEmail: string;
-  encryptedApiKey: string;
   slackConnectionId: number;
+  status: string;
   zendeskTriggerId: string;
   zendeskWebhookId: string;
+  encryptedZendeskSigningSecret: string;
   hashedWebhookToken: string;
 }

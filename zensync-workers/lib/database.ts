@@ -152,7 +152,9 @@ export async function createOrUpdateZendeskConnection(
       status: 'ACTIVE',
       zendeskTriggerId: zendeskConnectionCreate.zendeskTriggerId,
       zendeskWebhookId: zendeskConnectionCreate.zendeskWebhookId,
-      hashedWebhookBearerToken: zendeskConnectionCreate.hashedWebhookToken
+      hashedWebhookBearerToken: zendeskConnectionCreate.hashedWebhookToken,
+      encryptedZendeskSigningSecret:
+        zendeskConnectionCreate.encryptedZendeskSigningSecret
     })
     .onConflictDoUpdate({
       target: zendeskConnection.slackConnectionId,
@@ -164,7 +166,9 @@ export async function createOrUpdateZendeskConnection(
         hashedWebhookBearerToken: zendeskConnectionCreate.hashedWebhookToken,
         zendeskTriggerId: zendeskConnectionCreate.zendeskTriggerId,
         zendeskWebhookId: zendeskConnectionCreate.zendeskWebhookId,
-        status: 'ACTIVE'
+        status: 'ACTIVE',
+        encryptedZendeskSigningSecret:
+          zendeskConnectionCreate.encryptedZendeskSigningSecret
       }
     });
 }

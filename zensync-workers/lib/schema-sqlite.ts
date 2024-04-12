@@ -64,8 +64,9 @@ export const zendeskConnection = sqliteTable('zendesk_connections', {
   zendeskEmail: text('zendesk_email').notNull(),
   encryptedZendeskApiKey: text('encrypted_zendesk_api_key').notNull(),
   zendeskTriggerId: text('zendesk_trigger_id'),
-  zendeskWebhookId: text('zendesk_webhook_id'),
-  hashedWebhookBearerToken: text('hashed_webhook_bearer_token'),
+  zendeskWebhookId: text('zendesk_webhook_id').notNull(),
+  hashedWebhookBearerToken: text('hashed_webhook_bearer_token').notNull(),
+  encryptedZendeskSigningSecret: text('encrypted_zendesk_signing_secret'),
   status: text('status')
 });
 

@@ -24,6 +24,10 @@ import {
   getZendeskCredentials
 } from '@/lib/database';
 import { openSlackModal } from '@/lib/slack-api';
+import {
+  createZendeskTrigger,
+  getWebhookSigningSecret
+} from '@/lib/zendesk-api';
 
 export class SlackInteractivityHandler {
   async handle(
@@ -233,6 +237,7 @@ async function saveZendeskCredentials(
 
   let zendeskTriggerId: string;
   let zendeskWebhookId: string;
+  let webhookSigningSecret: string;
   try {
     // Create a zendesk webhook
     const webhookPayload = JSON.stringify({
@@ -284,83 +289,27 @@ async function saveZendeskCredentials(
       throw new Error('Failed to find webhook id');
     }
 
-    // Create a zendesk trigger to alert the webhook of ticket changes
-    const triggerPayload = JSON.stringify({
-      trigger: {
-        title: 'Zensync - Slack-to-Zendesk Sync [DO NOT EDIT]',
-        description:
-          'Two-way sync between Slack and Zendesk. Contact your admin or email support@slacktozendesk.com for help.',
-        active: true,
-        conditions: {
-          all: [
-            {
-              field: 'status',
-              operator: 'greater_than',
-              value: 'new'
-            },
-            {
-              field: 'role',
-              operator: 'is',
-              value: 'agent'
-            },
-            {
-              field: 'current_tags',
-              operator: 'includes',
-              value: 'zensync'
-            },
-            {
-              field: 'comment_is_public',
-              operator: 'is',
-              value: 'true'
-            }
-          ]
-        },
-        actions: [
-          {
-            field: 'notification_webhook',
-            value: [
-              zendeskWebhookId,
-              '{\n  "ticket_id": "{{ticket.id}}",\n  "external_id": "{{ticket.external_id}}",\n  "last_updated_at": "{{ticket.updated_at_with_timestamp}}",\n  "created_at": "{{ticket.created_at_with_timestamp}}",\n  "requester_email": "{{ticket.requester.email}}",\n  "requester_external_id": "{{ticket.requester.external_id}}",\n  "current_user_email": "{{current_user.email}}",\n  "current_user_name": "{{current_user.name}}",\n  "current_user_external_id": "{{current_user.external_id}}",\n  "current_user_signature": "{{current_user.signature}}",\n "message": "{{ticket.latest_public_comment}}",\n  "is_public": "{{ticket.latest_public_comment.is_public}}",\n  "attachments": [\n    {% for attachment in ticket.latest_public_comment.attachments %}\n    {\n      "filename": "{{attachment.filename}}",\n      "url": "{{attachment.url}}"\n    }{% if forloop.last == false %},{% endif %}\n    {% endfor %}\n  ],\n  "via": "{{ticket.via}}"\n}\n'
-            ]
-          }
-        ]
-      }
-    });
+    // Create a zendesk trigger and get the webhook secret in parallel
+    [zendeskTriggerId, webhookSigningSecret] = await Promise.all([
+      createZendeskTrigger(zendeskAuthToken, zendeskDomain, zendeskWebhookId),
+      getWebhookSigningSecret(zendeskAuthToken, zendeskDomain, zendeskWebhookId)
+    ]);
 
-    const zendeskTriggerResponse = await fetch(
-      `https://${zendeskDomain}.zendesk.com/api/v2/triggers`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Basic ${zendeskAuthToken}`
-        },
-        body: triggerPayload
-      }
-    );
-
-    if (!zendeskTriggerResponse.ok) {
-      // If the response status is not OK, log the status and the response text
-      safeLog(
-        'error',
-        `Zendesk Trigger API failed with status: ${zendeskTriggerResponse.status}`
-      );
-      safeLog('error', `Response: ${await zendeskTriggerResponse.text()}`);
-      throw new Error('Failed to set Zendesk trigger');
+    if (!zendeskTriggerId || !webhookSigningSecret) {
+      throw new Error('Failed to create trigger or get webhook secret');
     }
-
-    // Parse the response body to JSON
-    const triggerResponseJson =
-      (await zendeskTriggerResponse.json()) as ZendeskResponse;
-    zendeskTriggerId = triggerResponseJson.trigger.id ?? null;
   } catch (error) {
-    safeLog('error', error);
+    safeLog('error', 'Error saving zendesk credentials', error);
     throw error;
   }
 
   // If the request is successful, save the credentials to the database
   try {
     const encryptedApiKey = await encryptData(zendeskKey, key);
+    const encryptedZendeskSigningSecret = await encryptData(
+      webhookSigningSecret,
+      key
+    );
 
     const salt = await bcrypt.genSalt(10);
     const hashedWebhookToken = await bcrypt.hash(webhookToken, salt);
@@ -371,8 +320,9 @@ async function saveZendeskCredentials(
       zendeskEmail,
       slackConnectionId: connection.id,
       status: 'ACTIVE',
-      zendeskTriggerId: zendeskTriggerId,
-      zendeskWebhookId: zendeskWebhookId,
+      zendeskTriggerId,
+      zendeskWebhookId,
+      encryptedZendeskSigningSecret,
       hashedWebhookToken
     } as ZendeskConnectionCreate);
 

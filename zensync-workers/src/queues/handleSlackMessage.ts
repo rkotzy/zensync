@@ -1190,25 +1190,20 @@ async function sameSenderInTimeframeConversation(
     }
 
     // 1. Check if the latest message is from the current user
-    if (
-      latestConversation[0].conversation.slackAuthorUserId !==
-      currentMessage.user
-    ) {
+    if (latestConversation.slackAuthorUserId !== currentMessage.user) {
       return null;
     }
 
     // 2. Check that there are no thread replies yet to the message
     if (
-      latestConversation[0].conversation.latestSlackMessageId !==
-      latestConversation[0].conversation.slackParentMessageId
+      latestConversation.latestSlackMessageId !==
+      latestConversation.slackParentMessageId
     ) {
       return null;
     }
 
     // 3. Check if the latest message is within the timeframe
-    const latestMessageTs = parseFloat(
-      latestConversation[0].conversation.slackParentMessageId
-    );
+    const latestMessageTs = parseFloat(latestConversation.slackParentMessageId);
     const currentMessageTs = parseFloat(currentMessage.ts);
     const timeDiff = currentMessageTs - latestMessageTs;
     const glabalSettings: GlobalSettings = connection.globalSettings || {};
@@ -1220,7 +1215,7 @@ async function sameSenderInTimeframeConversation(
       timeframeSeconds !== 0 ||
       (timeDiff >= 0 && timeDiff <= timeframeSeconds)
     ) {
-      return latestConversation[0].conversation;
+      return latestConversation;
     } else {
       return null;
     }

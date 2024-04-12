@@ -70,7 +70,7 @@ export async function sendSlackMessage(
   }
 
   await singleEventAnalyticsLogger(
-    slackUser.userId,
+    slackUser ? slackUser.userId : 'Zensync',
     'message_reply',
     connection.appId,
     slackChannelId,

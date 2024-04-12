@@ -2,6 +2,10 @@ import { Env } from '@/interfaces/env.interface';
 import { SlackResponse } from '@/interfaces/slack-api.interface';
 import { SlackConnection } from './schema-sqlite';
 import {
+  GlobalSettings,
+  GlobalSettingDefaults
+} from '@/interfaces/global-settings.interface';
+import {
   stripSignatureFromMessage,
   zendeskToSlackMarkdown
 } from './message-formatters';
@@ -37,10 +41,15 @@ export async function sendSlackMessage(
   }
 
   try {
-    const message = requestBody.message;
+    let message = requestBody.message;
     const signature = requestBody.current_user_signature;
-    const strippedMessage = stripSignatureFromMessage(message, signature);
-    const formattedMessage = zendeskToSlackMarkdown(strippedMessage);
+
+    const glabalSettings: GlobalSettings = connection.globalSettings || {};
+    if (glabalSettings.removeZendeskSignatures) {
+      message = stripSignatureFromMessage(message, signature);
+    }
+
+    const formattedMessage = zendeskToSlackMarkdown(message);
 
     const body = JSON.stringify({
       channel: slackChannelId,

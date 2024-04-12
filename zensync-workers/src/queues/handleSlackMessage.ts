@@ -1046,7 +1046,13 @@ async function handleNewConversation(
     htmlBody = '<i>(Empty message)</i>';
   }
 
-  const channelTags = channelInfo.tags || [];
+  const globalSettings: GlobalSettings =
+    slackConnectionInfo.globalSettings || {};
+
+  let channelTags = channelInfo.tags || globalSettings.defaultZendeskTags || [];
+  channelTags.push('zensync');
+  const assignee =
+    channelInfo.defaultAssigneeEmail || globalSettings.defaultZendeskAssignee;
 
   // Create a ticket in Zendesk
   let ticketData: any = {
@@ -1062,9 +1068,9 @@ async function handleNewConversation(
       },
       requester_id: authorId,
       external_id: conversationUuid,
-      tags: ['zensync'],
-      ...(channelInfo.defaultAssigneeEmail && {
-        assignee_email: channelInfo.defaultAssigneeEmail
+      tags: channelTags,
+      ...(assignee && {
+        assignee_email: assignee
       }),
       ...(followUpTicket && {
         via_followup_source_id: followUpTicket.sourceTicketId

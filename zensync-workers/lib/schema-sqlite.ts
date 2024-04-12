@@ -13,10 +13,12 @@ import { InferSelectModel, relations } from 'drizzle-orm';
 // admin whenever possible.
 export const slackConnection = sqliteTable('slack_connections', {
   id: integer('id', { mode: 'number' }).primaryKey({ autoIncrement: true }),
-  createdAt: text('created_at')
-    .default(sql`(CURRENT_TIMESTAMP)`)
+  createdAtMs: integer('created_at_ms')
+    .default(
+      sql`(CAST(strftime('%s', 'now') AS INTEGER) * 1000 + CAST(strftime('%f', 'now') AS INTEGER) % 1000)`
+    )
     .notNull(),
-  updatedAt: text('updated_at'),
+  updatedAtMs: integer('updated_at_ms'),
   slackTeamId: text('slack_team_id').notNull().unique(),
   name: text('name'),
   domain: text('domain'),
@@ -50,10 +52,12 @@ export type SlackConnection = InferSelectModel<typeof slackConnection> & {
 // whenever possible.
 export const zendeskConnection = sqliteTable('zendesk_connections', {
   id: integer('id', { mode: 'number' }).primaryKey({ autoIncrement: true }),
-  createdAt: text('created_at')
-    .default(sql`(CURRENT_TIMESTAMP)`)
+  createdAtMs: integer('created_at_ms')
+    .default(
+      sql`(CAST(strftime('%s', 'now') AS INTEGER) * 1000 + CAST(strftime('%f', 'now') AS INTEGER) % 1000)`
+    )
     .notNull(),
-  updatedAt: text('updated_at'),
+  updatedAtMs: integer('updated_at_ms'),
   slackConnectionId: integer('slack_connection_id')
     .notNull()
     .unique()
@@ -80,10 +84,12 @@ export const channel = sqliteTable(
   'channels',
   {
     id: integer('id', { mode: 'number' }).primaryKey({ autoIncrement: true }),
-    createdAt: text('created_at')
-      .default(sql`(CURRENT_TIMESTAMP)`)
+    createdAtMs: integer('created_at_ms')
+      .default(
+        sql`(CAST(strftime('%s', 'now') AS INTEGER) * 1000 + CAST(strftime('%f', 'now') AS INTEGER) % 1000)`
+      )
       .notNull(),
-    updatedAt: text('updated_at'),
+    updatedAtMs: integer('updated_at_ms'),
     slackChannelIdentifier: text('slack_channel_identifier').notNull(),
     slackConnectionId: integer('slack_connection_id')
       .notNull()
@@ -93,7 +99,7 @@ export const channel = sqliteTable(
     name: text('name'),
     isShared: integer('is_shared', { mode: 'boolean' }),
     defaultAssigneeEmail: text('default_assignee_email'),
-    latestActivityAt: text('latest_activity_at'),
+    latestActivityAtMs: integer('latest_activity_at_ms'),
     tags: text('tags', { mode: 'json' }).$type<string[]>(),
     status: text('status'),
     globalSettingsOverrides: text('global_settings_overrides', {
@@ -121,10 +127,12 @@ export const conversation = sqliteTable(
   'conversations',
   {
     id: integer('id', { mode: 'number' }).primaryKey({ autoIncrement: true }),
-    createdAt: text('created_at')
-      .default(sql`(CURRENT_TIMESTAMP)`)
+    createdAtMs: integer('created_at_ms')
+      .default(
+        sql`(CAST(strftime('%s', 'now') AS INTEGER) * 1000 + CAST(strftime('%f', 'now') AS INTEGER) % 1000)`
+      )
       .notNull(),
-    updatedAt: text('updated_at'),
+    updatedAtMs: integer('updated_at_ms'),
     publicId: text('public_id').notNull().unique(),
     channelId: integer('channel_id')
       .notNull()
@@ -163,15 +171,17 @@ export const conversationRelations = relations(conversation, ({ one }) => ({
 
 export const subscription = sqliteTable('subscriptions', {
   id: integer('id', { mode: 'number' }).primaryKey({ autoIncrement: true }),
-  createdAt: text('created_at')
-    .default(sql`(CURRENT_TIMESTAMP)`)
+  createdAtMs: integer('created_at_ms')
+    .default(
+      sql`(CAST(strftime('%s', 'now') AS INTEGER) * 1000 + CAST(strftime('%f', 'now') AS INTEGER) % 1000)`
+    )
     .notNull(),
-  updatedAt: text('updated_at'),
+  updatedAtMs: integer('updated_at_ms'),
   stripeSubscriptionId: text('stripe_subscription_id').unique().notNull(),
   stripeProductId: text('stripe_product_id').notNull(),
-  periodStart: text('period_start'),
-  periodEnd: text('period_end'),
-  canceledAt: text('canceled_at')
+  periodStartMs: integer('period_start_ms'),
+  periodEndMs: integer('period_end_ms'),
+  canceledAtMs: integer('canceled_at_ms')
 });
 
 export type Subscription = InferSelectModel<typeof subscription>;

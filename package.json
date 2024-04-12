@@ -11,14 +11,13 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "drizzle-orm": "^0.30.7",
+    "drizzle-orm": "^0.30.8",
     "eslint": "8.56.0",
     "posthog-node": "^4.0.0",
     "ts-node": "^10.9.2",
     "typescript": "5.3.3"
   },
   "devDependencies": {
-    "drizzle-kit": "^0.20.14",
-    "pg": "^8.11.5"
+    "drizzle-kit": "^0.20.14"
   }
 }

@@ -121,7 +121,7 @@ export async function createOrUpdateSlackConnection(
     .onConflictDoUpdate({
       target: slackConnection.slackTeamId,
       set: {
-        updatedAt: new Date().toISOString(),
+        updatedAtMs: new Date().getTime(),
         name: team.name,
         domain: team.domain,
         iconUrl: team.icon.image_132,
@@ -159,7 +159,7 @@ export async function createOrUpdateZendeskConnection(
     .onConflictDoUpdate({
       target: zendeskConnection.slackConnectionId,
       set: {
-        updatedAt: new Date().toISOString(),
+        updatedAtMs: new Date().getTime(),
         encryptedZendeskApiKey: zendeskConnectionCreate.encryptedApiKey,
         zendeskDomain: zendeskConnectionCreate.zendeskDomain,
         zendeskEmail: zendeskConnectionCreate.zendeskEmail,
@@ -183,7 +183,7 @@ export async function getChannels(
       eq(channel.slackConnectionId, slackConnectionId),
       eq(channel.isMember, true)
     ),
-    orderBy: [asc(channel.createdAt)],
+    orderBy: [asc(channel.createdAtMs)],
     limit: limit ? limit : 1000
   });
 }
@@ -224,7 +224,7 @@ export async function createOrUpdateChannel(
     .onConflictDoUpdate({
       target: [channel.slackConnectionId, channel.slackChannelIdentifier],
       set: {
-        updatedAt: new Date().toISOString(),
+        updatedAtMs: new Date().getTime(),
         type: slackChannelType,
         isMember: true,
         name: slackChannelName,
@@ -305,18 +305,18 @@ export async function updateStripeSubscriptionId(
   db: DrizzleD1Database<typeof schema>,
   stripeSubscriptionId: string,
   eventCreatedTimestamp: number,
-  currentPeriodStart: string,
-  currentPeriodEnd: string,
-  canceledAt: string | null,
+  currentPeriodStartMs: number,
+  currentPeriodEndMs: number,
+  canceledAtMs: number | null,
   productId: string | null
 ) {
   await db
     .update(subscription)
     .set({
-      updatedAt: new Date(eventCreatedTimestamp * 1000).toISOString(),
-      periodStart: currentPeriodStart,
-      periodEnd: currentPeriodEnd,
-      canceledAt: canceledAt,
+      updatedAtMs: eventCreatedTimestamp * 1000,
+      periodStartMs: currentPeriodStartMs,
+      periodEndMs: currentPeriodEndMs,
+      canceledAtMs: canceledAtMs,
       ...(productId ? { stripeProductId: productId } : {})
     })
     .where(eq(subscription.stripeSubscriptionId, stripeSubscriptionId));
@@ -422,7 +422,7 @@ export async function updateConversationLatestMessage(
   await db
     .update(conversation)
     .set({
-      updatedAt: new Date().toISOString(),
+      updatedAtMs: new Date().getTime(),
       latestSlackMessageId: slackMessageId,
       ...(zendeskTicketId ? { zendeskTicketId: zendeskTicketId } : {}),
       ...(resetParentMessageId ? { slackParentMessageId: slackMessageId } : {})
@@ -435,13 +435,13 @@ export async function updateChannelActivity(
   channelId: string,
   db: DrizzleD1Database<typeof schema>
 ): Promise<void> {
-  const now = new Date().toISOString();
+  const now = new Date().getTime();
 
   await db
     .update(channel)
     .set({
-      updatedAt: now,
-      latestActivityAt: now
+      updatedAtMs: now,
+      latestActivityAtMs: now
     })
     .where(
       and(
@@ -457,7 +457,7 @@ export async function leaveAllChannels(
 ) {
   await db
     .update(channel)
-    .set({ isMember: false, updatedAt: new Date().toISOString() })
+    .set({ isMember: false, updatedAtMs: new Date().getTime() })
     .where(
       and(
         eq(channel.slackConnectionId, connectionId),
@@ -475,7 +475,7 @@ export async function updateChannelMembership(
   await db
     .update(channel)
     .set({
-      updatedAt: new Date().toISOString(),
+      updatedAtMs: new Date().getTime(),
       isMember: isMember
     })
     .where(
@@ -495,7 +495,7 @@ export async function updateChannelName(
   await db
     .update(channel)
     .set({
-      updatedAt: new Date().toISOString(),
+      updatedAtMs: new Date().getTime(),
       name: newChannelName
     })
     .where(
@@ -515,7 +515,7 @@ export async function updateChannelIdentifier(
   await db
     .update(channel)
     .set({
-      updatedAt: new Date().toISOString(),
+      updatedAtMs: new Date().getTime(),
       slackChannelIdentifier: newChannelIdentifier
     })
     .where(
@@ -529,17 +529,17 @@ export async function updateChannelIdentifier(
 export async function deactivateChannels(
   db: DrizzleD1Database<typeof schema>,
   connectionId: number,
-  beyondDate: string
+  beyondTimestampMs: number
 ) {
   return await db
     .update(channel)
-    .set({ status: 'PENDING_UPGRADE', updatedAt: new Date().toISOString() })
+    .set({ status: 'PENDING_UPGRADE', updatedAtMs: new Date().getTime() })
     .where(
       and(
         eq(channel.slackConnectionId, connectionId),
         eq(channel.isMember, true),
         isNull(channel.status),
-        gt(channel.createdAt, beyondDate)
+        gt(channel.createdAtMs, beyondTimestampMs)
       )
     )
     .returning();
@@ -548,19 +548,17 @@ export async function deactivateChannels(
 export async function activateChannels(
   db: DrizzleD1Database<typeof schema>,
   connectionId: number,
-  upToLimit: string
+  upToTimestampMs: number
 ) {
-  safeLog('log', `Activating channels up to ${upToLimit}`);
-
   return await db
     .update(channel)
-    .set({ status: null, updatedAt: new Date().toISOString() })
+    .set({ status: null, updatedAtMs: new Date().getTime() })
     .where(
       and(
         eq(channel.slackConnectionId, connectionId),
         eq(channel.isMember, true),
         eq(channel.status, 'PENDING_UPGRADE'),
-        lte(channel.createdAt, upToLimit)
+        lte(channel.createdAtMs, upToTimestampMs)
       )
     )
     .returning();
@@ -572,7 +570,7 @@ export async function activateAllChannels(
 ) {
   await db
     .update(channel)
-    .set({ status: null, updatedAt: new Date().toISOString() })
+    .set({ status: null, updatedAtMs: new Date().getTime() })
     .where(
       and(
         eq(channel.slackConnectionId, connectionId),

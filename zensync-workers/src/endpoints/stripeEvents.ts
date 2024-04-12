@@ -51,28 +51,22 @@ async function updateCustomerSubscription(
     );
     const subscriptionInfo = connectionInfo.subscriptions;
 
-    if (new Date(subscriptionInfo.updatedAt) > new Date(data.created * 1000)) {
+    if (subscriptionInfo.updatedAtMs > data.created * 1000) {
       safeLog('warn', 'Out of date subscription event');
       return;
     }
 
-    const currentPeriodEnd = new Date(
-      data.current_period_end * 1000
-    ).toISOString();
-    const currentPeriodStart = new Date(
-      data.current_period_start * 1000
-    ).toISOString();
-    const canceledAt = data.canceled_at
-      ? new Date(data.canceled_at * 1000).toISOString()
-      : null;
+    const currentPeriodEndMs = data.current_period_end * 1000;
+    const currentPeriodStartMs = data.current_period_start * 1000;
+    const canceledAtMs = data.canceled_at ? data.canceled_at * 1000 : null;
 
     await updateStripeSubscriptionId(
       db,
       subscriptionId,
       data.created,
-      currentPeriodStart,
-      currentPeriodEnd,
-      canceledAt,
+      currentPeriodStartMs,
+      currentPeriodEndMs,
+      canceledAtMs,
       productId
     );
 
@@ -83,7 +77,7 @@ async function updateCustomerSubscription(
     });
 
     // Capture analytics
-    if (canceledAt && subscriptionInfo.canceledAt === null) {
+    if (canceledAtMs && subscriptionInfo.canceledAtMs === null) {
       const posthog = initializePosthog(env);
       posthog.capture({
         event: 'subscription_cancelled',

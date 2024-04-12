@@ -1,47 +1,12 @@
 {
   "version": "5",
-  "dialect": "pg",
+  "dialect": "sqlite",
   "entries": [
     {
       "idx": 0,
       "version": "5",
-      "when": 1712714366427,
-      "tag": "0000_faulty_genesis",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "5",
-      "when": 1712727155459,
-      "tag": "0001_curvy_talos",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "5",
-      "when": 1712728363795,
-      "tag": "0002_nostalgic_captain_stacy",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "5",
-      "when": 1712728566601,
-      "tag": "0003_parched_rawhide_kid",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "5",
-      "when": 1712846876464,
-      "tag": "0004_flippant_zombie",
-      "breakpoints": true
-    },
-    {
-      "idx": 5,
-      "version": "5",
-      "when": 1712941004193,
-      "tag": "0005_confused_may_parker",
+      "when": 1712965789871,
+      "tag": "0000_known_demogoblin",
       "breakpoints": true
     }
   ]

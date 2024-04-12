@@ -1,7 +1,7 @@
 {
   "version": "5",
   "dialect": "sqlite",
-  "id": "080f590e-741f-4e82-a5bc-9818344bce43",
+  "id": "f6632390-1e78-4145-8992-9c3bd76220c1",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "channels": {
@@ -14,21 +14,20 @@
           "notNull": true,
           "autoincrement": true
         },
-        "created_at": {
-          "name": "created_at",
-          "type": "text",
+        "created_at_ms": {
+          "name": "created_at_ms",
+          "type": "integer",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "(CURRENT_TIMESTAMP)"
+          "default": "(CAST(strftime('%s', 'now') AS INTEGER) * 1000 + CAST(strftime('%f', 'now') AS INTEGER) % 1000)"
         },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "text",
+        "updated_at_ms": {
+          "name": "updated_at_ms",
+          "type": "integer",
           "primaryKey": false,
           "notNull": false,
-          "autoincrement": false,
-          "default": null
+          "autoincrement": false
         },
         "slack_channel_identifier": {
           "name": "slack_channel_identifier",
@@ -79,9 +78,9 @@
           "notNull": false,
           "autoincrement": false
         },
-        "latest_activity_at": {
-          "name": "latest_activity_at",
-          "type": "text",
+        "latest_activity_at_ms": {
+          "name": "latest_activity_at_ms",
+          "type": "integer",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
@@ -163,21 +162,27 @@
           "notNull": true,
           "autoincrement": true
         },
-        "created_at": {
-          "name": "created_at",
-          "type": "text",
+        "created_at_ms": {
+          "name": "created_at_ms",
+          "type": "integer",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "(CURRENT_TIMESTAMP)"
+          "default": "(CAST(strftime('%s', 'now') AS INTEGER) * 1000 + CAST(strftime('%f', 'now') AS INTEGER) % 1000)"
         },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "text",
+        "updated_at_ms": {
+          "name": "updated_at_ms",
+          "type": "integer",
           "primaryKey": false,
           "notNull": false,
-          "autoincrement": false,
-          "default": null
+          "autoincrement": false
+        },
+        "public_id": {
+          "name": "public_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
         },
         "channel_id": {
           "name": "channel_id",
@@ -200,13 +205,6 @@
           "notNull": true,
           "autoincrement": false
         },
-        "slack_parent_message_ts": {
-          "name": "slack_parent_message_ts",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
         "slack_author_user_id": {
           "name": "slack_author_user_id",
           "type": "text",
@@ -223,10 +221,17 @@
         }
       },
       "indexes": {
-        "idx_conversations_slack_parent_message_ts": {
-          "name": "idx_conversations_slack_parent_message_ts",
+        "conversations_public_id_unique": {
+          "name": "conversations_public_id_unique",
           "columns": [
-            "slack_parent_message_ts"
+            "public_id"
+          ],
+          "isUnique": true
+        },
+        "idx_conversations_slack_parent_message_id": {
+          "name": "idx_conversations_slack_parent_message_id",
+          "columns": [
+            "slack_parent_message_id"
           ],
           "isUnique": false
         },
@@ -282,21 +287,20 @@
           "notNull": true,
           "autoincrement": true
         },
-        "created_at": {
-          "name": "created_at",
-          "type": "text",
+        "created_at_ms": {
+          "name": "created_at_ms",
+          "type": "integer",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "(CURRENT_TIMESTAMP)"
+          "default": "(CAST(strftime('%s', 'now') AS INTEGER) * 1000 + CAST(strftime('%f', 'now') AS INTEGER) % 1000)"
         },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "text",
+        "updated_at_ms": {
+          "name": "updated_at_ms",
+          "type": "integer",
           "primaryKey": false,
           "notNull": false,
-          "autoincrement": false,
-          "default": null
+          "autoincrement": false
         },
         "slack_team_id": {
           "name": "slack_team_id",
@@ -470,21 +474,20 @@
           "notNull": true,
           "autoincrement": true
         },
-        "created_at": {
-          "name": "created_at",
-          "type": "text",
+        "created_at_ms": {
+          "name": "created_at_ms",
+          "type": "integer",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "(CURRENT_TIMESTAMP)"
+          "default": "(CAST(strftime('%s', 'now') AS INTEGER) * 1000 + CAST(strftime('%f', 'now') AS INTEGER) % 1000)"
         },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "text",
+        "updated_at_ms": {
+          "name": "updated_at_ms",
+          "type": "integer",
           "primaryKey": false,
           "notNull": false,
-          "autoincrement": false,
-          "default": null
+          "autoincrement": false
         },
         "stripe_subscription_id": {
           "name": "stripe_subscription_id",
@@ -500,23 +503,23 @@
           "notNull": true,
           "autoincrement": false
         },
-        "period_start": {
-          "name": "period_start",
-          "type": "text",
+        "period_start_ms": {
+          "name": "period_start_ms",
+          "type": "integer",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
         },
-        "period_end": {
-          "name": "period_end",
-          "type": "text",
+        "period_end_ms": {
+          "name": "period_end_ms",
+          "type": "integer",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
         },
-        "canceled_at": {
-          "name": "canceled_at",
-          "type": "text",
+        "canceled_at_ms": {
+          "name": "canceled_at_ms",
+          "type": "integer",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
@@ -545,21 +548,20 @@
           "notNull": true,
           "autoincrement": true
         },
-        "created_at": {
-          "name": "created_at",
-          "type": "text",
+        "created_at_ms": {
+          "name": "created_at_ms",
+          "type": "integer",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "(CURRENT_TIMESTAMP)"
+          "default": "(CAST(strftime('%s', 'now') AS INTEGER) * 1000 + CAST(strftime('%f', 'now') AS INTEGER) % 1000)"
         },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "text",
+        "updated_at_ms": {
+          "name": "updated_at_ms",
+          "type": "integer",
           "primaryKey": false,
           "notNull": false,
-          "autoincrement": false,
-          "default": null
+          "autoincrement": false
         },
         "slack_connection_id": {
           "name": "slack_connection_id",
@@ -600,11 +602,18 @@
           "name": "zendesk_webhook_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false
         },
         "hashed_webhook_bearer_token": {
           "name": "hashed_webhook_bearer_token",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "encrypted_zendesk_signing_secret": {
+          "name": "encrypted_zendesk_signing_secret",
           "type": "text",
           "primaryKey": false,
           "notNull": false,

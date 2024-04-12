@@ -47,13 +47,17 @@ async function updateChannelStatus(
     // Check if the index is within bounds to prevent accessing undefined
     if (allChannels.length > 0 && channelLimit > 0) {
       const safeIndex = Math.min(channelLimit - 1, allChannels.length - 1);
-      const lastActiveChannelDate = allChannels[safeIndex].createdAt;
+      const lastActiveChannelTimestampMs = allChannels[safeIndex].createdAtMs;
 
-      await activateChannels(db, slackConnectionInfo.id, lastActiveChannelDate);
+      await activateChannels(
+        db,
+        slackConnectionInfo.id,
+        lastActiveChannelTimestampMs
+      );
       await deactivateChannels(
         db,
         slackConnectionInfo.id,
-        lastActiveChannelDate
+        lastActiveChannelTimestampMs
       );
     }
   } else {

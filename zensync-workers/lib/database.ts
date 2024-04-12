@@ -582,7 +582,7 @@ export async function activateAllChannels(
     );
 }
 
-export async function setSharedSlackChannel(
+export async function saveSharedSlackChannel(
   db: DrizzleD1Database<typeof schema>,
   slackConnectionInfo: SlackConnection,
   slackChannelIdentifier: string

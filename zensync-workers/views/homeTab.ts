@@ -13,6 +13,7 @@ import { InteractivityActionId } from '@/lib/utils';
 import { isSubscriptionActive } from '@/lib/utils';
 import { safeLog } from '@/lib/logging';
 import { getZendeskCredentials } from '@/lib/database';
+import { publishView } from '@/lib/slack-api';
 
 const PENDING_UPGRADE = 'PENDING_UPGRADE';
 
@@ -88,22 +89,8 @@ export async function handleAppHomeOpened(
       view: viewJson
     });
 
-    const response = await fetch('https://slack.com/api/views.publish', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${connection.token}`
-      },
-      body: body
-    });
-
-    const responseData = (await response.json()) as SlackResponse;
-
-    if (!responseData.ok) {
-      safeLog('error', `Error publishing Slack View: ${body}`);
-      const errorDetails = JSON.stringify(responseData, null, 2);
-      throw new Error(`Error publishig view: ${errorDetails}`);
-    }
+    // publish view
+    await publishView(connection.token, body);
   } catch (error) {
     safeLog('error', `Error in handleAppHomeOpened: ${error.message}`);
     throw error;

@@ -46,6 +46,7 @@ import {
   generateHTMLPermalink
 } from '@/lib/message-formatters';
 import { singleEventAnalyticsLogger } from '@/lib/posthog';
+import { fetchChannelInfo } from '@/lib/slack-api';
 
 const MISSING_ZENDESK_CREDENTIALS_MESSAGE =
   'Zendesk credentials are missing or inactive. Configure them in the Zensync app settings to start syncing messages.';
@@ -190,29 +191,14 @@ async function handleChannelJoined(
     }
 
     // Fetch channel info from Slack
-    const params = new URLSearchParams();
-    params.append('channel', channelId);
-    const channelJoinResponse = await fetch(
-      `https://slack.com/api/conversations.info?${params.toString()}`,
-      {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-          Authorization: `Bearer ${connection.token}`
-        }
-      }
-    );
-
-    const channelJoinResponseData =
-      (await channelJoinResponse.json()) as SlackResponse;
-
-    if (!channelJoinResponseData.ok) {
-      safeLog(
-        'error',
-        `Failed to fetch channel info:`,
-        channelJoinResponseData
+    let channelJoinResponseData: SlackResponse;
+    try {
+      channelJoinResponseData = await fetchChannelInfo(
+        channelId,
+        connection.token
       );
-      throw new Error('Failed to fetch channel info');
+    } catch (error) {
+      throw error;
     }
 
     const channelType = getChannelType(channelJoinResponseData.channel);

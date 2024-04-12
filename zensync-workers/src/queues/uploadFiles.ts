@@ -1,10 +1,10 @@
-import { SlackResponse } from '@/interfaces/slack-api.interface';
 import { ZendeskResponse } from '@/interfaces/zendesk-api.interface';
 import { ZendeskConnection, SlackConnection } from '@/lib/schema-sqlite';
 import { initializeDb, getZendeskCredentials } from '@/lib/database';
 import { Env } from '@/interfaces/env.interface';
 import { Buffer } from 'node:buffer';
 import { safeLog } from '@/lib/logging';
+import { getFileInfoFromSlack } from '@/lib/slack-api';
 
 export async function uploadFilesToZendesk(requestJson: any, env: Env) {
   safeLog('log', 'uploadFilesToZendesk', requestJson);
@@ -33,7 +33,7 @@ export async function uploadFilesToZendesk(requestJson: any, env: Env) {
     zendeskCredentials = await getZendeskCredentials(
       db,
       env,
-      connectionDetails.id,
+      connectionDetails.id
     );
   } catch (error) {
     safeLog('error', error);
@@ -54,7 +54,10 @@ export async function uploadFilesToZendesk(requestJson: any, env: Env) {
     // Fetch Slack Connect file if needed
     // https://api.slack.com/apis/channels-between-orgs#check_file_info
     if (slackFile.id && slackFile.file_access === 'check_file_info') {
-      slackFile = await getFileInfoFromSlack(connectionDetails, slackFile.id);
+      slackFile = await getFileInfoFromSlack(
+        connectionDetails.token,
+        slackFile.id
+      );
     }
 
     // Upload the file to Zendesk
@@ -137,33 +140,4 @@ async function uploadFileFromUrlToZendesk(
 
   const data = (await response.json()) as ZendeskResponse;
   return data.upload.token;
-}
-
-async function getFileInfoFromSlack(
-  slackConnection: SlackConnection,
-  fileId: string
-): Promise<any> {
-  try {
-    const response = await fetch(
-      `https://slack.com/api/files.info?file=${fileId}`,
-      {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-          Authorization: `Bearer ${slackConnection.token}`
-        }
-      }
-    );
-
-    const responseData = (await response.json()) as SlackResponse;
-
-    if (!responseData.ok) {
-      safeLog('error', `Error getting Slack file info:`, responseData);
-      throw new Error(`Error getting Slack file info: ${responseData.error}`);
-    }
-    return responseData.file;
-  } catch (error) {
-    safeLog('error', `Error in getFileInfoFromSlack:`, error);
-    throw error;
-  }
 }

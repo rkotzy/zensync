@@ -1,5 +1,4 @@
 import { SlackConnection } from '@/lib/schema-sqlite';
-import { SlackResponse } from '@/interfaces/slack-api.interface';
 import {
   encryptData,
   decryptData,
@@ -10,6 +9,8 @@ import { initializePosthog } from '@/lib/posthog';
 import { safeLog } from '@/lib/logging';
 import { RequestInterface } from '@/interfaces/request.interface';
 import { createOrUpdateSlackConnection } from '@/lib/database';
+import { slackOauthResponse, getSlackTeamInfo } from '@/lib/slack-api';
+import { SlackTeam } from '@/interfaces/slack-api.interface';
 import { responseHtml } from '@/views/slackAuthCallbackHTML';
 
 export class SlackAuthCallback {
@@ -56,24 +57,7 @@ export class SlackAuthCallback {
     let appId: string;
     let teamId: string;
     try {
-      const params = new URLSearchParams();
-      params.append('client_id', env.SLACK_CLIENT_ID!);
-      params.append('client_secret', env.SLACK_CLIENT_SECRET!);
-      params.append('code', code);
-
-      const response = await fetch('https://slack.com/api/oauth.v2.access', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded'
-        },
-        body: params
-      });
-
-      const responseData = (await response.json()) as SlackResponse;
-
-      if (!responseData.ok) {
-        return new Response('Failed to authenticate.', { status: 401 });
-      }
+      const responseData = await slackOauthResponse(code, env);
 
       accessToken = responseData.access_token;
       authedUser = responseData.authed_user.id;
@@ -93,36 +77,18 @@ export class SlackAuthCallback {
       }
     } catch (error) {
       safeLog('error', error);
-      return new Response('Authentication failed.', { status: 400 });
+      return new Response('Authentication failed.', { status: 401 });
     }
 
-    const response = await fetch('https://slack.com/api/team.info', {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${accessToken}`
-      }
-    });
+    let team: SlackTeam;
+    try {
+      team = await getSlackTeamInfo(accessToken);
+    } catch (error) {
+      safeLog('error', error);
+      return new Response('Invalid access token.', { status: 401 });
+    }
 
     try {
-      const teamInfoResponse = (await response.json()) as SlackResponse;
-
-      if (!teamInfoResponse.ok || !teamInfoResponse.team) {
-        safeLog(
-          'error',
-          `Error fetching team info: ${JSON.stringify(
-            teamInfoResponse,
-            null,
-            2
-          )}`
-        );
-        return new Response('Invalid access token or permissions.', {
-          status: 401
-        });
-      }
-
-      const team = teamInfoResponse.team;
-
       // Encrypt the access token before saving to db
       const encryptedToken = await encryptData(accessToken, encryptionKey);
 

@@ -7,8 +7,6 @@ import {
 } from '@/lib/database';
 import { DrizzleD1Database } from 'drizzle-orm/d1';
 import * as schema from '@/lib/schema-sqlite';
-import { channel } from '@/lib/schema-sqlite';
-import { eq, and, asc, lte, gt, isNull } from 'drizzle-orm';
 import { Env } from '@/interfaces/env.interface';
 import { getChannelsByProductId } from '@/interfaces/products.interface';
 import { safeLog } from '@/lib/logging';

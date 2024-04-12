@@ -6,7 +6,7 @@ import {
   zendeskToSlackMarkdown
 } from './message-formatters';
 import { safeLog } from '@/lib/logging';
-import { singleEventAnalyticsLogger } from './utils';
+import { singleEventAnalyticsLogger } from './posthog';
 
 export async function sendSlackMessage(
   requestBody: any,

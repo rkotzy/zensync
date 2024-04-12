@@ -1,4 +1,4 @@
-import { slackConnection, SlackConnection } from '@/lib/schema-sqlite';
+import { SlackConnection } from '@/lib/schema-sqlite';
 import { SlackResponse } from '@/interfaces/slack-api.interface';
 import {
   encryptData,

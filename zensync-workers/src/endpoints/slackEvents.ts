@@ -3,7 +3,8 @@ import { SlackEvent } from '@/interfaces/slack-api.interface';
 import { Env } from '@/interfaces/env.interface';
 import { importEncryptionKeyFromEnvironment } from '@/lib/encryption';
 import { handleAppHomeOpened } from '@/views/homeTab';
-import { isSubscriptionActive, singleEventAnalyticsLogger } from '@/lib/utils';
+import { isSubscriptionActive } from '@/lib/utils';
+import { singleEventAnalyticsLogger } from '@/lib/posthog';
 import { safeLog } from '@/lib/logging';
 import { RequestInterface } from '@/interfaces/request.interface';
 

@@ -11,8 +11,7 @@ import {
 } from '@/interfaces/slack-api.interface';
 import {
   isSubscriptionActive,
-  isChannelEligibleForMessaging,
-  singleEventAnalyticsLogger
+  isChannelEligibleForMessaging
 } from '@/lib/utils';
 import {
   getZendeskCredentials,
@@ -46,6 +45,7 @@ import {
   slackMarkdownToHtml,
   generateHTMLPermalink
 } from '@/lib/message-formatters';
+import { singleEventAnalyticsLogger } from '@/lib/posthog';
 
 const MISSING_ZENDESK_CREDENTIALS_MESSAGE =
   'Zendesk credentials are missing or inactive. Configure them in the Zensync app settings to start syncing messages.';

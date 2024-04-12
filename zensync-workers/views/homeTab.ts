@@ -1,5 +1,5 @@
 import { DrizzleD1Database } from 'drizzle-orm/d1';
-import { eq, and, desc, is } from 'drizzle-orm';
+import { eq, and, desc } from 'drizzle-orm';
 import { Env } from '@/interfaces/env.interface';
 import {
   SlackConnection,

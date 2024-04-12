@@ -1,6 +1,6 @@
 import { ZendeskEvent } from '@/interfaces/zendesk-api.interface';
 import { Env } from '@/interfaces/env.interface';
-import { isSubscriptionActive, singleEventAnalyticsLogger } from '@/lib/utils';
+import { isSubscriptionActive } from '@/lib/utils';
 import { safeLog } from '@/lib/logging';
 import { RequestInterface } from '@/interfaces/request.interface';
 import { getConversationFromPublicId } from '@/lib/database';
@@ -31,7 +31,7 @@ export class ZendeskEventHandler {
       safeLog('log', 'Message matches ticket merge, skipping');
       return new Response('Ok', { status: 200 });
     }
-    
+
     try {
       // Get the conversation from external_id on the event
       const conversationInfo = await getConversationFromPublicId(

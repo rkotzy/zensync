@@ -4,11 +4,11 @@ import {
   getZendeskCredentialsFromWebhookId,
   initializeDb
 } from './database';
+import { createHMACSignature, timingSafeEqual } from './utils';
 import { RequestInterface } from '@/interfaces/request.interface';
 import Stripe from 'stripe';
-import { eq } from 'drizzle-orm';
-import { zendeskConnection } from '@/lib/schema-sqlite';
 import { safeLog } from './logging';
+import { importEncryptionKeyFromEnvironment, decryptData } from './encryption';
 import bcrypt from 'bcryptjs';
 import { SlackEvent } from '@/interfaces/slack-api.interface';
 
@@ -73,26 +73,11 @@ export async function verifySlackRequestAndSetSlackConnection(
     const slackSignature = request.headers.get('x-slack-signature');
 
     const basestring = `v0:${timestamp}:${requestString}`;
-
-    // Convert the Slack signing secret and the basestring to Uint8Array
-    const encoder = new TextEncoder();
-    const keyData = encoder.encode(signingSecret);
-    const data = encoder.encode(basestring);
-
-    // Import the signing secret key for use with HMAC
-    const cryptoKey = await crypto.subtle.importKey(
-      'raw',
-      keyData,
-      { name: 'HMAC', hash: 'SHA-256' },
-      false,
-      ['sign']
+    const mySignature = await createHMACSignature(
+      signingSecret,
+      basestring,
+      'hex'
     );
-
-    // Create HMAC and get the signature as hex string
-    const signatureBuffer = await crypto.subtle.sign('HMAC', cryptoKey, data);
-    const mySignature = Array.from(new Uint8Array(signatureBuffer))
-      .map(byte => byte.toString(16).padStart(2, '0'))
-      .join('');
 
     const computedSignature = `v0=${mySignature}`;
 
@@ -165,20 +150,6 @@ export async function verifySlackRequestAndSetSlackConnection(
   }
 }
 
-// Timing-safe string comparison used in verifySlackRequest
-function timingSafeEqual(a: string, b: string): boolean {
-  if (a.length !== b.length) {
-    return false;
-  }
-
-  let mismatch = 0;
-  for (let i = 0; i < a.length; i++) {
-    mismatch |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  }
-
-  return mismatch === 0;
-}
-
 ///////////////////////////////////////////////
 // Verify Zendesk webook
 //////////////////////////////////////////////
@@ -188,6 +159,11 @@ export async function verifyZendeskWebhookAndSetSlackConnection(
   env: Env
 ) {
   try {
+    const requestString = request.bodyRaw;
+    const timestamp = request.headers.get(
+      'x-zendesk-webhook-signature-timestamp'
+    );
+    const webhookSignature = request.headers.get('x-zendesk-webhook-signature');
     const authorizationHeader = request.headers.get('authorization');
     const webhookId = request.headers.get('x-zendesk-webhook-id');
     const bearerToken = authorizationHeader?.replace('Bearer ', '');
@@ -195,16 +171,16 @@ export async function verifyZendeskWebhookAndSetSlackConnection(
     if (!bearerToken) {
       safeLog('error', 'Missing bearer token');
       return new Response('Verification failed', {
-        status: 200
+        status: 401
       });
     }
 
     const url = new URL(request.url);
 
-    if (!webhookId) {
-      safeLog('error', 'Missing webhook id');
+    if (!webhookId || !webhookSignature || !timestamp) {
+      safeLog('error', 'Missing zendesk headers id');
       return new Response('Verification failed', {
-        status: 200
+        status: 401
       });
     }
 
@@ -215,14 +191,46 @@ export async function verifyZendeskWebhookAndSetSlackConnection(
     if (!connection) {
       safeLog('error', `Invalid webhook Id ${webhookId}`);
       return new Response('Verification failed', {
-        status: 200
+        status: 401
+      });
+    }
+
+    if (!connection.encryptedZendeskSigningSecret) {
+      safeLog('error', 'No zendesk signing secret found');
+      return new Response('Verification failed', {
+        status: 401
       });
     }
 
     const hashedToken = connection.hashedWebhookBearerToken;
-    const isValid = await bcrypt.compare(bearerToken, hashedToken);
-    if (!isValid) {
-      safeLog('error', 'Invalid bearer token');
+    const isValidBearerToken = await bcrypt.compare(bearerToken, hashedToken);
+    if (!isValidBearerToken) {
+      safeLog('warn', 'Invalid bearer token');
+      return new Response('Verification failed', {
+        status: 401
+      });
+    }
+
+    const encryptionKey = await importEncryptionKeyFromEnvironment(env);
+    const decryptedSigningSecret = await decryptData(
+      connection.encryptedZendeskSigningSecret,
+      encryptionKey
+    );
+    const sigBase = timestamp + requestString;
+    const computedSignature = await createHMACSignature(
+      decryptedSigningSecret,
+      sigBase,
+      'base64'
+    );
+
+    // Compare the computed signature and the Slack signature
+    const isValidSignature = timingSafeEqual(
+      computedSignature,
+      webhookSignature || ''
+    );
+
+    if (!isValidSignature) {
+      safeLog('warn', 'Zendesk verification failed!');
       return new Response('Verification failed', {
         status: 200
       });
@@ -238,7 +246,7 @@ export async function verifyZendeskWebhookAndSetSlackConnection(
     if (!slackConnectionInfo) {
       safeLog('error', 'No slack connection found');
       return new Response('Verification failed', {
-        status: 200
+        status: 404
       });
     }
 

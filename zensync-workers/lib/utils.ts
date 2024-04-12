@@ -138,3 +138,50 @@ export async function createStripeAccount(
     return undefined;
   }
 }
+
+// Timing-safe string comparison used in verifySlackRequest
+export function timingSafeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) {
+    return false;
+  }
+
+  let mismatch = 0;
+  for (let i = 0; i < a.length; i++) {
+    mismatch |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+
+  return mismatch === 0;
+}
+
+// Utility to create HMAC signature and return it as base64-encoded string
+export async function createHMACSignature(
+  secret: string,
+  data: string,
+  encoding: 'hex' | 'base64'
+): Promise<string> {
+  const encoder = new TextEncoder();
+  const keyData = encoder.encode(secret);
+  const messageData = encoder.encode(data);
+
+  const cryptoKey = await crypto.subtle.importKey(
+    'raw',
+    keyData,
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  );
+
+  const signatureBuffer = await crypto.subtle.sign(
+    'HMAC',
+    cryptoKey,
+    messageData
+  );
+  if (encoding === 'hex') {
+    return Array.from(new Uint8Array(signatureBuffer))
+      .map(byte => byte.toString(16).padStart(2, '0'))
+      .join('');
+  } else {
+    // 'base64'
+    return btoa(String.fromCharCode(...new Uint8Array(signatureBuffer)));
+  }
+}

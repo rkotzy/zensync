@@ -270,15 +270,13 @@ export async function createSubscription(
       // Conditionally include startedAt only if currentPeriodStart exists
       ...(currentPeriodStartTimestamp
         ? {
-            periodStart: new Date(
-              currentPeriodStartTimestamp * 1000
-            ).toISOString()
+            periodStart: currentPeriodStartTimestamp * 1000
           }
         : {}),
       // Conditionally include endsAt only if currentPeriodEnd exists
       ...(currentPeriodEndTimestamp
         ? {
-            periodEnd: new Date(currentPeriodEndTimestamp * 1000).toISOString()
+            periodEnd: currentPeriodEndTimestamp * 1000
           }
         : {})
     })

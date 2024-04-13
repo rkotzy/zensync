@@ -34,16 +34,15 @@ export function isSubscriptionActive(
   connection: SlackConnection,
   env: Env
 ): boolean {
-  if (!connection.subscription?.periodEnd) {
+  if (!connection.subscription?.periodEndMs) {
     safeLog('error', `periodEnd is missing for connection ${connection.id}`);
     return true; // Assuming missing data or configuration should be treated as active
   }
 
-  const periodEnd = connection.subscription.periodEnd;
+  const periodEnd = connection.subscription.periodEndMs;
   const bufferMilliseconds =
     env.SUBSCRIPTION_EXPIRATION_BUFFER_HOURS * 60 * 60 * 1000; // Convert hours to milliseconds
-  const expirationDateWithBuffer =
-    new Date(periodEnd).getTime() + bufferMilliseconds;
+  const expirationDateWithBuffer = periodEnd + bufferMilliseconds;
 
   return expirationDateWithBuffer >= new Date().getTime(); // Return true if subscription is active (not yet expired)
 }

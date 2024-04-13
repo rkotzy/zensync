@@ -598,11 +598,9 @@ async function openChannelConfigurationModal(
       throw new Error(`No channel found for ID: ${channelId}`);
     }
 
-    const activityDate = channelInfo.latestActivityAt;
+    const activityDate = channelInfo.latestActivityAtMs;
 
-    const createdAtTimestamp = Math.floor(
-      new Date(channelInfo.createdAt).getTime() / 1000
-    );
+    const createdAtTimestamp = Math.floor(channelInfo.createdAtMs / 1000);
     const fallbackText = 'No message activity';
 
     // Initialize lastActivityString with the fallback text
@@ -610,9 +608,7 @@ async function openChannelConfigurationModal(
 
     // Only process latestActivityAt if it is not null
     if (activityDate) {
-      const latestActivityTimestamp = Math.floor(
-        new Date(activityDate).getTime() / 1000
-      );
+      const latestActivityTimestamp = Math.floor(activityDate / 1000);
       lastActivityString = `Last message on <!date^${latestActivityTimestamp}^{date_short} at {time}|${fallbackText}>`;
     }
 

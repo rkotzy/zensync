@@ -140,10 +140,8 @@ function createChannelSections(channelInfos) {
   }
 
   return channelInfos.flatMap((info: Channel) => {
-    const activityDate = info.latestActivityAt ?? info.createdAt;
-    const latestActivityTimestamp = Math.floor(
-      new Date(activityDate).getTime() / 1000
-    );
+    const activityDate = info.latestActivityAtMs ?? info.createdAtMs;
+    const latestActivityTimestamp = Math.floor(activityDate / 1000);
     const fallbackText = new Date(activityDate).toLocaleDateString();
 
     const slackFormattedDate = `<!date^${latestActivityTimestamp}^{date_short} at {time}|${fallbackText}>`;

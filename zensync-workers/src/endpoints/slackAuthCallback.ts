@@ -124,7 +124,7 @@ export class SlackAuthCallback {
         };
 
         // Only send to queue if the connection created not updated
-        if (!fullConnectionInfo.updatedAt) {
+        if (!fullConnectionInfo.updatedAtMs) {
           await env.SLACK_CONNECTION_CREATED_QUEUE_BINDING.send({
             connectionDetails: fullConnectionInfo,
             idempotencyKey: crypto.randomUUID()

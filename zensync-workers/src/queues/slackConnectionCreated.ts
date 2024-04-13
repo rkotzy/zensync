@@ -92,6 +92,11 @@ async function setupCustomerInStripe(
   email: string,
   env: Env
 ) {
+  // Check if a subscription already exists for this connection
+  if (connectionDetails.subscriptionId) {
+    return;
+  }
+
   // Get idempotency key from request
   const idempotencyKey = requestJson.idempotencyKey;
   if (!idempotencyKey) {

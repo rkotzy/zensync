@@ -763,7 +763,7 @@ async function getOrCreateZendeskUser(
       user: {
         name: `${username} (via Slack)` || 'Unknown Slack user',
         skip_verify_email: true,
-        external_id: `zensync-${slackChannelId}:${messageData.user}`,
+        external_id: `zensync-:${messageData.user}`,
         remote_photo_url: imageUrl
       }
     };

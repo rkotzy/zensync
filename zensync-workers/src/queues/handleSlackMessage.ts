@@ -181,13 +181,16 @@ async function handleChannelJoined(
     );
 
     if (!zendeskCredentials || zendeskCredentials.status !== 'ACTIVE') {
-      await postEphemeralMessage(
-        channelId,
-        eventData.user,
-        MISSING_ZENDESK_CREDENTIALS_MESSAGE,
-        connection,
-        env
-      );
+      const inviterUserId = eventData.inviter;
+      if (inviterUserId && inviterUserId !== '') {
+        await postEphemeralMessage(
+          channelId,
+          inviterUserId,
+          MISSING_ZENDESK_CREDENTIALS_MESSAGE,
+          connection,
+          env
+        );
+      }
     }
 
     // Fetch channel info from Slack

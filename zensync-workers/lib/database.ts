@@ -15,7 +15,10 @@ import {
 import { Env } from '@/interfaces/env.interface';
 import { importEncryptionKeyFromEnvironment, decryptData } from './encryption';
 import { SlackTeam } from '@/interfaces/slack-api.interface';
-import { GlobalSettingDefaults } from '@/interfaces/global-settings.interface';
+import {
+  GlobalSettingDefaults,
+  GlobalSettings
+} from '@/interfaces/global-settings.interface';
 import { ZendeskConnectionCreate } from '@/interfaces/zendesk-api.interface';
 import { safeLog } from './logging';
 
@@ -253,6 +256,27 @@ export async function updateChannelSettings(
         eq(channel.slackChannelIdentifier, slackChannelIdentifier)
       )
     );
+}
+
+export async function updateDefaultChannelSettings(
+  db: DrizzleD1Database<typeof schema>,
+  slackConnectionId: number,
+  defaultAssigneeEmail: string | null,
+  defaultTags: string[],
+  sameSenderTimeframe: number
+) {
+  const updatedSettings: GlobalSettings = {
+    defaultZendeskAssignee: defaultAssigneeEmail,
+    defaultZendeskTags: defaultTags,
+    sameSenderTimeframe: sameSenderTimeframe
+  };
+
+  await db
+    .update(slackConnection)
+    .set({
+      globalSettings: updatedSettings
+    })
+    .where(eq(slackConnection.id, slackConnectionId));
 }
 
 export async function createSubscription(

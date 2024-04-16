@@ -21,14 +21,15 @@ import {
   getChannels,
   getChannel,
   updateChannelSettings,
-  getZendeskCredentials
+  getZendeskCredentials,
+  updateDefaultChannelSettings
 } from '@/lib/database';
 import { openSlackModal } from '@/lib/slack-api';
 import {
   createZendeskTrigger,
   getWebhookSigningSecret
 } from '@/lib/zendesk-api';
-import { GlobalSettings } from '@/interfaces/global-settings.interface';
+import { openChannelSettings } from '@/views/channelSettingsModal';
 
 export class SlackInteractivityHandler {
   async handle(
@@ -163,7 +164,7 @@ export class SlackInteractivityHandler {
       actionId === InteractivityActionId.OPEN_CHANNEL_SETTINGS_BUTTON_TAPPED
     ) {
       try {
-        await openChannelSettings(payload, slackConnectionInfo, env, db);
+        await openChannelSettings(payload, slackConnectionInfo);
 
         posthog.capture({
           distinctId: analyticsDistinctId,
@@ -172,6 +173,29 @@ export class SlackInteractivityHandler {
         });
 
         await posthog.shutdown();
+      } catch (error) {
+        return returnGenericError(error);
+      }
+    }
+
+    // Handle the configure zendesk modal submission
+    else if (
+      payload.type === 'view_submission' &&
+      payload.view?.callback_id ===
+        InteractivityActionId.CHANNEL_SETTINGS_MODAL_ID
+    ) {
+      try {
+        const response = await updateChannelConfiguration(
+          payload,
+          slackConnectionInfo,
+          db,
+          encryptionKey,
+          env
+        );
+
+        if (response instanceof Response) {
+          return response;
+        }
       } catch (error) {
         return returnGenericError(error);
       }
@@ -461,204 +485,6 @@ async function openAccountSettings(
   }
 }
 
-async function openChannelSettings(
-  payload: any,
-  connection: SlackConnection,
-  env: Env,
-  db: DrizzleD1Database<typeof schema>
-) {
-  const triggerId = payload.trigger_id;
-
-  if (!triggerId) {
-    safeLog('warn', 'No trigger_id found in payload');
-    return;
-  }
-
-  try {
-    const globalSettings = connection.globalSettings as GlobalSettings;
-    if (!globalSettings) {
-      safeLog(
-        'error',
-        `No global settings found in connection ${connection.id}`
-      );
-      throw new Error('No global settings found in connection');
-    }
-
-    const body = JSON.stringify({
-      trigger_id: triggerId,
-      view: {
-        notify_on_close: true,
-        type: 'modal',
-        title: {
-          type: 'plain_text',
-          text: 'Channel Settings',
-          emoji: true
-        },
-        submit: {
-          type: 'plain_text',
-          text: `Save`,
-          emoji: true
-        },
-        close: {
-          type: 'plain_text',
-          text: 'Cancel',
-          emoji: true
-        },
-        blocks: [
-          {
-            type: 'input',
-            block_id: 'channel_owner',
-            optional: true,
-            element: {
-              type: 'email_text_input',
-              action_id: InteractivityActionId.EDIT_CHANNEL_OWNER_FIELD,
-              ...(globalSettings.defaultZendeskAssignee
-                ? { initial_value: globalSettings.defaultZendeskAssignee }
-                : {}),
-              placeholder: {
-                type: 'plain_text',
-                text: 'Enter an email or leave blank'
-              }
-            },
-            label: {
-              type: 'plain_text',
-              text: 'Zendesk Assignee Email',
-              emoji: true
-            },
-            hint: {
-              type: 'plain_text',
-              text: 'The email address of the Zendesk agent who should be assigned new tickets. Can be overridden on a per-channel basis.'
-            }
-          },
-          {
-            type: 'input',
-            block_id: 'channel_tags',
-            optional: true,
-            element: {
-              type: 'plain_text_input',
-              action_id: InteractivityActionId.EDIT_CHANNEL_TAGS_FIELD,
-              initial_value: `${
-                globalSettings.defaultZendeskTags
-                  ? globalSettings.defaultZendeskTags.join(', ')
-                  : ''
-              }`,
-              placeholder: {
-                type: 'plain_text',
-                text: 'example1, example2'
-              }
-            },
-            label: {
-              type: 'plain_text',
-              text: 'Zendesk Tags',
-              emoji: true
-            },
-            hint: {
-              type: 'plain_text',
-              text: 'Enter a comma separated list of tags to set on Zendesk tickets. Tags cannot contain spaces, dashes or special characters (-, #, @, !, etc.). Underscores "_" are allowed. Can be overriden on a per-channel basis. The tag `zensync` is always automatically applied.'
-            }
-          },
-          {
-            type: 'section',
-            block_id: 'same_sender_in_timeframe',
-            text: {
-              type: 'mrkdwn',
-              text: 'Pick an item from the dropdown list'
-            },
-            accessory: {
-              type: 'static_select',
-              actionId: InteractivityActionId.SAME_SENDER_IN_TIMEFRAME_FIELD,
-              options: [
-                {
-                  text: {
-                    type: 'plain_text',
-                    text: '*Off*'
-                  },
-                  value: '0'
-                },
-                {
-                  text: {
-                    type: 'plain_text',
-                    text: '30 seconds'
-                  },
-                  value: '30'
-                },
-                {
-                  text: {
-                    type: 'plain_text',
-                    text: '1 minute'
-                  },
-                  value: '60'
-                },
-                {
-                  text: {
-                    type: 'plain_text',
-                    text: '5 minutes'
-                  },
-                  value: '300'
-                },
-                {
-                  text: {
-                    type: 'plain_text',
-                    text: '10 minutes'
-                  },
-                  value: '600'
-                },
-                {
-                  text: {
-                    type: 'plain_text',
-                    text: '30 minutes'
-                  },
-                  value: '1800'
-                },
-                {
-                  text: {
-                    type: 'plain_text',
-                    text: '1 hour'
-                  },
-                  value: '3600'
-                },
-                {
-                  text: {
-                    type: 'plain_text',
-                    text: '3 hours'
-                  },
-                  value: '10800'
-                },
-                {
-                  text: {
-                    type: 'plain_text',
-                    text: '8 hours'
-                  },
-                  value: '28800'
-                },
-                {
-                  text: {
-                    type: 'plain_text',
-                    text: '24 hours'
-                  },
-                  value: '86400'
-                },
-                {
-                  text: {
-                    type: 'plain_text',
-                    text: 'Uncapped'
-                  },
-                  value: '10000000'
-                }
-              ]
-            }
-          }
-        ]
-      }
-    });
-
-    await openSlackModal(body, connection);
-  } catch (error) {
-    safeLog('error', `Error in openChannelSettings: ${error}`);
-    throw error;
-  }
-}
-
 async function openZendeskConfigurationModal(
   payload: any,
   connection: SlackConnection,
@@ -938,17 +764,25 @@ async function updateChannelConfiguration(
     throw new Error('No callback_id found in payload');
   }
 
+  const isGlobal =
+    callbackId === InteractivityActionId.CHANNEL_SETTINGS_MODAL_ID;
+
   try {
     // Parse out the channel ID from the payload
-    const channelId = callbackId.split(':')[1];
-    if (!channelId) {
-      safeLog('error', `No channel ID found in callback_id: ${callbackId}`);
-      throw new Error('No channel ID found in callback_id');
+    let channelId: string | undefined;
+    if (!isGlobal) {
+      channelId = callbackId.split(':')[1];
+      if (!channelId) {
+        safeLog('error', `No channel ID found in callback_id: ${callbackId}`);
+        throw new Error('No channel ID found in callback_id');
+      }
     }
 
     // Extract the state values from the payload
     const ownerFieldActionId = InteractivityActionId.EDIT_CHANNEL_OWNER_FIELD;
     const tagsFieldActionId = InteractivityActionId.EDIT_CHANNEL_TAGS_FIELD;
+    const sameSenderActionId =
+      InteractivityActionId.SAME_SENDER_IN_TIMEFRAME_FIELD;
     const stateValues = payload.view.state.values;
     let modalErrors: Record<string, string> = {};
 
@@ -992,6 +826,22 @@ async function updateChannelConfiguration(
         'Please provide a comma-separated list of tags without spaces or special characters, or leave blank.';
     }
 
+    // Extract the same sender in timeframe value
+    let sameSenderInTimeframeValue: number;
+    if (isGlobal) {
+      const sameSenderTimeframeBlock = Object.values(stateValues).find(
+        block => block[sameSenderActionId]
+      );
+      if (
+        sameSenderTimeframeBlock &&
+        typeof sameSenderTimeframeBlock[sameSenderActionId].value === 'string'
+      ) {
+        sameSenderInTimeframeValue = parseInt(
+          sameSenderTimeframeBlock[sameSenderActionId].value
+        );
+      }
+    }
+
     // See if there are any erros
     if (Object.keys(modalErrors).length > 0) {
       const errorResponse = JSON.stringify({
@@ -1004,19 +854,30 @@ async function updateChannelConfiguration(
       });
     }
 
-    // Update the values in the database
-    await updateChannelSettings(
-      db,
-      connection.id,
-      channelId,
-      channelOwnerEmail,
-      tagsArray
-    );
+    if (!isGlobal) {
+      // Update the values in the database
+      await updateChannelSettings(
+        db,
+        connection.id,
+        channelId,
+        channelOwnerEmail,
+        tagsArray
+      );
 
-    // Reload the home view
-    const slackUserId = payload.user?.id;
-    if (slackUserId) {
-      await handleAppHomeOpened(slackUserId, connection, db, env, key);
+      // Reload the home view
+      const slackUserId = payload.user?.id;
+      if (slackUserId) {
+        await handleAppHomeOpened(slackUserId, connection, db, env, key);
+      }
+    } else {
+      // Update the global settings
+      await updateDefaultChannelSettings(
+        db,
+        connection.id,
+        channelOwnerEmail,
+        tagsArray,
+        sameSenderInTimeframeValue
+      );
     }
   } catch (error) {
     safeLog('error', `Error updating channel ${callbackId}`, error);

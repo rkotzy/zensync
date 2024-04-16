@@ -19,8 +19,9 @@ export enum InteractivityActionId {
   EDIT_CHANNEL_OWNER_FIELD = 'edit-channel-owner-input',
   EDIT_CHANNEL_TAGS_FIELD = 'edit-channel-tags-input',
 
-  // Account settings modal details
+  // Channel settings modal details
   OPEN_CHANNEL_SETTINGS_BUTTON_TAPPED = 'open-channel-settings',
+  CHANNEL_SETTINGS_MODAL_ID = 'channel-settings-modal',
   SAME_SENDER_IN_TIMEFRAME_FIELD = 'same-sender-in-timeframe-input',
 
   // Billing settings modal details

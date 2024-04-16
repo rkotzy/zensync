@@ -117,19 +117,15 @@ export class SlackAuthCallback {
       });
 
       // Send to a customer created queue to create a Stripe account
-      if (connectionInfo && connectionInfo.length === 1) {
-        const fullConnectionInfo: SlackConnection = {
-          ...connectionInfo[0],
-          token: accessToken
-        };
-
-        // Only send to queue if the connection created not updated
-        if (!fullConnectionInfo.updatedAtMs) {
-          await env.SLACK_CONNECTION_CREATED_QUEUE_BINDING.send({
-            connectionDetails: fullConnectionInfo,
-            idempotencyKey: crypto.randomUUID()
-          });
-        }
+      if (
+        connectionInfo &&
+        connectionInfo.length === 1 &&
+        connectionInfo[0].id
+      ) {
+        await env.SLACK_CONNECTION_CREATED_QUEUE_BINDING.send({
+          connectionId: connectionInfo[0].id,
+          idempotencyKey: crypto.randomUUID()
+        });
       }
     } catch (error) {
       safeLog('error', error);

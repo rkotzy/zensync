@@ -267,18 +267,8 @@ export async function createSubscription(
     .values({
       stripeSubscriptionId: stripeSubscriptionId,
       stripeProductId: env.DEFAULT_STRIPE_PRODUCT_ID,
-      // Conditionally include startedAt only if currentPeriodStart exists
-      ...(currentPeriodStartTimestamp
-        ? {
-            periodStart: currentPeriodStartTimestamp * 1000
-          }
-        : {}),
-      // Conditionally include endsAt only if currentPeriodEnd exists
-      ...(currentPeriodEndTimestamp
-        ? {
-            periodEnd: currentPeriodEndTimestamp * 1000
-          }
-        : {})
+      periodStartMs: currentPeriodStartTimestamp * 1000,
+      periodEndMs: currentPeriodEndTimestamp * 1000
     })
     .onConflictDoNothing()
     .returning();

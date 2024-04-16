@@ -330,7 +330,7 @@ export async function fetchChannelInfo(
 export async function setUpNewSharedSlackChannel(
   env: Env,
   channelSuffix: string
-): Promise<string> {
+): Promise<string | null> {
   const headers = {
     'Content-type': 'application/json',
     Accept: 'application/json',
@@ -354,9 +354,14 @@ export async function setUpNewSharedSlackChannel(
     (await createChannel.json()) as SlackResponse;
 
   if (!createChannelResponseData.ok) {
-    throw new Error(
-      `Error creating Slack channel: ${createChannelResponseData.error}`
-    );
+    if (createChannelResponseData.error === 'name_taken') {
+      safeLog(
+        'error',
+        `Channel name ext-zensync-${channelSuffix} already taken`
+      );
+      return null;
+    }
+    throw new Error(createChannelResponseData.error);
   }
   // Step 2: Invite myself to the channel
   let inviteZensyncAccount = await fetch(

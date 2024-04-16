@@ -80,7 +80,7 @@ export async function handleAppHomeOpened(
           type: 'divider'
         },
         ...createChannelSections(channelInfos),
-        ...buildAccountDetailsSection()
+        ...buildAccountDetailsSection(connection)
       ]
     };
 
@@ -337,7 +337,7 @@ function connectToZendeskHelper(zendeskInfo: ZendeskConnection): any {
   return [];
 }
 
-function buildAccountDetailsSection(): any {
+function buildAccountDetailsSection(connection: SlackConnection): any {
   return [
     {
       type: 'header',
@@ -354,21 +354,40 @@ function buildAccountDetailsSection(): any {
           type: 'button',
           text: {
             type: 'plain_text',
-            text: 'Zendesk Connection',
+            text: 'Channel Settings',
             emoji: true
           },
-          action_id: InteractivityActionId.CONFIGURE_ZENDESK_BUTTON_TAPPED
+          action_id: InteractivityActionId.OPEN_CHANNEL_SETTINGS_BUTTON_TAPPED
         },
         {
           type: 'button',
           text: {
             type: 'plain_text',
-            text: 'Subscription Details',
+            text: 'Zendesk Connection',
             emoji: true
           },
-          action_id: InteractivityActionId.OPEN_ACCOUNT_SETTINGS_BUTTON_TAPPED
-        }
+          action_id: InteractivityActionId.CONFIGURE_ZENDESK_BUTTON_TAPPED
+        },
+        ...accountSettingsButton(connection)
       ]
+    }
+  ];
+}
+
+function accountSettingsButton(connection: SlackConnection): any {
+  if (!connection.stripeCustomerId) {
+    return [];
+  }
+
+  return [
+    {
+      type: 'button',
+      text: {
+        type: 'plain_text',
+        text: 'Subscription Details',
+        emoji: true
+      },
+      action_id: InteractivityActionId.OPEN_ACCOUNT_SETTINGS_BUTTON_TAPPED
     }
   ];
 }

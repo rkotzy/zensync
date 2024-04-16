@@ -20,6 +20,10 @@ export enum InteractivityActionId {
   EDIT_CHANNEL_TAGS_FIELD = 'edit-channel-tags-input',
 
   // Account settings modal details
+  OPEN_CHANNEL_SETTINGS_BUTTON_TAPPED = 'open-channel-settings',
+  SAME_SENDER_IN_TIMEFRAME_FIELD = 'same-sender-in-timeframe-input',
+
+  // Billing settings modal details
   OPEN_ACCOUNT_SETTINGS_BUTTON_TAPPED = 'open-account-settings'
 }
 
@@ -76,7 +80,7 @@ export async function createStripeAccount(
     const subscription: Stripe.Subscription = await stripe.subscriptions.create(
       {
         customer: customer.id,
-        items: [{ price: 'price_1OjpyEDlJlwKmwDWreiHLSAY' }] // Default free plan
+        items: [{ price: env.DEFAULT_STRIPE_PRICE_ID }] // Default free plan
       },
       { idempotencyKey: `subscription-${idempotencyKey}` }
     );

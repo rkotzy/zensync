@@ -2,11 +2,11 @@ import {
   attachSubscriptionToSlackConnection,
   createSubscription,
   initializeDb,
-  saveSharedSlackChannel
+  saveSharedSlackChannel,
+  getSlackConnection
 } from '@/lib/database';
 import { Env } from '@/interfaces/env.interface';
 import { SlackConnection } from '@/lib/schema-sqlite';
-import { SlackResponse } from '@/interfaces/slack-api.interface';
 import { createStripeAccount } from '@/lib/utils';
 import { safeLog } from '@/lib/logging';
 import {
@@ -16,25 +16,44 @@ import {
 } from '@/lib/slack-api';
 
 export async function slackConnectionCreated(requestJson: any, env: Env) {
-  const connectionDetails: SlackConnection = requestJson.connectionDetails;
-  if (!connectionDetails) {
-    safeLog('error', 'No connection details found', requestJson);
+  const connectionId: number = requestJson.connectionId;
+  if (!connectionId) {
+    safeLog('error', 'No connection Id found', requestJson);
     return;
   }
 
   try {
+    // Init the db
+    const db = initializeDb(env);
+
+    const connectionDetails = await getSlackConnection(
+      db,
+      env,
+      'id',
+      connectionId
+    );
+
     // Get name and email of Slack user
     const email = await getSlackUserEmail(
       connectionDetails.authedUserId,
       connectionDetails.token
     );
 
-    // Init the db
-    const db = initializeDb(env);
+    const parallelTasks = [];
 
-    await setupSupportChannelInSlack(connectionDetails, db, email, env);
+    if (!connectionDetails.supportSlackChannelId) {
+      parallelTasks.push(
+        setupSupportChannelInSlack(connectionDetails, db, email, env)
+      );
+    }
 
-    await setupCustomerInStripe(requestJson, connectionDetails, db, email, env);
+    if (!connectionDetails.subscriptionId) {
+      parallelTasks.push(
+        setupCustomerInStripe(requestJson, connectionDetails, db, email, env)
+      );
+    }
+
+    await Promise.all(parallelTasks);
   } catch (error) {
     safeLog('error', 'Error in slackConnectionCreated:', error);
     throw error;
@@ -62,6 +81,10 @@ async function setupSupportChannelInSlack(
       env,
       connectionDetails.domain
     );
+
+    if (!sharedChannelId) {
+      return;
+    }
 
     // Update slack channel in database
     await saveSharedSlackChannel(db, connectionDetails, sharedChannelId);
@@ -134,7 +157,7 @@ async function setupCustomerInStripe(
       stripeAccount.customerId
     );
   } catch (error) {
-    safeLog('error', 'Error in slackConnectionCreated:', error);
+    safeLog('error', 'Error in setupCustomerInStripe:', error);
     throw error;
   }
 }

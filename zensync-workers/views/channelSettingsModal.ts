@@ -39,9 +39,9 @@ export async function openChannelSettings(
       {
         text: {
           type: 'plain_text',
-          text: '30 seconds'
+          text: '15 seconds'
         },
-        value: '30'
+        value: '15'
       },
       {
         text: {

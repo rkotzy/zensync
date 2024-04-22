@@ -121,12 +121,11 @@ export async function verifySlackRequestAndSetSlackConnection(
     }
 
     // Get the slack connection
-    const requestJson = request.bodyJson as SlackEvent;
     const slackConnectionInfo = await getSlackConnection(
       request.db,
       env,
       'teamId',
-      requestJson.api_app_id
+      teamId
     );
 
     if (!slackConnectionInfo) {

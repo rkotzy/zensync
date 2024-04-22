@@ -40,7 +40,11 @@ import {
   GlobalSettings
 } from '@/interfaces/global-settings.interface';
 import { initializeDb } from '@/lib/database';
-import { postEphemeralMessage, getSlackUser } from '@/lib/slack-api';
+import {
+  postEphemeralMessage,
+  getSlackUser,
+  getPreviousSlackMessage
+} from '@/lib/slack-api';
 import {
   slackMarkdownToHtml,
   generateHTMLPermalink
@@ -1173,44 +1177,53 @@ async function sameSenderInTimeframeConversation(
   db: DrizzleD1Database<typeof schema>
 ): Promise<Conversation | null> {
   try {
-    // get the latest conversation from database
-    const latestConversation = await getLatestConversation(
-      db,
-      connection.id,
-      currentMessage.channel
-    );
-
-    if (!latestConversation) {
-      return null;
-    }
-
-    // 1. Check if the latest message is from the current user
-    if (latestConversation.slackAuthorUserId !== currentMessage.user) {
-      return null;
-    }
-
-    // 2. Check that there are no thread replies yet to the message
-    if (
-      latestConversation.latestSlackMessageId !==
-      latestConversation.slackParentMessageId
-    ) {
-      return null;
-    }
-
-    // 3. Check if the latest message is within the timeframe
-    const latestMessageTs = parseFloat(latestConversation.slackParentMessageId);
-    const currentMessageTs = parseFloat(currentMessage.ts);
-    const timeDiff = currentMessageTs - latestMessageTs;
     const glabalSettings: GlobalSettings = connection.globalSettings || {};
     const timeframeSeconds =
       glabalSettings.sameSenderTimeframe ||
       GlobalSettingDefaults.sameSenderTimeframe;
 
+    // Avoid extra work if tiimeframe is 0
+    if (timeframeSeconds === 0) {
+      return null;
+    }
+    // // get the latest conversation from database
+    // const latestConversation = await getLatestConversation(
+    //   db,
+    //   connection.id,
+    //   currentMessage.channel
+    // );
+
+    // get the latest conversation from the Slack API
+    const latestSlackMessage = await getPreviousSlackMessage(
+      connection,
+      currentMessage.channel,
+      currentMessage.ts
+    );
+
+    if (!latestSlackMessage) {
+      return null;
+    }
+
+    // 1. Check if the latest message is from the current user
+    if (latestSlackMessage.user !== currentMessage.user) {
+      return null;
+    }
+
+    // 2. Check that there are no thread replies yet to the message
+    if (latestSlackMessage.reply_count !== 0) {
+      return null;
+    }
+
+    // 3. Check if the latest message is within the timeframe
+    const latestMessageTs = parseFloat(latestSlackMessage.ts);
+    const currentMessageTs = parseFloat(currentMessage.ts);
+    const timeDiff = currentMessageTs - latestMessageTs;
+
     if (
       timeframeSeconds !== 0 ||
       (timeDiff >= 0 && timeDiff <= timeframeSeconds)
     ) {
-      return latestConversation;
+      return latestSlackMessage.ts;
     } else {
       return null;
     }

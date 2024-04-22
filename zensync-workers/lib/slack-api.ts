@@ -1,5 +1,5 @@
 import { Env } from '@/interfaces/env.interface';
-import { SlackResponse, SlackTeam } from '@/interfaces/slack-api.interface';
+import { SlackMessageData, SlackResponse, SlackTeam } from '@/interfaces/slack-api.interface';
 import { SlackConnection } from './schema-sqlite';
 import { GlobalSettings } from '@/interfaces/global-settings.interface';
 import {
@@ -172,6 +172,36 @@ async function getSlackUserByEmail(
     safeLog('error', `Error in getSlackUserByEmail:`, error);
     throw error;
   }
+}
+
+export async function getPreviousSlackMessage(
+  connection: SlackConnection,
+  slackChannelId: string,
+  messageId: string
+): Promise<SlackMessageData | null> {
+  const response = await fetch(
+    `https://slack.com/api/conversations.history?channel=${slackChannelId}&latest=${messageId}&limit=1`,
+    {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        Authorization: `Bearer ${connection.token}`
+      }
+    }
+  );
+
+  const responseData = (await response.json()) as SlackResponse;
+
+  if (!responseData.ok) {
+    safeLog('error', `Error getting previous message:`, responseData.error);
+    return null; // We don't throw here since we want to continue without message
+  }
+
+  if (!responseData.messages || responseData.messages.length === 0) {
+    return null; // No previous message
+  }
+
+  return responseData.messages[0];
 }
 
 export async function getSlackUserEmail(

@@ -57,7 +57,7 @@ export class SlackInteractivityHandler {
     // Set up the analytics client
     const posthog = initializePosthog(env);
     const analyticsDistinctId = payload.user?.id;
-    const analyticsCompanyId = slackConnectionInfo.appId;
+    const analyticsCompanyId = slackConnectionInfo.slackTeamId;
 
     // Handle the edit channel button tap
     if (

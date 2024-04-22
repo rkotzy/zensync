@@ -8,6 +8,13 @@
       "when": 1712965789871,
       "tag": "0000_known_demogoblin",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1713746915764,
+      "tag": "0001_majestic_the_liberteens",
+      "breakpoints": true
     }
   ]
 }

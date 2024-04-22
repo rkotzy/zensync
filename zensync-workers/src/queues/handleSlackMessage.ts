@@ -225,7 +225,7 @@ async function handleChannelJoined(
     await singleEventAnalyticsLogger(
       eventData.inviter,
       'channel_joined',
-      connection.appId,
+      connection.slackTeamId,
       eventData.channel,
       request.event_time,
       analyticsIdempotencyKey,
@@ -316,7 +316,7 @@ async function handleChannelLeft(
     await singleEventAnalyticsLogger(
       eventData.user,
       'channel_left',
-      connection.appId,
+      connection.slackTeamId,
       eventData.channel,
       request.event_time,
       analyticsIdempotencyKey,
@@ -350,7 +350,7 @@ async function handleChannelUnarchive(
     await singleEventAnalyticsLogger(
       eventData.user,
       'channel_joined',
-      connection.appId,
+      connection.slackTeamId,
       request.event?.channel,
       request.event_time,
       analyticsIdempotencyKey,
@@ -490,7 +490,7 @@ async function handleMessageEdit(
       await singleEventAnalyticsLogger(
         request.event?.user,
         'message_edited',
-        connection.appId,
+        connection.slackTeamId,
         request.event?.channel,
         request.event_time,
         analyticsIdempotencyKey,
@@ -543,7 +543,7 @@ async function handleMessageDeleted(
       await singleEventAnalyticsLogger(
         request.event?.user,
         'message_deleted',
-        connection.appId,
+        connection.slackTeamId,
         request.event?.channel,
         request.event_time,
         analyticsIdempotencyKey,
@@ -688,7 +688,7 @@ async function handleMessage(
       await singleEventAnalyticsLogger(
         messageData.user,
         'message_reply',
-        connection.appId,
+        connection.slackTeamId,
         messageData.channel,
         messageData.ts,
         analyticsIdempotencyKey,
@@ -950,7 +950,7 @@ async function sendTicketReplyOrFallbackToNewTicket(
       await singleEventAnalyticsLogger(
         messageData.user,
         'message_reply',
-        slackConnectionInfo.appId,
+        slackConnectionInfo.slackTeamId,
         messageData.channel,
         messageData.ts,
         analyticsIdempotencyKey,
@@ -1097,7 +1097,7 @@ async function handleNewConversation(
     await singleEventAnalyticsLogger(
       messageData.user,
       'ticket_created',
-      slackConnectionInfo.appId,
+      slackConnectionInfo.slackTeamId,
       messageData.channel,
       messageData.ts,
       analyticsIdempotencyKey,

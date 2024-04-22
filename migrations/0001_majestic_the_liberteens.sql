@@ -1,0 +1,1 @@
+DROP INDEX IF EXISTS `slack_connections_app_id_unique`;

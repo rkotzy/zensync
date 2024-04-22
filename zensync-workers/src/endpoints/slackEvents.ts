@@ -59,7 +59,7 @@ export class SlackEventHandler {
           await singleEventAnalyticsLogger(
             slackUserId,
             'app_home_opened',
-            slackConnectionInfo.appId,
+            slackConnectionInfo.slackTeamId,
             null,
             requestBody.event_time,
             null,

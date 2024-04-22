@@ -26,7 +26,10 @@ export async function slackOauthResponse(
     body: params
   });
 
-  const responseData = (await response.json()) as SlackResponse;
+  const responseJson = await response.json();
+  console.log('responseJson', responseJson);
+
+  const responseData = responseJson as SlackResponse;
 
   if (!responseData.ok) {
     throw new Error(`Failed to authenticate: ${responseData.error}`);
@@ -124,7 +127,7 @@ export async function sendSlackMessage(
   await singleEventAnalyticsLogger(
     slackUser ? slackUser.userId : 'Zensync',
     'message_reply',
-    connection.appId,
+    connection.slackTeamId,
     slackChannelId,
     null,
     null,

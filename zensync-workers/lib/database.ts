@@ -37,7 +37,7 @@ export async function getSlackConnection(
 export async function getSlackConnection(
   db: DrizzleD1Database<typeof schema>,
   env: Env,
-  searchKey: 'appId',
+  searchKey: 'teamId',
   searchValue: string
 ): Promise<SlackConnection | null | undefined>;
 
@@ -51,8 +51,8 @@ export async function getSlackConnection(
 
   if (searchKey === 'id') {
     whereCondition = eq(slackConnection.id, searchValue);
-  } else if (searchKey === 'appId') {
-    whereCondition = eq(slackConnection.appId, searchValue);
+  } else if (searchKey === 'teamId') {
+    whereCondition = eq(slackConnection.slackTeamId, searchValue);
   } else {
     throw new Error('Invalid search key');
   }

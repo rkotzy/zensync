@@ -91,10 +91,10 @@ export async function verifySlackRequestAndSetSlackConnection(
       });
     }
 
-    // Extract the app id from the request
-    let appId: string = null;
+    // Extract the team id from the request
+    let teamId: string = null;
     if (request.bodyJson) {
-      appId = request.bodyJson.api_app_id;
+      teamId = request.bodyJson.team_id;
     } else if (request.bodyFormData) {
       const payloadString = request.bodyFormData.payload;
       // Make sure we have a payload
@@ -110,11 +110,11 @@ export async function verifySlackRequestAndSetSlackConnection(
       // Parse the JSON string into an object
       const payload = JSON.parse(payloadString);
       request.bodyJson = payload;
-      appId = payload.api_app_id;
+      teamId = payload.team.id;
     }
 
-    if (!appId) {
-      safeLog('error', 'No api_app_id found in request', request.bodyRaw);
+    if (!teamId) {
+      safeLog('error', 'No team_id found in request', request.bodyRaw);
       return new Response('Verification failed', {
         status: 200
       });
@@ -125,7 +125,7 @@ export async function verifySlackRequestAndSetSlackConnection(
     const slackConnectionInfo = await getSlackConnection(
       request.db,
       env,
-      'appId',
+      'teamId',
       requestJson.api_app_id
     );
 

@@ -82,7 +82,7 @@ async function updateCustomerSubscription(
       posthog.capture({
         event: 'subscription_cancelled',
         distinctId: 'static_string_for_group_events',
-        groups: { company: connectionInfo.slack_connections.appId }
+        groups: { company: connectionInfo.slack_connections.slackTeamId }
       });
       await posthog.shutdown();
     } else if (
@@ -93,7 +93,7 @@ async function updateCustomerSubscription(
       posthog.capture({
         event: 'subscription_downgraded',
         distinctId: 'static_string_for_group_events',
-        groups: { company: connectionInfo.slack_connections.appId }
+        groups: { company: connectionInfo.slack_connections.slackTeamId }
       });
       await posthog.shutdown();
     } else if (
@@ -104,7 +104,7 @@ async function updateCustomerSubscription(
       posthog.capture({
         event: 'subscription_upgraded',
         distinctId: 'static_string_for_group_events',
-        groups: { company: connectionInfo.slack_connections.appId }
+        groups: { company: connectionInfo.slack_connections.slackTeamId }
       });
       await posthog.shutdown();
     }

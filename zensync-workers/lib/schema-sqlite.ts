@@ -29,7 +29,7 @@ export const slackConnection = sqliteTable('slack_connections', {
   encryptedToken: text('encrypted_token').notNull(),
   authedUserId: text('authed_user_id'),
   botUserId: text('bot_user_id').notNull(),
-  appId: text('app_id').notNull().unique(),
+  appId: text('app_id').notNull(),
   status: text('status'),
   subscriptionId: integer('subscription_id')
     .unique()

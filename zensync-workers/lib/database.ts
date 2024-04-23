@@ -8,9 +8,7 @@ import {
   ZendeskConnection,
   channel,
   Channel,
-  subscription,
-  conversation,
-  Conversation
+  subscription
 } from './schema-sqlite';
 import { Env } from '@/interfaces/env.interface';
 import { importEncryptionKeyFromEnvironment, decryptData } from './encryption';
@@ -343,105 +341,6 @@ export async function getSubscription(
   });
 }
 
-export async function getConversationFromPublicId(
-  db: DrizzleD1Database<typeof schema>,
-  publicId: string
-) {
-  return await db.query.conversation.findFirst({
-    where: eq(conversation.publicId, publicId),
-    with: {
-      channel: true
-    }
-  });
-}
-
-export async function createConversation(
-  db: DrizzleD1Database<typeof schema>,
-  publicId: string,
-  channelId: number,
-  slackParentMessageId: string,
-  zendeskTicketId: string,
-  slackAuthorUserId: string
-) {
-  await db.insert(conversation).values({
-    publicId: publicId,
-    channelId: channelId,
-    slackParentMessageId: slackParentMessageId,
-    zendeskTicketId: zendeskTicketId,
-    slackAuthorUserId: slackAuthorUserId,
-    latestSlackMessageId: slackParentMessageId
-  });
-}
-
-export async function getConversation(
-  db: DrizzleD1Database<typeof schema>,
-  slackConnectionId: number,
-  slackChannelIdentifier: string,
-  slackParentMessageId: string
-): Promise<Conversation | null> {
-  const conversationInfo = await db
-    .select({ conversation })
-    .from(conversation)
-    .innerJoin(channel, eq(conversation.channelId, channel.id))
-    .where(
-      and(
-        eq(channel.slackConnectionId, slackConnectionId),
-        eq(channel.slackChannelIdentifier, slackChannelIdentifier),
-        eq(conversation.slackParentMessageId, slackParentMessageId)
-      )
-    )
-    .limit(1);
-
-  if (!conversationInfo || conversationInfo.length === 0) {
-    return null;
-  }
-
-  return conversationInfo[0].conversation;
-}
-
-export async function getLatestConversation(
-  db: DrizzleD1Database<typeof schema>,
-  slackConnectionId: number,
-  slackChannelIdentifier: string
-): Promise<Conversation | null> {
-  const conversationInfo = await db
-    .select({ conversation })
-    .from(conversation)
-    .innerJoin(channel, eq(conversation.channelId, channel.id))
-    .where(
-      and(
-        eq(channel.slackConnectionId, slackConnectionId),
-        eq(channel.slackChannelIdentifier, slackChannelIdentifier)
-      )
-    )
-    .orderBy(desc(conversation.slackParentMessageId))
-    .limit(1);
-
-  if (!conversationInfo || conversationInfo.length === 0) {
-    return null;
-  }
-
-  return conversationInfo[0].conversation;
-}
-
-export async function updateConversationLatestMessage(
-  db: DrizzleD1Database<typeof schema>,
-  conversationPublicId: string,
-  slackMessageId: string,
-  zendeskTicketId?: string,
-  resetParentMessageId?: boolean
-) {
-  await db
-    .update(conversation)
-    .set({
-      updatedAtMs: new Date().getTime(),
-      latestSlackMessageId: slackMessageId,
-      ...(zendeskTicketId ? { zendeskTicketId: zendeskTicketId } : {}),
-      ...(resetParentMessageId ? { slackParentMessageId: slackMessageId } : {})
-    })
-    .where(eq(conversation.publicId, conversationPublicId));
-}
-
 export async function updateChannelActivity(
   slackConnection: SlackConnection,
   channelId: string,
@@ -608,11 +507,44 @@ export async function saveSharedSlackChannel(
 
 export async function getZendeskCredentialsFromWebhookId(
   db: DrizzleD1Database<typeof schema>,
-  webhookId: string
-) {
-  return await db.query.zendeskConnection.findFirst({
-    where: eq(zendeskConnection.zendeskWebhookId, webhookId)
-  });
+  env: Env,
+  webhookId: string,
+  key?: CryptoKey
+): Promise<ZendeskConnection | null | undefined> {
+  try {
+    const zendeskCredentials = await db.query.zendeskConnection.findFirst({
+      where: eq(zendeskConnection.zendeskWebhookId, webhookId)
+    });
+
+    const zendeskDomain = zendeskCredentials?.zendeskDomain;
+    const zendeskEmail = zendeskCredentials?.zendeskEmail;
+    const encryptedZendeskApiKey = zendeskCredentials?.encryptedZendeskApiKey;
+
+    if (!zendeskDomain || !zendeskEmail || !encryptedZendeskApiKey) {
+      safeLog(
+        'log',
+        `No Zendesk credentials found for webhook Id ${webhookId}`
+      );
+      return null;
+    }
+
+    let encryptionKey = key;
+    if (!encryptionKey) {
+      encryptionKey = await importEncryptionKeyFromEnvironment(env);
+    }
+    const decryptedApiKey = await decryptData(
+      encryptedZendeskApiKey,
+      encryptionKey
+    );
+
+    return {
+      ...zendeskCredentials,
+      zendeskApiKey: decryptedApiKey
+    };
+  } catch (error) {
+    safeLog('error', `Error querying ZendeskConnections: ${error}`);
+    return undefined;
+  }
 }
 
 export async function getZendeskCredentials(

@@ -29,7 +29,7 @@ export interface SlackTeamIcon {
 
 export interface SlackMessageData {
   type: string;
-  channel: string;
+  channel?: string;
   user: string;
   text: string;
   ts: string;

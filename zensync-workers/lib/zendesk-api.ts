@@ -1,5 +1,11 @@
 import { ZendeskResponse } from '@/interfaces/zendesk-api.interface';
+import { SlackMessageData } from '@/interfaces/slack-api.interface';
+import {
+  slackMarkdownToHtml,
+  generateHTMLPermalink
+} from './message-formatters';
 import { safeLog } from './logging';
+import { SlackConnection, ZendeskConnection } from './schema-sqlite';
 
 export async function createZendeskTrigger(
   zendeskAuthToken: string,
@@ -107,4 +113,130 @@ export async function getWebhookSigningSecret(
   const signingSecretResponseJson =
     (await zendeskWebhookSecretResponse.json()) as ZendeskResponse;
   return signingSecretResponseJson.signing_secret?.secret ?? null;
+}
+
+export async function getLatestTicketByExternalId(
+  zendeskAuthToken: string,
+  zendeskDomain: string,
+  externalId: string
+): Promise<{ ticketId: string; status: string }> {
+  const zendeskTicketResponse = await fetch(
+    `https://${zendeskDomain}.zendesk.com/api/v2/tickets?external_id=${externalId}&sort_by=created_at&sort_order=desc&page[1]`,
+    {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Basic ${zendeskAuthToken}`
+      }
+    }
+  );
+
+  if (!zendeskTicketResponse.ok) {
+    // If the response status is not OK, log the status and the response text
+    safeLog(
+      'error',
+      `Zendesk ticked lookup failed with status: ${zendeskTicketResponse.status}`
+    );
+    safeLog('error', `Response: ${await zendeskTicketResponse.text()}`);
+    throw new Error('Failed to get Zendesk ticket');
+  }
+
+  // Parse the response body to JSON
+  const responseJson = (await zendeskTicketResponse.json()) as ZendeskResponse;
+  const tickets = responseJson.tickets;
+  if (!tickets || tickets.length === 0) {
+    throw new Error('No tickets found');
+  }
+
+  return {
+    ticketId: tickets[0].id,
+    status: tickets[0].status
+  };
+}
+
+export async function postTicketComment(
+  zendeskAuthToken: string,
+  zendeskDomain: string,
+  slackConnectionInfo: SlackConnection,
+  zendeskTicketId: string,
+  messageData: SlackMessageData,
+  isPublic: boolean,
+  authorId: number,
+  status: string,
+  fileUploadTokens: string[] | undefined
+): Promise<any> {
+  // Create ticket comment indepotently using Slack message ID + channel ID?
+  const idempotencyKey = messageData.channel + messageData.ts;
+
+  let htmlBody = slackMarkdownToHtml(messageData.text);
+  if (!htmlBody || htmlBody === '') {
+    htmlBody = '<i>(Empty message)</i>';
+  }
+
+  // Create a comment in ticket
+  let commentData: any = {
+    ticket: {
+      comment: {
+        html_body:
+          htmlBody + generateHTMLPermalink(slackConnectionInfo, messageData),
+        public: isPublic,
+        author_id: authorId
+      },
+      status: status
+    }
+  };
+
+  if (fileUploadTokens && fileUploadTokens.length > 0) {
+    commentData.ticket.comment.uploads = fileUploadTokens;
+  }
+
+  const response = await fetch(
+    `https://${zendeskDomain}.zendesk.com/api/v2/tickets/${zendeskTicketId}.json`,
+    {
+      method: 'PUT',
+      headers: {
+        Authorization: `Basic ${zendeskAuthToken}`,
+        'Content-Type': 'application/json',
+        'Idempotency-Key': idempotencyKey
+      },
+      body: JSON.stringify(commentData)
+    }
+  );
+
+  return response;
+}
+
+export async function postSlackWarningMessage(
+  zendeskCredentials: ZendeskConnection,
+  zendeskTicketId: string,
+  idempotencyKey: string,
+  message: string
+): Promise<void> {
+  const zendeskAuthToken = btoa(
+    `${zendeskCredentials.zendeskEmail}/token:${zendeskCredentials.zendeskApiKey}`
+  );
+
+  // Create a comment in ticket
+  let commentData: any = {
+    ticket: {
+      comment: {
+        html_body: `<p><strong>Your message was not delivered!</strong></p><p>${message}</p>`,
+        public: false
+      },
+      status: 'open'
+    }
+  };
+
+  const response = await fetch(
+    `https://${zendeskCredentials.zendeskDomain}.zendesk.com/api/v2/tickets/${zendeskTicketId}.json`,
+    {
+      method: 'PUT',
+      headers: {
+        Authorization: `Basic ${zendeskAuthToken}`,
+        'Content-Type': 'application/json',
+        'Idempotency-Key': idempotencyKey
+      },
+      body: JSON.stringify(commentData)
+    }
+  );
 }

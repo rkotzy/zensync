@@ -122,53 +122,6 @@ export const channel = sqliteTable(
 
 export type Channel = InferSelectModel<typeof channel>;
 
-// This represents a link between a Slack thread and a Zendesk ticket.
-export const conversation = sqliteTable(
-  'conversations',
-  {
-    id: integer('id', { mode: 'number' }).primaryKey({ autoIncrement: true }),
-    createdAtMs: integer('created_at_ms')
-      .default(
-        sql`(CAST(strftime('%s', 'now') AS INTEGER) * 1000 + CAST(strftime('%f', 'now') AS INTEGER) % 1000)`
-      )
-      .notNull(),
-    updatedAtMs: integer('updated_at_ms'),
-    publicId: text('public_id').notNull().unique(),
-    channelId: integer('channel_id')
-      .notNull()
-      .references(() => channel.id, { onDelete: 'cascade' }),
-    zendeskTicketId: text('zendesk_ticket_id').notNull(),
-    slackParentMessageId: text('slack_parent_message_id').notNull(),
-    slackAuthorUserId: text('slack_author_user_id').notNull(),
-    latestSlackMessageId: text('latest_slack_message_id').notNull()
-  },
-  table => ({
-    conversations_channel_zendesk_ticket_unique: unique().on(
-      table.channelId,
-      table.zendeskTicketId
-    ),
-    conversations_channel_slack_message_unique: unique().on(
-      table.channelId,
-      table.slackParentMessageId
-    ),
-    idx_conversations_slack_parent_message_id: index(
-      'idx_conversations_slack_parent_message_id'
-    ).on(table.slackParentMessageId),
-    idx_conversations_channel_id: index('idx_conversations_channel_id').on(
-      table.channelId
-    )
-  })
-);
-
-export type Conversation = InferSelectModel<typeof conversation>;
-
-export const conversationRelations = relations(conversation, ({ one }) => ({
-  channel: one(channel, {
-    fields: [conversation.channelId],
-    references: [channel.id]
-  })
-}));
-
 export const subscription = sqliteTable('subscriptions', {
   id: integer('id', { mode: 'number' }).primaryKey({ autoIncrement: true }),
   createdAtMs: integer('created_at_ms')

@@ -10,7 +10,6 @@ import Stripe from 'stripe';
 import { safeLog } from './logging';
 import { importEncryptionKeyFromEnvironment, decryptData } from './encryption';
 import bcrypt from 'bcryptjs';
-import { SlackEvent } from '@/interfaces/slack-api.interface';
 
 ///////////////////////////////////////////////
 // Inject the database to the request objece
@@ -183,9 +182,12 @@ export async function verifyZendeskWebhookAndSetSlackConnection(
       });
     }
 
+    const encryptionKey = await importEncryptionKeyFromEnvironment(env);
     const connection = await getZendeskCredentialsFromWebhookId(
       request.db,
-      webhookId
+      env,
+      webhookId,
+      encryptionKey
     );
     if (!connection) {
       safeLog('error', `Invalid webhook Id ${webhookId}`);
@@ -210,7 +212,6 @@ export async function verifyZendeskWebhookAndSetSlackConnection(
       });
     }
 
-    const encryptionKey = await importEncryptionKeyFromEnvironment(env);
     const decryptedSigningSecret = await decryptData(
       connection.encryptedZendeskSigningSecret,
       encryptionKey

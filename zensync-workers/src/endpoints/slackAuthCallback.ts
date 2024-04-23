@@ -1,4 +1,3 @@
-import { SlackConnection } from '@/lib/schema-sqlite';
 import {
   encryptData,
   decryptData,

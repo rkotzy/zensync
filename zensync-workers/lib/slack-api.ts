@@ -1,5 +1,9 @@
 import { Env } from '@/interfaces/env.interface';
-import { SlackMessageData, SlackResponse, SlackTeam } from '@/interfaces/slack-api.interface';
+import {
+  SlackMessageData,
+  SlackResponse,
+  SlackTeam
+} from '@/interfaces/slack-api.interface';
 import { SlackConnection } from './schema-sqlite';
 import { GlobalSettings } from '@/interfaces/global-settings.interface';
 import {
@@ -117,7 +121,17 @@ export async function sendSlackMessage(
     const responseData = (await response.json()) as SlackResponse;
 
     if (!responseData.ok) {
-      throw new Error(`Error posting message: ${responseData.error}`);
+      if (responseData.error === 'channel_not_found') {
+        safeLog('log', `Channel not found: ${slackChannelId}`);
+      } else if (responseData.error === 'is_archived') {
+        safeLog('log', `Channel is archived: ${slackChannelId}`);
+      } else if (responseData.error === 'msg_too_long') {
+        safeLog('log', `Message is too long`);
+      } else if (responseData.error === 'cannot_reply_to_message') {
+        safeLog('log', `Cannot reply to message`);
+      } else {
+        throw new Error(`Error posting message: ${responseData.error}`);
+      }
     }
   } catch (error) {
     safeLog('error', `Error in sendSlackMessage:`, error);

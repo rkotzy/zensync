@@ -1,7 +1,6 @@
 import {
   SlackConnection,
   ZendeskConnection,
-  Conversation,
   Channel
 } from '@/lib/schema-sqlite';
 import { FollowUpTicket } from '@/interfaces/follow-up-ticket.interface';
@@ -20,12 +19,7 @@ import {
   getChannels,
   createOrUpdateChannel,
   updateChannelMembership,
-  updateChannelName,
-  updateChannelIdentifier,
-  getConversation,
-  updateConversationLatestMessage,
-  createConversation,
-  getLatestConversation
+  updateChannelName
 } from '@/lib/database';
 import { Env } from '@/interfaces/env.interface';
 import { DrizzleD1Database } from 'drizzle-orm/d1';
@@ -43,14 +37,18 @@ import { initializeDb } from '@/lib/database';
 import {
   postEphemeralMessage,
   getSlackUser,
-  getPreviousSlackMessage
+  getPreviousSlackMessage,
+  fetchChannelInfo
 } from '@/lib/slack-api';
 import {
   slackMarkdownToHtml,
   generateHTMLPermalink
 } from '@/lib/message-formatters';
 import { singleEventAnalyticsLogger } from '@/lib/posthog';
-import { fetchChannelInfo } from '@/lib/slack-api';
+import {
+  getLatestTicketByExternalId,
+  postTicketComment
+} from '@/lib/zendesk-api';
 
 const MISSING_ZENDESK_CREDENTIALS_MESSAGE =
   'Zendesk credentials are missing or inactive. Configure them in the Zensync app settings to start syncing messages.';
@@ -75,8 +73,7 @@ const eventHandlers: Record<
   channel_archive: handleChannelLeft,
   channel_deleted: handleChannelLeft,
   channel_unarchive: handleChannelUnarchive,
-  channel_rename: handleChannelNameChanged,
-  channel_id_changed: handleChannelIdChanged
+  channel_rename: handleChannelNameChanged
   // Add more event handlers as needed
 };
 
@@ -390,28 +387,6 @@ async function handleChannelNameChanged(
   }
 }
 
-async function handleChannelIdChanged(
-  request: any,
-  connection: SlackConnection,
-  db: DrizzleD1Database<typeof schema>,
-  env: Env,
-  key: CryptoKey
-) {
-  const eventData = request.event;
-
-  try {
-    await updateChannelIdentifier(
-      db,
-      connection.id,
-      eventData.old_channel_id,
-      eventData.new_channel_id
-    );
-  } catch (error) {
-    safeLog('error', `Error updating channel Id in database`, error);
-    throw error;
-  }
-}
-
 async function handleFileUpload(
   request: any,
   connection: SlackConnection,
@@ -665,17 +640,15 @@ async function handleMessage(
   }
 
   // See if "same-sender timeframe" applies
-  const existingConversation = await sameSenderInTimeframeConversation(
+  const existingParentMessageId = await sameSenderInTimeframeParentMessageId(
     connection,
     messageData,
     db
   );
-  if (existingConversation) {
+  if (existingParentMessageId) {
     // Send message to existing Zendesk ticket
     try {
       await sendTicketReplyOrFallbackToNewTicket(
-        existingConversation.zendeskTicketId,
-        existingConversation.publicId,
         messageData,
         zendeskCredentials,
         connection,
@@ -810,35 +783,7 @@ async function handleThreadReply(
   status: string = 'open',
   analyticsIdempotencyKey: string | null
 ) {
-  // get conversation from database
-  const conversationInfo = await getConversation(
-    db,
-    slackConnectionInfo.id,
-    messageData.channel,
-    slackParentMessageId
-  );
-
-  // If no conversation found, create new ticket
-  if (!conversationInfo) {
-    safeLog('log', 'No conversation found, creating new ticket');
-    return await handleNewConversation(
-      messageData,
-      zendeskCredentials,
-      slackConnectionInfo,
-      db,
-      env,
-      messageData.channel,
-      authorId,
-      fileUploadTokens,
-      isPublic,
-      false,
-      analyticsIdempotencyKey
-    );
-  }
-
   return await sendTicketReplyOrFallbackToNewTicket(
-    conversationInfo.zendeskTicketId,
-    conversationInfo.publicId,
     messageData,
     zendeskCredentials,
     slackConnectionInfo,
@@ -853,9 +798,11 @@ async function handleThreadReply(
   );
 }
 
+function generateExternalId(channelId: string, ts: string): string {
+  return `zensync-${channelId}:${ts}`;
+}
+
 async function sendTicketReplyOrFallbackToNewTicket(
-  zendeskTicketId: string,
-  conversationPublicId: string,
   messageData: SlackMessageData,
   zendeskCredentials: ZendeskConnection,
   slackConnectionInfo: SlackConnection,
@@ -868,55 +815,73 @@ async function sendTicketReplyOrFallbackToNewTicket(
   status: string = 'open',
   analyticsIdempotencyKey: string | null
 ) {
-  // Create ticket comment indepotently using Slack message ID + channel ID?
-  const idempotencyKey = messageData.channel + messageData.ts;
+  if (!messageData.channel || !messageData.ts) {
+    safeLog('error', `Message should not be sent to ticket reply`, messageData);
+    return;
+  }
   const zendeskAuthToken = btoa(
     `${zendeskCredentials.zendeskEmail}/token:${zendeskCredentials.zendeskApiKey}`
   );
 
-  let htmlBody = slackMarkdownToHtml(messageData.text);
-  if (!htmlBody || htmlBody === '') {
-    htmlBody = '<i>(Empty message)</i>';
-  }
-
-  // Create a comment in ticket
-  let commentData: any = {
-    ticket: {
-      comment: {
-        html_body:
-          htmlBody + generateHTMLPermalink(slackConnectionInfo, messageData),
-        public: isPublic,
-        author_id: authorId
-      },
-      status: status
-    }
-  };
-
-  if (fileUploadTokens && fileUploadTokens.length > 0) {
-    commentData.ticket.comment.uploads = fileUploadTokens;
-  }
-
-  const response = await fetch(
-    `https://${zendeskCredentials.zendeskDomain}.zendesk.com/api/v2/tickets/${zendeskTicketId}.json`,
-    {
-      method: 'PUT',
-      headers: {
-        Authorization: `Basic ${zendeskAuthToken}`,
-        'Content-Type': 'application/json',
-        'Idempotency-Key': idempotencyKey
-      },
-      body: JSON.stringify(commentData)
-    }
+  // Fetch the parent Zendesk ticket Id
+  const externalId = generateExternalId(
+    messageData.channel,
+    messageData.thread_ts
+  );
+  const zendeskTicket = await getLatestTicketByExternalId(
+    zendeskAuthToken,
+    zendeskCredentials.zendeskDomain,
+    externalId
   );
 
-  const responseData = await response.json();
+  if (!zendeskTicket || zendeskTicket.status === 'closed') {
+    safeLog('log', 'Ticket missing or closed: ', zendeskTicket);
+    // Create a follow-up ticket for public comments
+    if (isPublic) {
+      const followUpTicket: FollowUpTicket = {
+        sourceTicketId: zendeskTicket.ticketId,
+        sourceTicketExternalId: externalId
+      };
 
-  if (needsFollowUpTicket(responseData)) {
+      return await handleNewConversation(
+        messageData,
+        zendeskCredentials,
+        slackConnectionInfo,
+        db,
+        env,
+        messageData.channel,
+        authorId,
+        fileUploadTokens,
+        true,
+        resetParentMessageId,
+        analyticsIdempotencyKey,
+        followUpTicket
+      );
+    } else {
+      return; // Can't post to a closed ticket
+    }
+  }
+
+  const ticketCommentResponse = await postTicketComment(
+    zendeskAuthToken,
+    zendeskCredentials.zendeskDomain,
+    slackConnectionInfo,
+    zendeskTicket.ticketId,
+    messageData,
+    isPublic,
+    authorId,
+    status,
+    fileUploadTokens
+  );
+
+  const ticketCommentResponseJson = await ticketCommentResponse.json();
+
+  if (needsFollowUpTicket(ticketCommentResponseJson)) {
     // Trying to update a public comment on closed ticket
     if (isPublic) {
       const followUpTicket: FollowUpTicket = {
-        sourceTicketId: zendeskTicketId,
-        conversationPublicId: conversationPublicId
+        sourceTicketId: zendeskTicket.ticketId,
+        sourceTicketExternalId: externalId
       };
 
       return await handleNewConversation(
@@ -934,20 +899,11 @@ async function sendTicketReplyOrFallbackToNewTicket(
         followUpTicket
       );
     }
-  } else if (!response.ok) {
+  } else if (!ticketCommentResponse.ok) {
     throw new Error('Error creating comment');
   } else {
     // Was not a follow-up ticket, and no errors, so update the conversation
     try {
-      // Update last message ID conversation
-      await updateConversationLatestMessage(
-        db,
-        conversationPublicId,
-        messageData.ts,
-        null,
-        resetParentMessageId
-      );
-
       // Update the channel activity
       await updateChannelActivity(slackConnectionInfo, messageData.channel, db);
 
@@ -967,8 +923,8 @@ async function sendTicketReplyOrFallbackToNewTicket(
         null
       );
     } catch (error) {
-      safeLog('error', `Error updating conversation in database:`, error);
-      throw new Error('Error updating conversation in database');
+      safeLog('error', `Error updating channel in database:`, error);
+      return; // Don't throw since message was sent, just return
     }
   }
 }
@@ -1031,8 +987,7 @@ async function handleNewConversation(
   );
 
   // Set the primary key for the conversation
-  let conversationUuid =
-    followUpTicket?.conversationPublicId ?? crypto.randomUUID();
+  let externalId = generateExternalId(channelId, messageData.ts);
 
   let htmlBody = slackMarkdownToHtml(messageData.text);
   if (!htmlBody || htmlBody === '') {
@@ -1060,7 +1015,7 @@ async function handleNewConversation(
         author_id: authorId
       },
       requester_id: authorId,
-      external_id: conversationUuid,
+      external_id: externalId,
       tags: channelTags,
       ...(assignee && {
         assignee_email: assignee
@@ -1122,46 +1077,6 @@ async function handleNewConversation(
     throw new Error('No ticket ID');
   }
 
-  // Create or update conversation
-  if (followUpTicket) {
-    try {
-      await updateConversationLatestMessage(
-        db,
-        conversationUuid,
-        messageData.ts,
-        ticketId,
-        resetParentMessageId
-      );
-    } catch (error) {
-      safeLog('error', `Error updating conversation:`, error);
-      safeLog('error', 'Failed payload:', {
-        zendeskTicketId: ticketId,
-        latestSlackMessageId: messageData.ts
-      });
-    }
-  } else {
-    try {
-      await createConversation(
-        db,
-        conversationUuid,
-        channelInfo.id,
-        messageData.ts,
-        ticketId,
-        messageData.user
-      );
-    } catch (error) {
-      safeLog('error', `Error creating conversation:`, error);
-      safeLog('error', 'Failed payload:', {
-        id: conversationUuid,
-        channelId: channelInfo.id,
-        slackParentMessageId: messageData.ts,
-        zendeskTicketId: ticketId,
-        slackAuthorUserId: messageData.user,
-        latestSlackMessageId: messageData.ts
-      });
-    }
-  }
-
   // Update the channel activity
   try {
     await updateChannelActivity(slackConnectionInfo, channelId, db);
@@ -1171,11 +1086,11 @@ async function handleNewConversation(
   }
 }
 
-async function sameSenderInTimeframeConversation(
+async function sameSenderInTimeframeParentMessageId(
   connection: SlackConnection,
   currentMessage: SlackMessageData,
   db: DrizzleD1Database<typeof schema>
-): Promise<Conversation | null> {
+): Promise<string | null> {
   try {
     const glabalSettings: GlobalSettings = connection.globalSettings || {};
     const timeframeSeconds =
@@ -1186,12 +1101,6 @@ async function sameSenderInTimeframeConversation(
     if (timeframeSeconds === 0) {
       return null;
     }
-    // // get the latest conversation from database
-    // const latestConversation = await getLatestConversation(
-    //   db,
-    //   connection.id,
-    //   currentMessage.channel
-    // );
 
     // get the latest conversation from the Slack API
     const latestSlackMessage = await getPreviousSlackMessage(
@@ -1210,7 +1119,7 @@ async function sameSenderInTimeframeConversation(
     }
 
     // 2. Check that there are no thread replies yet to the message
-    if (latestSlackMessage.reply_count !== 0) {
+    if (latestSlackMessage.thread_ts) {
       return null;
     }
 

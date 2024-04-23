@@ -3,7 +3,6 @@ import { Env } from '@/interfaces/env.interface';
 import { isSubscriptionActive } from '@/lib/utils';
 import { safeLog } from '@/lib/logging';
 import { RequestInterface } from '@/interfaces/request.interface';
-import { getConversationFromPublicId } from '@/lib/database';
 import { sendSlackMessage } from '@/lib/slack-api';
 
 export class ZendeskEventHandler {
@@ -33,33 +32,29 @@ export class ZendeskEventHandler {
     }
 
     try {
-      // Get the conversation from external_id on the event
-      const conversationInfo = await getConversationFromPublicId(
-        db,
-        requestBody.external_id
-      );
-
-      if (!conversationInfo?.slackParentMessageId) {
-        safeLog(
-          'error',
-          `No conversation found for id ${requestBody.external_id}`
-        );
-        return new Response('No conversation found', { status: 404 });
+      // Check if the event has an external_id
+      let externalId = requestBody.external_id;
+      if (!externalId) {
+        safeLog('error', 'No external_id found on the event');
+        return new Response('Missing external_id', { status: 404 });
       }
 
-      // To be safe I should double-check the organization_id owns the channel_id
+      // Check if the external_id is in the correct format
+      if (!externalId.startsWith('zensync-')) {
+        safeLog('error', `Invalid external_id format: ${externalId}`);
+        return new Response('Invalid external_id', { status: 400 });
+      }
+
+      const trimmedExternalId = externalId.split('-')[1];
+      const channelId = trimmedExternalId.split(':')[0];
+      const parentMessageId = trimmedExternalId.split(':')[1];
+
+      if (!channelId || !parentMessageId) {
+        safeLog('error', `Invalid external_id format: ${externalId}`);
+        return new Response('Invalid external_id', { status: 400 });
+      }
+
       const slackConnectionInfo = request.slackConnection;
-      if (
-        !conversationInfo.channel ||
-        !conversationInfo.channel.slackChannelIdentifier ||
-        conversationInfo.channel.slackConnectionId !== slackConnectionInfo.id
-      ) {
-        safeLog(
-          'error',
-          `Invalid Ids: ${slackConnectionInfo.id} !== ${conversationInfo}`
-        );
-        return new Response('Invalid Ids', { status: 401 });
-      }
 
       // Make sure the subscription is active
       if (!isSubscriptionActive(slackConnectionInfo, env)) {
@@ -71,8 +66,8 @@ export class ZendeskEventHandler {
       await sendSlackMessage(
         requestBody,
         slackConnectionInfo,
-        conversationInfo.slackParentMessageId,
-        conversationInfo.channel.slackChannelIdentifier,
+        parentMessageId,
+        channelId,
         env
       );
     } catch (error) {
@@ -80,7 +75,7 @@ export class ZendeskEventHandler {
       return new Response('Error', { status: 500 });
     }
 
-    return new Response('Ok', { status: 202 });
+    return new Response('Ok', { status: 200 });
   }
 }
 

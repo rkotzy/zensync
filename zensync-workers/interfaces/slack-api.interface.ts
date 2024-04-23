@@ -30,7 +30,6 @@ export interface SlackTeamIcon {
 export interface SlackMessageData {
   type: string;
   channel?: string;
-  reply_count?: number;
   user: string;
   text: string;
   ts: string;

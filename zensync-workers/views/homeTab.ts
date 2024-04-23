@@ -14,6 +14,7 @@ import { isSubscriptionActive } from '@/lib/utils';
 import { safeLog } from '@/lib/logging';
 import { getZendeskCredentials } from '@/lib/database';
 import { publishView } from '@/lib/slack-api';
+import { GlobalSettings } from '@/interfaces/global-settings.interface';
 
 const PENDING_UPGRADE = 'PENDING_UPGRADE';
 
@@ -79,7 +80,10 @@ export async function handleAppHomeOpened(
         {
           type: 'divider'
         },
-        ...createChannelSections(channelInfos),
+        ...createChannelSections(
+          channelInfos,
+          connection.globalSettings as GlobalSettings
+        ),
         ...buildAccountDetailsSection(connection)
       ]
     };
@@ -134,7 +138,7 @@ function containsPendingChannels(channelInfos: Channel[]): boolean {
   return channelInfos.some(channel => channel.status === PENDING_UPGRADE);
 }
 
-function createChannelSections(channelInfos) {
+function createChannelSections(channelInfos, globalSettings: GlobalSettings) {
   if (channelInfos.length === 0) {
     return [];
   }
@@ -147,6 +151,17 @@ function createChannelSections(channelInfos) {
     const slackFormattedDate = `<!date^${latestActivityTimestamp}^{date_short} at {time}|${fallbackText}>`;
 
     const tags = info.tags || [];
+
+    // Set any global tags if no channel tags are present
+    if (tags.length === 0) {
+      if (
+        globalSettings.defaultZendeskTags &&
+        globalSettings.defaultZendeskTags.length > 0
+      ) {
+        tags.push(...globalSettings.defaultZendeskTags);
+      }
+    }
+
     const tagsString =
       tags.length > 0 ? tags.map(tag => `\`${tag}\``).join(', ') : '';
 
@@ -172,7 +187,9 @@ function createChannelSections(channelInfos) {
         text: `*<#${info.slackChannelIdentifier}|${
           info.name
         }>*\n*Zendesk assignee:* ${
-          info.defaultAssigneeEmail ?? ''
+          info.defaultAssigneeEmail ??
+          globalSettings.defaultZendeskAssignee ??
+          ''
         }\n*Zendesk tags:* ${tagsString}`
       },
       accessory: accessory

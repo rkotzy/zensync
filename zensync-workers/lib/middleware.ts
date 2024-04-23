@@ -232,7 +232,7 @@ export async function verifyZendeskWebhookAndSetSlackConnection(
     if (!isValidSignature) {
       safeLog('warn', 'Zendesk verification failed!');
       return new Response('Verification failed', {
-        status: 200
+        status: 401
       });
     }
 
@@ -246,7 +246,7 @@ export async function verifyZendeskWebhookAndSetSlackConnection(
     if (!slackConnectionInfo) {
       safeLog('error', 'No slack connection found');
       return new Response('Verification failed', {
-        status: 404
+        status: 401
       });
     }
 
@@ -259,7 +259,10 @@ export async function verifyZendeskWebhookAndSetSlackConnection(
       error
     );
     return new Response('Unknown verification error', {
-      status: 500
+      status: 503,
+      headers: {
+        'retry-after': '5'
+      }
     });
   }
 }

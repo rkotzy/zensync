@@ -82,7 +82,10 @@ export class ZendeskEventHandler {
       }
     } catch (error) {
       safeLog('error', error);
-      return new Response('Error', { status: 500 });
+      return new Response('Error', {
+        status: 503,
+        headers: { 'retry-after': '5' }
+      });
     }
 
     return new Response('Ok', { status: 200 });

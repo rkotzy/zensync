@@ -1,0 +1,1 @@
+CREATE INDEX `idx_zendesk_connection_webhook_id` ON `zendesk_connections` (`zendesk_webhook_id`);

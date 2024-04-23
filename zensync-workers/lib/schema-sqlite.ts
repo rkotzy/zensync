@@ -50,29 +50,37 @@ export type SlackConnection = InferSelectModel<typeof slackConnection> & {
 // A Zendesk connection represents a connection to a Zendesk workspace that
 // is associated to an organization. It should be Oauthed by a Slack admin
 // whenever possible.
-export const zendeskConnection = sqliteTable('zendesk_connections', {
-  id: integer('id', { mode: 'number' }).primaryKey({ autoIncrement: true }),
-  createdAtMs: integer('created_at_ms')
-    .default(
-      sql`(CAST(strftime('%s', 'now') AS INTEGER) * 1000 + CAST(strftime('%f', 'now') AS INTEGER) % 1000)`
-    )
-    .notNull(),
-  updatedAtMs: integer('updated_at_ms'),
-  slackConnectionId: integer('slack_connection_id')
-    .notNull()
-    .unique()
-    .references(() => slackConnection.id, {
-      onDelete: 'cascade'
-    }),
-  zendeskDomain: text('zendesk_domain').notNull(),
-  zendeskEmail: text('zendesk_email').notNull(),
-  encryptedZendeskApiKey: text('encrypted_zendesk_api_key').notNull(),
-  zendeskTriggerId: text('zendesk_trigger_id'),
-  zendeskWebhookId: text('zendesk_webhook_id').notNull(),
-  hashedWebhookBearerToken: text('hashed_webhook_bearer_token').notNull(),
-  encryptedZendeskSigningSecret: text('encrypted_zendesk_signing_secret'),
-  status: text('status')
-});
+export const zendeskConnection = sqliteTable(
+  'zendesk_connections',
+  {
+    id: integer('id', { mode: 'number' }).primaryKey({ autoIncrement: true }),
+    createdAtMs: integer('created_at_ms')
+      .default(
+        sql`(CAST(strftime('%s', 'now') AS INTEGER) * 1000 + CAST(strftime('%f', 'now') AS INTEGER) % 1000)`
+      )
+      .notNull(),
+    updatedAtMs: integer('updated_at_ms'),
+    slackConnectionId: integer('slack_connection_id')
+      .notNull()
+      .unique()
+      .references(() => slackConnection.id, {
+        onDelete: 'cascade'
+      }),
+    zendeskDomain: text('zendesk_domain').notNull(),
+    zendeskEmail: text('zendesk_email').notNull(),
+    encryptedZendeskApiKey: text('encrypted_zendesk_api_key').notNull(),
+    zendeskTriggerId: text('zendesk_trigger_id'),
+    zendeskWebhookId: text('zendesk_webhook_id').notNull(),
+    hashedWebhookBearerToken: text('hashed_webhook_bearer_token').notNull(),
+    encryptedZendeskSigningSecret: text('encrypted_zendesk_signing_secret'),
+    status: text('status')
+  },
+  table => ({
+    idx_zendesk_connection_webhook_id: index(
+      'idx_zendesk_connection_webhook_id'
+    ).on(table.zendeskWebhookId)
+  })
+);
 
 export type ZendeskConnection = InferSelectModel<typeof zendeskConnection> & {
   zendeskApiKey: string;

@@ -15,6 +15,20 @@
       "when": 1713746915764,
       "tag": "0001_majestic_the_liberteens",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1713910733484,
+      "tag": "0002_cooing_swordsman",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "5",
+      "when": 1713911268366,
+      "tag": "0003_yielding_hulk",
+      "breakpoints": true
     }
   ]
 }

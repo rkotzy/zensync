@@ -507,11 +507,44 @@ export async function saveSharedSlackChannel(
 
 export async function getZendeskCredentialsFromWebhookId(
   db: DrizzleD1Database<typeof schema>,
-  webhookId: string
-) {
-  return await db.query.zendeskConnection.findFirst({
-    where: eq(zendeskConnection.zendeskWebhookId, webhookId)
-  });
+  env: Env,
+  webhookId: string,
+  key?: CryptoKey
+): Promise<ZendeskConnection | null | undefined> {
+  try {
+    const zendeskCredentials = await db.query.zendeskConnection.findFirst({
+      where: eq(zendeskConnection.zendeskWebhookId, webhookId)
+    });
+
+    const zendeskDomain = zendeskCredentials?.zendeskDomain;
+    const zendeskEmail = zendeskCredentials?.zendeskEmail;
+    const encryptedZendeskApiKey = zendeskCredentials?.encryptedZendeskApiKey;
+
+    if (!zendeskDomain || !zendeskEmail || !encryptedZendeskApiKey) {
+      safeLog(
+        'log',
+        `No Zendesk credentials found for webhook Id ${webhookId}`
+      );
+      return null;
+    }
+
+    let encryptionKey = key;
+    if (!encryptionKey) {
+      encryptionKey = await importEncryptionKeyFromEnvironment(env);
+    }
+    const decryptedApiKey = await decryptData(
+      encryptedZendeskApiKey,
+      encryptionKey
+    );
+
+    return {
+      ...zendeskCredentials,
+      zendeskApiKey: decryptedApiKey
+    };
+  } catch (error) {
+    safeLog('error', `Error querying ZendeskConnections: ${error}`);
+    return undefined;
+  }
 }
 
 export async function getZendeskCredentials(

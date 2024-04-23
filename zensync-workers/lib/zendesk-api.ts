@@ -5,7 +5,7 @@ import {
   generateHTMLPermalink
 } from './message-formatters';
 import { safeLog } from './logging';
-import { SlackConnection } from './schema-sqlite';
+import { SlackConnection, ZendeskConnection } from './schema-sqlite';
 
 export async function createZendeskTrigger(
   zendeskAuthToken: string,
@@ -204,4 +204,39 @@ export async function postTicketComment(
   );
 
   return response;
+}
+
+export async function postSlackWarningMessage(
+  zendeskCredentials: ZendeskConnection,
+  zendeskTicketId: string,
+  idempotencyKey: string,
+  message: string
+): Promise<void> {
+  const zendeskAuthToken = btoa(
+    `${zendeskCredentials.zendeskEmail}/token:${zendeskCredentials.zendeskApiKey}`
+  );
+
+  // Create a comment in ticket
+  let commentData: any = {
+    ticket: {
+      comment: {
+        html_body: `<p><strong>Your message was not delivered!</strong></p><p>${message}</p>`,
+        public: false
+      },
+      status: 'open'
+    }
+  };
+
+  const response = await fetch(
+    `https://${zendeskCredentials.zendeskDomain}.zendesk.com/api/v2/tickets/${zendeskTicketId}.json`,
+    {
+      method: 'PUT',
+      headers: {
+        Authorization: `Basic ${zendeskAuthToken}`,
+        'Content-Type': 'application/json',
+        'Idempotency-Key': idempotencyKey
+      },
+      body: JSON.stringify(commentData)
+    }
+  );
 }

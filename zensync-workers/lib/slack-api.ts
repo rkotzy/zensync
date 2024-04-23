@@ -4,7 +4,7 @@ import {
   SlackResponse,
   SlackTeam
 } from '@/interfaces/slack-api.interface';
-import { SlackConnection } from './schema-sqlite';
+import { SlackConnection, ZendeskConnection } from './schema-sqlite';
 import { GlobalSettings } from '@/interfaces/global-settings.interface';
 import {
   stripSignatureFromMessage,
@@ -12,6 +12,7 @@ import {
 } from './message-formatters';
 import { safeLog } from '@/lib/logging';
 import { singleEventAnalyticsLogger } from './posthog';
+import { postSlackWarningMessage } from './zendesk-api';
 
 export async function slackOauthResponse(
   code: string,
@@ -68,7 +69,7 @@ export async function sendSlackMessage(
   parentMessageId: string,
   slackChannelId: string,
   env: Env
-) {
+): Promise<string | null> {
   let username: string | undefined;
   let imageUrl: string | undefined;
 
@@ -123,12 +124,16 @@ export async function sendSlackMessage(
     if (!responseData.ok) {
       if (responseData.error === 'channel_not_found') {
         safeLog('log', `Channel not found: ${slackChannelId}`);
+        return "This Slack channel is no longer available for messaging. The channel may have been deleted, or converted to a new Slack Connect channel. Please reply from Slack to continue the conversation - it's safe to close this ticket out";
       } else if (responseData.error === 'is_archived') {
         safeLog('log', `Channel is archived: ${slackChannelId}`);
+        return "This Slack channel is archived and no longer available for messaging - it's safe to close this ticket out.";
       } else if (responseData.error === 'msg_too_long') {
         safeLog('log', `Message is too long`);
+        return 'Your message is too long to be sent to Slack. Try breaking it up into smaller messages.';
       } else if (responseData.error === 'cannot_reply_to_message') {
         safeLog('log', `Cannot reply to message`);
+        return "This message is ineligible for replies. Please view the message in Slack - it's safe to close this ticket out.";
       } else {
         throw new Error(`Error posting message: ${responseData.error}`);
       }
@@ -151,6 +156,8 @@ export async function sendSlackMessage(
     env,
     null
   );
+
+  return null;
 }
 
 async function getSlackUserByEmail(

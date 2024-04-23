@@ -4,6 +4,7 @@ import { isSubscriptionActive } from '@/lib/utils';
 import { safeLog } from '@/lib/logging';
 import { RequestInterface } from '@/interfaces/request.interface';
 import { sendSlackMessage } from '@/lib/slack-api';
+import { postSlackWarningMessage } from '@/lib/zendesk-api';
 
 export class ZendeskEventHandler {
   async handle(
@@ -46,8 +47,8 @@ export class ZendeskEventHandler {
       }
 
       const trimmedExternalId = externalId.split('-')[1];
-      const channelId = trimmedExternalId.split(':')[0];
-      const parentMessageId = trimmedExternalId.split(':')[1];
+      const channelId: string = trimmedExternalId.split(':')[0];
+      const parentMessageId: string = trimmedExternalId.split(':')[1];
 
       if (!channelId || !parentMessageId) {
         safeLog('error', `Invalid external_id format: ${externalId}`);
@@ -63,13 +64,22 @@ export class ZendeskEventHandler {
       }
 
       // Send the message into Slack
-      await sendSlackMessage(
+      const slackMessageResponse = await sendSlackMessage(
         requestBody,
         slackConnectionInfo,
         parentMessageId,
         channelId,
         env
       );
+
+      if (slackMessageResponse) {
+        await postSlackWarningMessage(
+          request.zendeskConnection,
+          requestBody.ticket_id,
+          `warning-${channelId + parentMessageId}}`,
+          slackMessageResponse
+        );
+      }
     } catch (error) {
       safeLog('error', error);
       return new Response('Error', { status: 500 });

@@ -266,7 +266,8 @@ export async function updateDefaultChannelSettings(
   const updatedSettings: GlobalSettings = {
     defaultZendeskAssignee: defaultAssigneeEmail,
     defaultZendeskTags: defaultTags,
-    sameSenderTimeframe: sameSenderTimeframe
+    sameSenderTimeframe: sameSenderTimeframe,
+    removeZendeskSignatures: GlobalSettingDefaults.removeZendeskSignatures
   };
 
   await db

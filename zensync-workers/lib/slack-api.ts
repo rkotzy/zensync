@@ -5,7 +5,10 @@ import {
   SlackTeam
 } from '@/interfaces/slack-api.interface';
 import { SlackConnection, ZendeskConnection } from './schema-sqlite';
-import { GlobalSettings } from '@/interfaces/global-settings.interface';
+import {
+  GlobalSettingDefaults,
+  GlobalSettings
+} from '@/interfaces/global-settings.interface';
 import {
   stripSignatureFromMessage,
   zendeskToSlackMarkdown
@@ -95,8 +98,13 @@ export async function sendSlackMessage(
     let message = requestBody.message;
     const signature = requestBody.current_user_signature;
 
-    const glabalSettings: GlobalSettings = connection.globalSettings || {};
-    if (glabalSettings.removeZendeskSignatures) {
+    const globalSettings: GlobalSettings = connection.globalSettings || {};
+
+    const {
+      removeZendeskSignatures = GlobalSettingDefaults.removeZendeskSignatures
+    } = globalSettings;
+
+    if (removeZendeskSignatures) {
       message = stripSignatureFromMessage(message, signature);
     }
 

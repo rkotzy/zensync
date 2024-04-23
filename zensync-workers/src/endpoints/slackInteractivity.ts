@@ -834,10 +834,11 @@ async function updateChannelConfiguration(
       );
       if (
         sameSenderTimeframeBlock &&
-        typeof sameSenderTimeframeBlock[sameSenderActionId].value === 'string'
+        typeof sameSenderTimeframeBlock[sameSenderActionId].selected_option
+          .value === 'string'
       ) {
         sameSenderInTimeframeValue = parseInt(
-          sameSenderTimeframeBlock[sameSenderActionId].value
+          sameSenderTimeframeBlock[sameSenderActionId].selected_option.value
         );
       }
     }
@@ -871,6 +872,7 @@ async function updateChannelConfiguration(
       }
     } else {
       // Update the global settings
+      console.log(`Same sender in timeframe: ${sameSenderInTimeframeValue}`);
       await updateDefaultChannelSettings(
         db,
         connection.id,

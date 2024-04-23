@@ -42,16 +42,16 @@ binding = "SLACK_APP_UNINSTALLED_QUEUE_BINDING"
 queue = "process-slack-messages"
 max_batch_size = 1
 max_batch_timeout = 1
-max_retries = 2
-retry_delay = 3
+max_retries = 3
+retry_delay = 5
 dead_letter_queue = "dlq"
 
 [[queues.consumers]]
 queue = "upload-files-to-zendesk"
 max_batch_size = 1
 max_batch_timeout = 1
-max_retries = 2
-retry_delay = 3
+max_retries = 3
+retry_delay = 5
 dead_letter_queue = "dlq"
 
 [[queues.consumers]]
@@ -59,7 +59,7 @@ queue = "slack-connection-created"
 max_batch_size = 1
 max_batch_timeout = 1
 max_retries = 4
-retry_delay = 3
+retry_delay = 5
 dead_letter_queue = "dlq"
 
 [[queues.consumers]]
@@ -67,7 +67,7 @@ queue = "stripe-subscription-changed"
 max_batch_size = 1
 max_batch_timeout = 1
 max_retries = 3
-retry_delay = 3
+retry_delay = 5
 dead_letter_queue = "dlq"
 
 [[queues.consumers]]
@@ -75,7 +75,7 @@ queue = "slack-app-uninstalled"
 max_batch_size = 1
 max_batch_timeout = 1
 max_retries = 4
-retry_delay = 3
+retry_delay = 5
 dead_letter_queue = "dlq"
 
 

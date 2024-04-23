@@ -417,25 +417,25 @@ export async function updateChannelName(
     );
 }
 
-// export async function updateChannelIdentifier(
-//   db: DrizzleD1Database<typeof schema>,
-//   slackConnectionId: number,
-//   oldChannelIdentifier: string,
-//   newChannelIdentifier: string
-// ) {
-//   await db
-//     .update(channel)
-//     .set({
-//       updatedAtMs: new Date().getTime(),
-//       slackChannelIdentifier: newChannelIdentifier
-//     })
-//     .where(
-//       and(
-//         eq(channel.slackConnectionId, slackConnectionId),
-//         eq(channel.slackChannelIdentifier, oldChannelIdentifier)
-//       )
-//     );
-// }
+export async function updateChannelIdentifier(
+  db: DrizzleD1Database<typeof schema>,
+  slackConnectionId: number,
+  oldChannelIdentifier: string,
+  newChannelIdentifier: string
+) {
+  await db
+    .update(channel)
+    .set({
+      updatedAtMs: new Date().getTime(),
+      slackChannelIdentifier: newChannelIdentifier
+    })
+    .where(
+      and(
+        eq(channel.slackConnectionId, slackConnectionId),
+        eq(channel.slackChannelIdentifier, oldChannelIdentifier)
+      )
+    );
+}
 
 export async function deactivateChannels(
   db: DrizzleD1Database<typeof schema>,

@@ -19,7 +19,8 @@ import {
   getChannels,
   createOrUpdateChannel,
   updateChannelMembership,
-  updateChannelName
+  updateChannelName,
+  updateChannelIdentifier
 } from '@/lib/database';
 import { Env } from '@/interfaces/env.interface';
 import { DrizzleD1Database } from 'drizzle-orm/d1';
@@ -73,7 +74,8 @@ const eventHandlers: Record<
   channel_archive: handleChannelLeft,
   channel_deleted: handleChannelLeft,
   channel_unarchive: handleChannelUnarchive,
-  channel_rename: handleChannelNameChanged
+  channel_rename: handleChannelNameChanged,
+  channel_id_changed: handleChannelIdChanged
   // Add more event handlers as needed
 };
 
@@ -387,6 +389,28 @@ async function handleChannelNameChanged(
   }
 }
 
+async function handleChannelIdChanged(
+  request: any,
+  connection: SlackConnection,
+  db: DrizzleD1Database<typeof schema>,
+  env: Env,
+  key: CryptoKey
+) {
+  const eventData = request.event;
+
+  try {
+    await updateChannelIdentifier(
+      db,
+      connection.id,
+      eventData.old_channel_id,
+      eventData.new_channel_id
+    );
+  } catch (error) {
+    safeLog('error', `Error updating channel Id in database`, error);
+    throw error;
+  }
+}
+
 async function handleFileUpload(
   request: any,
   connection: SlackConnection,
@@ -657,7 +681,6 @@ async function handleMessage(
         zendeskUserId,
         fileUploadTokens,
         isPublic,
-        true,
         status,
         analyticsIdempotencyKey
       );
@@ -697,7 +720,6 @@ async function handleMessage(
       zendeskUserId,
       fileUploadTokens,
       isPublic,
-      false,
       analyticsIdempotencyKey
     );
   } catch (error) {
@@ -792,7 +814,6 @@ async function handleThreadReply(
     authorId,
     fileUploadTokens,
     isPublic,
-    false,
     status,
     analyticsIdempotencyKey
   );
@@ -811,7 +832,6 @@ async function sendTicketReplyOrFallbackToNewTicket(
   authorId: number,
   fileUploadTokens: string[] | undefined,
   isPublic: boolean,
-  resetParentMessageId: boolean = false,
   status: string = 'open',
   analyticsIdempotencyKey: string | null
 ) {
@@ -853,7 +873,6 @@ async function sendTicketReplyOrFallbackToNewTicket(
         authorId,
         fileUploadTokens,
         true,
-        resetParentMessageId,
         analyticsIdempotencyKey,
         followUpTicket
       );
@@ -894,7 +913,6 @@ async function sendTicketReplyOrFallbackToNewTicket(
         authorId,
         fileUploadTokens,
         true,
-        resetParentMessageId,
         analyticsIdempotencyKey,
         followUpTicket
       );
@@ -953,7 +971,6 @@ async function handleNewConversation(
   authorId: number,
   fileUploadTokens: string[] | undefined,
   isPublic: boolean,
-  resetParentMessageId: boolean = false,
   analyticsIdempotencyKey: string | null,
   followUpTicket: FollowUpTicket | undefined = undefined
 ) {

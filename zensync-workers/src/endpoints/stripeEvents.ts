@@ -22,10 +22,20 @@ export class StripeEventHandler {
     const event = request.stripeEvent;
     switch (event.type) {
       case 'customer.subscription.deleted':
-        await updateCustomerSubscription(event.data.object, request.db, env);
+        await updateCustomerSubscription(
+          event.created * 1000,
+          event.data.object,
+          request.db,
+          env
+        );
         break;
       case 'customer.subscription.updated':
-        await updateCustomerSubscription(event.data.object, request.db, env);
+        await updateCustomerSubscription(
+          event.created * 1000,
+          event.data.object,
+          request.db,
+          env
+        );
         break;
       default:
         safeLog('log', `Unhandled event type ${event.type}`);
@@ -37,6 +47,7 @@ export class StripeEventHandler {
 }
 
 async function updateCustomerSubscription(
+  eventTimeMs: number,
   data: Stripe.Subscription,
   db: DrizzleD1Database<typeof schema>,
   env: Env
@@ -51,7 +62,7 @@ async function updateCustomerSubscription(
     );
     const subscriptionInfo = connectionInfo.subscriptions;
 
-    if (subscriptionInfo.updatedAtMs > data.created * 1000) {
+    if (subscriptionInfo.updatedAtMs > eventTimeMs) {
       safeLog('warn', 'Out of date subscription event');
       return;
     }
@@ -63,7 +74,7 @@ async function updateCustomerSubscription(
     await updateStripeSubscriptionId(
       db,
       subscriptionId,
-      data.created,
+      eventTimeMs,
       currentPeriodStartMs,
       currentPeriodEndMs,
       canceledAtMs,

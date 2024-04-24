@@ -1,4 +1,4 @@
-import { InteractivityActionId } from '@/lib/utils';
+import { InteractivityActionId, isSubscriptionActive } from '@/lib/utils';
 import { SlackConnection } from '@/lib/schema-sqlite';
 import * as schema from '@/lib/schema-sqlite';
 import { DrizzleD1Database } from 'drizzle-orm/d1';
@@ -433,6 +433,8 @@ async function openAccountSettings(
       );
     }
 
+    const subscriptionActive = isSubscriptionActive(connection, env);
+
     const body = JSON.stringify({
       trigger_id: triggerId,
       view: {
@@ -448,7 +450,9 @@ async function openAccountSettings(
             type: 'section',
             text: {
               type: 'mrkdwn',
-              text: `*Current plan:* ${product?.name ?? ''}`
+              text: subscriptionActive
+                ? `*Current plan:* ${product?.name ?? ''}`
+                : `*Current plan:* Expired!`
             }
           },
           {
@@ -456,7 +460,11 @@ async function openAccountSettings(
             elements: [
               {
                 type: 'mrkdwn',
-                text: `${product?.description ?? ''}`
+                text: subscriptionActive
+                  ? `${product?.description ?? ''}`
+                  : `Your subscription expired <!date^${Math.floor(
+                      connection.subscription?.periodEndMs / 1000
+                    )}^on {date_short} {time_secs}|recently>`
               }
             ]
           },

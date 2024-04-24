@@ -20,6 +20,14 @@ export function isEnterprise(productId: string): boolean {
 export function getBillingPortalConfiguration(
   connectedChannels: number
 ): string | null {
+  return null;
+
+  // We are not using the custom billing portal configurations
+  // for now since they don't allow customer's to resubscribe
+  // if they cancel a subscription. Because of this, we'll instead
+  // let everybody be able to downgrade to the Free plan and block
+  // cancellations.
+
   // If the customer has <=1 seats use the default portal
   if (connectedChannels <= 1) {
     return null;

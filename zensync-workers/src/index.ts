@@ -3,7 +3,8 @@ import {
   verifySlackRequestAndSetSlackConnection,
   injectDB,
   verifyZendeskWebhookAndSetSlackConnection,
-  parseRequest
+  parseRequest,
+  verifyStripeWebhook
 } from '@/lib/middleware';
 import { ZendeskEventHandler } from './endpoints/zendeskEvents';
 import { SlackInteractivityHandler } from './endpoints/slackInteractivity';
@@ -54,6 +55,7 @@ router.post(
   `/v1/stripe/events`,
   parseRequest,
   injectDB,
+  verifyStripeWebhook,
   new StripeEventHandler()
 );
 

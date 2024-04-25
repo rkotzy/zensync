@@ -145,7 +145,9 @@ export async function getLatestTicketByExternalId(
   const responseJson = (await zendeskTicketResponse.json()) as ZendeskResponse;
   const tickets = responseJson.tickets;
   if (!tickets || tickets.length === 0) {
-    throw new Error('No tickets found');
+    throw new Error(
+      `No tickets found in ${zendeskDomain} for ID ${externalId}`
+    );
   }
 
   return {

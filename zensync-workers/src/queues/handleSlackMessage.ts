@@ -846,7 +846,7 @@ async function sendTicketReplyOrFallbackToNewTicket(
   // Fetch the parent Zendesk ticket Id
   const externalId = generateExternalId(
     messageData.channel,
-    messageData.thread_ts
+    getParentMessageId(messageData) ?? messageData.ts
   );
   const zendeskTicket = await getLatestTicketByExternalId(
     zendeskAuthToken,
@@ -1065,7 +1065,7 @@ async function handleNewConversation(
     const responseData = (await response.json()) as ZendeskResponse;
 
     if (!response.ok) {
-      throw new Error('Error creating ticket');
+      throw new Error(`Error creating ticket ${JSON.stringify(responseData)}`);
     }
 
     ticketId = responseData.ticket.id;

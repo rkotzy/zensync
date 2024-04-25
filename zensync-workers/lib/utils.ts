@@ -1,8 +1,7 @@
 import { SlackConnection, Channel } from '@/lib/schema-sqlite';
 import { Env } from '@/interfaces/env.interface';
 import Stripe from 'stripe';
-import { PostHog } from 'posthog-node';
-import { initializePosthog } from './posthog';
+import { SlackMessageData } from '@/interfaces/slack-api.interface';
 import { safeLog } from './logging';
 
 export enum InteractivityActionId {
@@ -151,4 +150,50 @@ export async function createHMACSignature(
     // 'base64'
     return btoa(String.fromCharCode(...new Uint8Array(signatureBuffer)));
   }
+}
+
+export function generateExternalId(channelId: string, ts: string): string {
+  return `zensync-${channelId}:${ts}`;
+}
+
+export function getParentMessageId(event: SlackMessageData): string | null {
+  if (event.thread_ts && event.thread_ts !== event.ts) {
+    return event.thread_ts;
+  }
+
+  return null;
+}
+
+export function needsFollowUpTicket(responseJson: any): boolean {
+  if (responseJson.error === 'RecordInvalid' && responseJson.details?.status) {
+    // Handles updates on closed tickets
+    const statusDetails = responseJson.details.status.find((d: any) =>
+      d.description.includes('Status: closed prevents ticket update')
+    );
+    return !!statusDetails;
+  } else if (responseJson.error === 'RecordNotFound') {
+    // Handles replies to deleted tickets
+    return true;
+  }
+  return false;
+}
+
+export function getChannelType(channelData: any): string | null {
+  if (typeof channelData !== 'object' || channelData === null) {
+    safeLog('warn', 'Invalid or undefined channel data received:', channelData);
+    return null;
+  }
+
+  if (channelData.is_channel) {
+    return 'PUBLIC';
+  } else if (channelData.is_private) {
+    return 'PRIVATE';
+  } else if (channelData.is_im) {
+    return 'DM';
+  } else if (channelData.is_mpim) {
+    return 'GROUP_DM';
+  }
+
+  safeLog('warn', `Unkonwn channel type: ${channelData}`);
+  return null;
 }

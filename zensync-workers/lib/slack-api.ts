@@ -15,6 +15,7 @@ import {
 } from './message-formatters';
 import { safeLog } from '@/lib/logging';
 import { singleEventAnalyticsLogger } from './posthog';
+import Stripe from 'stripe';
 import { postSlackWarningMessage } from './zendesk-api';
 
 export async function slackOauthResponse(
@@ -535,4 +536,44 @@ export async function publishView(accessToken: string, body: any) {
     const errorDetails = JSON.stringify(responseData, null, 2);
     throw new Error(`Error publishig view: ${errorDetails}`);
   }
+}
+
+export async function postUpgradeEphemeralMessage(
+  channelId: string,
+  userId: string,
+  connection: SlackConnection,
+  env: Env
+): Promise<void> {
+  // Post a ephemeral message to the user in the channel
+  // to inform them that the channel limit has been reached
+  let ephemeralMessageText =
+    "You've reached your maximum channel limit, upgrade your plan to join this channel.";
+
+  const stripe = new Stripe(env.STRIPE_API_KEY);
+  const session: Stripe.BillingPortal.Session =
+    await stripe.billingPortal.sessions.create({
+      customer: connection.stripeCustomerId,
+      return_url: `https://${connection.domain}.slack.com`,
+      ...(connection.subscription?.stripeSubscriptionId && {
+        flow_data: {
+          type: 'subscription_update',
+          subscription_update: {
+            subscription: connection.subscription.stripeSubscriptionId
+          }
+        }
+      })
+    });
+
+  const portalUrl = session.url;
+  if (portalUrl) {
+    ephemeralMessageText = `You've reached you maximum channel limit, <${portalUrl}|upgrade your plan> to join this channel.`;
+  }
+
+  await postEphemeralMessage(
+    channelId,
+    userId,
+    ephemeralMessageText,
+    connection,
+    env
+  );
 }

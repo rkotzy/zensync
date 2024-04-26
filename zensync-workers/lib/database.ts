@@ -602,3 +602,22 @@ export async function getConversationFromExternalId(
     }
   });
 }
+
+export async function createConversation(
+  db: DrizzleD1Database<typeof schema>,
+  externalId: string,
+  channelId: number,
+  slackParentMessageId: string,
+  zendeskTicketId: string,
+  slackAuthorUserId: string,
+  followUpToZendeskTicketId?: string
+) {
+  await db.insert(conversation).values({
+    externalId: externalId,
+    channelId: channelId,
+    slackParentMessageId: slackParentMessageId,
+    zendeskTicketId: zendeskTicketId,
+    slackAuthorUserId: slackAuthorUserId,
+    followUpToZendeskTicketId: followUpToZendeskTicketId
+  });
+}

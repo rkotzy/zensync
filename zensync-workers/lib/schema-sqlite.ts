@@ -143,9 +143,6 @@ export const conversation = sqliteTable('conversations', {
   channelId: integer('channel_id')
     .notNull()
     .references(() => channel.id, { onDelete: 'cascade' }),
-  slackConnectionId: integer('slack_connection_id')
-    .notNull()
-    .references(() => slackConnection.id, { onDelete: 'cascade' }),
   zendeskTicketId: text('zendesk_ticket_id').notNull(),
   followUpToZendeskTicketId: text('follow_up_to_zendesk_ticket_id'),
   slackParentMessageId: text('slack_parent_message_id').notNull(),

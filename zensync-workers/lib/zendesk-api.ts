@@ -13,7 +13,7 @@ import {
 } from './utils';
 import { GlobalSettings } from '@/interfaces/global-settings.interface';
 import { getSlackUser } from './slack-api';
-import { getZendeskCredentials } from './database';
+import { createConversation, getZendeskCredentials } from './database';
 import { DrizzleD1Database } from 'drizzle-orm/d1';
 import * as schema from '@/lib/schema-sqlite';
 import { Env } from '@/interfaces/env.interface';
@@ -341,10 +341,7 @@ export async function createNewTicket(
   );
 
   // Set the primary key for the conversation
-  const externalId = generateExternalId(
-    channelInfo.slackChannelIdentifier,
-    getParentMessageId(messageData) ?? messageData.ts
-  );
+  const externalId = `zensync-${crypto.randomUUID()}`;
 
   let htmlBody = slackMarkdownToHtml(messageData.text);
   if (!htmlBody || htmlBody === '') {
@@ -407,7 +404,19 @@ export async function createNewTicket(
       throw new Error(`Error creating ticket ${JSON.stringify(responseData)}`);
     }
 
-    return { ticketId: responseData.ticket.id };
+    const ticketId = responseData.ticket.id;
+
+    await createConversation(
+      db,
+      externalId,
+      channelInfo.id,
+      getParentMessageId(messageData) ?? messageData.ts,
+      ticketId,
+      messageData.user,
+      followUpTicketId
+    );
+
+    return { ticketId: ticketId };
   } catch (error) {
     safeLog('error', 'Error creating Zendesk ticket:', error);
     return { ticketId: null };

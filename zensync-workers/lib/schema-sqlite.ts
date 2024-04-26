@@ -130,6 +130,37 @@ export const channel = sqliteTable(
 
 export type Channel = InferSelectModel<typeof channel>;
 
+// This represents a link between a Slack thread and a Zendesk ticket.
+export const conversation = sqliteTable('conversations', {
+  id: integer('id', { mode: 'number' }).primaryKey({ autoIncrement: true }),
+  createdAtMs: integer('created_at_ms')
+    .default(
+      sql`(CAST(strftime('%s', 'now') AS INTEGER) * 1000 + CAST(strftime('%f', 'now') AS INTEGER) % 1000)`
+    )
+    .notNull(),
+  updatedAtMs: integer('updated_at_ms'),
+  externalId: text('external_id').notNull().unique(),
+  channelId: integer('channel_id')
+    .notNull()
+    .references(() => channel.id, { onDelete: 'cascade' }),
+  slackConnectionId: integer('slack_connection_id')
+    .notNull()
+    .references(() => slackConnection.id, { onDelete: 'cascade' }),
+  zendeskTicketId: text('zendesk_ticket_id').notNull(),
+  followUpToZendeskTicketId: text('follow_up_to_zendesk_ticket_id'),
+  slackParentMessageId: text('slack_parent_message_id').notNull(),
+  slackAuthorUserId: text('slack_author_user_id').notNull()
+});
+
+export type Conversation = InferSelectModel<typeof conversation>;
+
+export const conversationRelations = relations(conversation, ({ one }) => ({
+  channel: one(channel, {
+    fields: [conversation.channelId],
+    references: [channel.id]
+  })
+}));
+
 export const subscription = sqliteTable('subscriptions', {
   id: integer('id', { mode: 'number' }).primaryKey({ autoIncrement: true }),
   createdAtMs: integer('created_at_ms')

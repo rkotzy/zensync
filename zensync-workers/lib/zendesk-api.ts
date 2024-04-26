@@ -222,7 +222,6 @@ export async function postTicketComment(
 export async function postSlackWarningMessage(
   zendeskCredentials: ZendeskConnection,
   zendeskTicketId: string,
-  idempotencyKey: string,
   message: string
 ): Promise<void> {
   const zendeskAuthToken = btoa(
@@ -246,8 +245,7 @@ export async function postSlackWarningMessage(
       method: 'PUT',
       headers: {
         Authorization: `Basic ${zendeskAuthToken}`,
-        'Content-Type': 'application/json',
-        'Idempotency-Key': idempotencyKey
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify(commentData)
     }

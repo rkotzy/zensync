@@ -8,7 +8,9 @@ import {
   ZendeskConnection,
   channel,
   Channel,
-  subscription
+  subscription,
+  conversation,
+  Conversation
 } from './schema-sqlite';
 import { Env } from '@/interfaces/env.interface';
 import { importEncryptionKeyFromEnvironment, decryptData } from './encryption';
@@ -587,4 +589,16 @@ export async function getZendeskCredentials(
     safeLog('error', `Error querying ZendeskConnections: ${error}`);
     return undefined;
   }
+}
+
+export async function getConversationFromExternalId(
+  db: DrizzleD1Database<typeof schema>,
+  externalId: string
+) {
+  return await db.query.conversation.findFirst({
+    where: eq(conversation.externalId, externalId),
+    with: {
+      channel: true
+    }
+  });
 }

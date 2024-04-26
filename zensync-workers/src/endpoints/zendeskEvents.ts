@@ -5,6 +5,7 @@ import { safeLog } from '@/lib/logging';
 import { RequestInterface } from '@/interfaces/request.interface';
 import { sendSlackMessage } from '@/lib/slack-api';
 import { postSlackWarningMessage } from '@/lib/zendesk-api';
+import { getConversationFromExternalId } from '@/lib/database';
 
 export class ZendeskEventHandler {
   async handle(
@@ -21,12 +22,14 @@ export class ZendeskEventHandler {
     safeLog('log', 'Zendesk event received:', requestBody);
 
     // Ignore messages from Zensync
+    // TODO: Can do this in middleware to save DB calls
     if (isFromZensync(requestBody)) {
       safeLog('log', 'Message from Zensync, skipping');
       return new Response('Ok', { status: 200 });
     }
 
     // Ignore messages from ticket merges
+    // TODO: Can do this in middleware to save DB calls
     if (isFromTicketMerge(requestBody.message)) {
       safeLog('log', 'Message matches ticket merge, skipping');
       return new Response('Ok', { status: 200 });
@@ -34,6 +37,7 @@ export class ZendeskEventHandler {
 
     try {
       // Check if the event has an external_id
+      // TODO: Can do this in middleware to save DB calls
       let externalId = requestBody.external_id;
       if (!externalId) {
         safeLog('error', 'No external_id found on the event');
@@ -41,16 +45,8 @@ export class ZendeskEventHandler {
       }
 
       // Check if the external_id is in the correct format
+      // TODO: Can do this in middleware to save DB calls
       if (!externalId.startsWith('zensync-')) {
-        safeLog('error', `Invalid external_id format: ${externalId}`);
-        return new Response('Invalid external_id', { status: 400 });
-      }
-
-      const trimmedExternalId = externalId.split('-')[1];
-      const channelId: string = trimmedExternalId.split(':')[0];
-      const parentMessageId: string = trimmedExternalId.split(':')[1];
-
-      if (!channelId || !parentMessageId) {
         safeLog('error', `Invalid external_id format: ${externalId}`);
         return new Response('Invalid external_id', { status: 400 });
       }
@@ -63,21 +59,35 @@ export class ZendeskEventHandler {
         return new Response('Ok', { status: 200 });
       }
 
+      // Lookup the converstaion to get channel and Slack parent message ID
+      const conversationInfo = await getConversationFromExternalId(
+        db,
+        externalId
+      );
+
+      if (
+        !conversationInfo ||
+        !conversationInfo.channel.slackChannelIdentifier ||
+        !conversationInfo.slackParentMessageId
+      ) {
+        safeLog('error', `Conversation not found: ${externalId}`);
+        return new Response('Conversation not found', { status: 404 });
+      }
+
       // Send the message into Slack
       const slackMessageResponse = await sendSlackMessage(
         requestBody,
         slackConnectionInfo,
-        parentMessageId,
-        channelId,
+        conversationInfo.slackParentMessageId,
+        conversationInfo.channel.slackChannelIdentifier,
         env
       );
 
-      if (slackMessageResponse) {
+      if (slackMessageResponse.warningMessage) {
         await postSlackWarningMessage(
           request.zendeskConnection,
           requestBody.ticket_id,
-          `warning-${channelId + parentMessageId}}`,
-          slackMessageResponse
+          slackMessageResponse.warningMessage
         );
       }
     } catch (error) {

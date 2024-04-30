@@ -152,10 +152,6 @@ export async function createHMACSignature(
   }
 }
 
-export function generateExternalId(channelId: string, ts: string): string {
-  return `zensync-${channelId}:${ts}`;
-}
-
 export function getParentMessageId(event: SlackMessageData): string | null {
   if (event.thread_ts && event.thread_ts !== event.ts) {
     return event.thread_ts;

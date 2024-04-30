@@ -5,15 +5,20 @@ import {
   generateHTMLPermalink
 } from './message-formatters';
 import { safeLog } from './logging';
-import { SlackConnection, ZendeskConnection, Channel } from './schema-sqlite';
 import {
-  generateExternalId,
-  getParentMessageId,
-  needsFollowUpTicket
-} from './utils';
+  SlackConnection,
+  ZendeskConnection,
+  Channel,
+  Conversation
+} from './schema-sqlite';
+import { getParentMessageId, needsFollowUpTicket } from './utils';
 import { GlobalSettings } from '@/interfaces/global-settings.interface';
 import { getSlackUser } from './slack-api';
-import { createConversation, getZendeskCredentials } from './database';
+import {
+  createConversation,
+  getZendeskCredentials,
+  updateLatestSlackMessageId
+} from './database';
 import { DrizzleD1Database } from 'drizzle-orm/d1';
 import * as schema from '@/lib/schema-sqlite';
 import { Env } from '@/interfaces/env.interface';
@@ -124,47 +129,6 @@ export async function getWebhookSigningSecret(
   const signingSecretResponseJson =
     (await zendeskWebhookSecretResponse.json()) as ZendeskResponse;
   return signingSecretResponseJson.signing_secret?.secret ?? null;
-}
-
-export async function getLatestTicketByExternalId(
-  zendeskAuthToken: string,
-  zendeskDomain: string,
-  externalId: string
-): Promise<{ ticketId: string; status: string }> {
-  const zendeskTicketResponse = await fetch(
-    `https://${zendeskDomain}.zendesk.com/api/v2/tickets?external_id=${externalId}&sort_by=created_at&sort_order=desc&page[1]`,
-    {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Basic ${zendeskAuthToken}`
-      }
-    }
-  );
-
-  if (!zendeskTicketResponse.ok) {
-    // If the response status is not OK, log the status and the response text
-    safeLog(
-      'error',
-      `Zendesk ticked lookup failed with status: ${zendeskTicketResponse.status}`
-    );
-    safeLog('error', `Response: ${await zendeskTicketResponse.text()}`);
-    throw new Error('Failed to get Zendesk ticket');
-  }
-
-  // Parse the response body to JSON
-  const responseJson = (await zendeskTicketResponse.json()) as ZendeskResponse;
-  const tickets = responseJson.tickets;
-  if (!tickets || tickets.length === 0) {
-    throw new Error(
-      `No tickets found in ${zendeskDomain} for ID ${externalId}`
-    );
-  }
-
-  return {
-    ticketId: tickets[0].id,
-    status: tickets[0].status
-  };
 }
 
 export async function postTicketComment(
@@ -428,11 +392,12 @@ export async function addTicketComment(
   env: Env,
   key: CryptoKey,
   slackConnectionInfo: SlackConnection,
+  conversationInfo: Conversation,
+  channelInfo: Channel,
   messageData: SlackMessageData,
   isPublic: boolean,
   status: string,
   fileUploadTokens: string[] | undefined,
-  channeInfo?: Channel,
   zendeskCredentials?: ZendeskConnection | undefined,
   zendeskUserId?: number | undefined
 ): Promise<{ ticketId: string | null }> {
@@ -481,38 +446,15 @@ export async function addTicketComment(
     }
   }
 
+  if (!conversationInfo || !conversationInfo.zendeskTicketId) {
+    safeLog('error', 'No conversation found for message:', messageData);
+    throw new Error('No conversation found');
+  }
+
   try {
     const zendeskAuthToken = btoa(
       `${zendeskCredentials.zendeskEmail}/token:${zendeskCredentials.zendeskApiKey}`
     );
-
-    // Fetch the parent Zendesk ticket Id
-    const externalId = generateExternalId(
-      messageData.channel,
-      getParentMessageId(messageData) ?? messageData.ts
-    );
-    const zendeskTicket = await getLatestTicketByExternalId(
-      zendeskAuthToken,
-      zendeskCredentials.zendeskDomain,
-      externalId
-    );
-
-    // Check if the ticket should be a follow-up ticket
-    if (isPublic && (!zendeskTicket || zendeskTicket.status === 'closed')) {
-      safeLog('log', 'Ticket missing or closed: ', zendeskTicket);
-      return createFollowUpTicket(
-        db,
-        env,
-        key,
-        slackConnectionInfo,
-        messageData,
-        fileUploadTokens,
-        zendeskTicket?.ticketId,
-        channeInfo,
-        zendeskCredentials,
-        zendeskUserId
-      );
-    }
 
     // Create ticket comment indepotently using Slack message ID + channel ID?
     const idempotencyKey = messageData.channel + messageData.ts;
@@ -540,7 +482,7 @@ export async function addTicketComment(
     }
 
     const response = await fetch(
-      `https://${zendeskCredentials.zendeskDomain}.zendesk.com/api/v2/tickets/${zendeskTicket.ticketId}.json`,
+      `https://${zendeskCredentials.zendeskDomain}.zendesk.com/api/v2/tickets/${conversationInfo.zendeskTicketId}.json`,
       {
         method: 'PUT',
         headers: {
@@ -563,14 +505,16 @@ export async function addTicketComment(
         slackConnectionInfo,
         messageData,
         fileUploadTokens,
-        zendeskTicket.ticketId,
-        channeInfo,
+        conversationInfo.zendeskTicketId,
+        channelInfo,
         zendeskCredentials,
         zendeskUserId
       );
     } else if (!response.ok) {
       safeLog('error', 'Error creating comment:', responseJson);
       throw new Error('Error creating comment');
+    } else if (conversationInfo.latestSlackMessageId !== messageData.ts) {
+      await updateLatestSlackMessageId(db, conversationInfo.id, messageData.ts);
     }
   } catch (error) {
     safeLog('error', 'Error adding comment to Zendesk ticket:', error);

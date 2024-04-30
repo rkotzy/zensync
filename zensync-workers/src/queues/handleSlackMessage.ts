@@ -17,7 +17,9 @@ import {
   createOrUpdateChannel,
   updateChannelMembership,
   updateChannelName,
-  updateChannelIdentifier
+  updateChannelIdentifier,
+  getConversationFromSlackMessage,
+  getLatestConversationInChannel
 } from '@/lib/database';
 import { Env } from '@/interfaces/env.interface';
 import { DrizzleD1Database } from 'drizzle-orm/d1';
@@ -32,7 +34,6 @@ import {
 import {
   postEphemeralMessage,
   postUpgradeEphemeralMessage,
-  getPreviousSlackMessage,
   fetchChannelInfo
 } from '@/lib/slack-api';
 import { singleEventAnalyticsLogger } from '@/lib/posthog';
@@ -438,12 +439,26 @@ async function handleMessageEdit(
       safeLog('error', `Analytics logging error:`, error);
     }
 
+    const conversationInfo = await getConversationFromSlackMessage(
+      db,
+      connection.id,
+      messageData.channel,
+      messageData.ts
+    );
+
+    if (!conversationInfo) {
+      safeLog('error', 'Could not find conversation for edited message');
+      return;
+    }
+
     // Send a private comment back to the ticket
     await addTicketComment(
       db,
       env,
       key,
       connection,
+      conversationInfo.conversation,
+      conversationInfo.channel,
       messageData,
       false,
       'open',
@@ -501,12 +516,26 @@ async function handleMessageDeleted(
       safeLog('error', `Analytics logging error:`, error);
     }
 
+    const conversationInfo = await getConversationFromSlackMessage(
+      db,
+      connection.id,
+      messageData.channel,
+      messageData.ts
+    );
+
+    if (!conversationInfo) {
+      safeLog('error', 'Could not find conversation for deleted message');
+      return;
+    }
+
     // Send a private comment back to the ticket
     await addTicketComment(
       db,
       env,
       key,
       connection,
+      conversationInfo.conversation,
+      conversationInfo.channel,
       messageData,
       false,
       status,
@@ -543,87 +572,52 @@ async function handleMessage(
   const fileUploadTokens: string[] | undefined = request.zendeskFileTokens;
 
   // Check if message is already part of a thread
-  if (getParentMessageId(messageData)) {
-    // Handle child message or private message
+  let existingConversationInfo;
+  const parentMessageId = getParentMessageId(messageData);
+  if (parentMessageId) {
     try {
-      await addTicketComment(
+      const conversationInfo = await getConversationFromSlackMessage(
         db,
-        env,
-        key,
-        connection,
-        messageData,
-        true,
-        'open',
-        fileUploadTokens
+        connection.id,
+        messageData.channel,
+        parentMessageId
       );
-
-      await updateChannelActivity(connection, messageData.channel, db);
+      existingConversationInfo = conversationInfo;
     } catch (error) {
-      safeLog('error', `Error handling thread reply:`, error);
+      safeLog('error', 'Error getting conversation info for message:', error);
       throw error;
     }
-
-    // Log the event to analytics
-    try {
-      await singleEventAnalyticsLogger(
-        messageData.user,
-        'message_reply',
-        connection.slackTeamId,
-        messageData.channel,
-        messageData.ts,
-        analyticsIdempotencyKey,
-        {
-          is_public: true,
-          has_attachments: fileUploadTokens && fileUploadTokens.length > 0,
-          source: 'slack'
-        },
-        env,
-        null
-      );
-    } catch (error) {
-      safeLog('error', `Analytics logging error:`, error);
-    }
-    return;
   }
 
-  // See if "same-sender timeframe" applies
-  const existingParentMessageId = await sameSenderInTimeframeParentMessageId(
-    connection,
-    messageData
-  );
-  if (existingParentMessageId) {
-    safeLog(
-      'log',
-      'Found existing parent message in timeframe:',
-      existingParentMessageId
+  // If no existing conversation was set from the parent message, check
+  // if same-sender-in-timeframe logic applies
+  if (!existingConversationInfo) {
+    existingConversationInfo = await sameSenderInTimeframeParentMessageId(
+      db,
+      connection,
+      messageData
     );
-    // We update the messageData object here to the timestamp values
-    // of the existing parent message
+  }
 
-    messageData.ts = existingParentMessageId.ts;
-    messageData.thread_ts = existingParentMessageId.thread_ts;
-
-    // Same flow as above, sending a reply to the existing ticket
+  if (existingConversationInfo) {
+    // The conversationInfo was found, so we can try to add a comment
+    // to the ticket. Make sure to return after so we don't create a
+    // new conversation.
     try {
       await addTicketComment(
         db,
         env,
         key,
         connection,
+        existingConversationInfo.conversation,
+        existingConversationInfo.channel,
         messageData,
         true,
         'open',
         fileUploadTokens
       );
 
-      await updateChannelActivity(connection, messageData.channel, db);
-    } catch (error) {
-      safeLog('error', `Error handling same sender reply:`, error);
-      throw error;
-    }
-
-    // Log the event to analytics
-    try {
+      // Log the event to analytics
       await singleEventAnalyticsLogger(
         messageData.user,
         'message_reply',
@@ -639,10 +633,14 @@ async function handleMessage(
         env,
         null
       );
+
+      await updateChannelActivity(connection, messageData.channel, db);
+      // !!! This is really important to return here so we don't create a new ticket
+      return;
     } catch (error) {
-      safeLog('error', `Analytics logging error:`, error);
+      safeLog('error', 'Error adding ticket comment:', error);
+      throw error;
     }
-    return;
   }
 
   // Create zendesk ticket + conversation
@@ -670,9 +668,10 @@ async function handleMessage(
 }
 
 async function sameSenderInTimeframeParentMessageId(
+  db: DrizzleD1Database<typeof schema>,
   connection: SlackConnection,
   currentMessage: SlackMessageData
-): Promise<{ ts: string; thread_ts: string } | null> {
+) {
   try {
     const glabalSettings: GlobalSettings = connection.globalSettings || {};
     const timeframeSeconds =
@@ -685,28 +684,35 @@ async function sameSenderInTimeframeParentMessageId(
     }
 
     // get the latest conversation from the Slack API
-    const latestSlackMessage = await getPreviousSlackMessage(
-      connection,
-      currentMessage.channel,
-      currentMessage.ts
+    const latestConversation = await getLatestConversationInChannel(
+      db,
+      connection.id,
+      currentMessage.channel
     );
 
-    if (!latestSlackMessage) {
+    if (!latestConversation) {
       return null;
     }
 
     // 1. Check if the latest message is from the current user
-    if (latestSlackMessage.user !== currentMessage.user) {
+    if (
+      latestConversation.conversation.slackAuthorUserId !== currentMessage.user
+    ) {
       return null;
     }
 
     // 2. Check that there are no thread replies yet to the message
-    if (latestSlackMessage.thread_ts) {
+    if (
+      latestConversation.conversation.slackParentMessageId !==
+      latestConversation.conversation.latestSlackMessageId
+    ) {
       return null;
     }
 
     // 3. Check if the latest message is within the timeframe
-    const latestMessageTs = parseFloat(latestSlackMessage.ts);
+    const latestMessageTs = parseFloat(
+      latestConversation.conversation.slackParentMessageId
+    );
     const currentMessageTs = parseFloat(currentMessage.ts);
     const timeDiff = currentMessageTs - latestMessageTs;
 
@@ -714,10 +720,7 @@ async function sameSenderInTimeframeParentMessageId(
       timeframeSeconds !== 0 ||
       (timeDiff >= 0 && timeDiff <= timeframeSeconds)
     ) {
-      return {
-        ts: latestSlackMessage.ts,
-        thread_ts: latestSlackMessage.thread_ts
-      };
+      return latestConversation;
     } else {
       return null;
     }

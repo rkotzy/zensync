@@ -62,13 +62,14 @@ export class ZendeskEventHandler {
       // Lookup the converstaion to get channel and Slack parent message ID
       const conversationInfo = await getConversationFromExternalId(
         db,
+        slackConnectionInfo.id,
         externalId
       );
 
       if (
         !conversationInfo ||
         !conversationInfo.channel.slackChannelIdentifier ||
-        !conversationInfo.slackParentMessageId
+        !conversationInfo.conversation.slackParentMessageId
       ) {
         safeLog('error', `Conversation not found: ${externalId}`);
         return new Response('Conversation not found', { status: 404 });
@@ -78,7 +79,7 @@ export class ZendeskEventHandler {
       const slackMessageResponse = await sendSlackMessage(
         requestBody,
         slackConnectionInfo,
-        conversationInfo.slackParentMessageId,
+        conversationInfo.conversation.slackParentMessageId,
         conversationInfo.channel.slackChannelIdentifier,
         env
       );

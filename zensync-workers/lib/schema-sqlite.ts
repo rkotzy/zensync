@@ -122,32 +122,41 @@ export const channel = sqliteTable(
     idx_channels_slack_connection_is_member: index(
       'idx_channels_slack_connection_is_member'
     ).on(table.slackConnectionId, table.isMember),
-    idx_channels_slack_connection_slack_channel_identifier: index(
-      'idx_channels_slack_connection_slack_channel_identifier'
-    ).on(table.slackConnectionId, table.slackChannelIdentifier)
+    idx_channels_slack_connection_id: index(
+      'idx_channels_slack_connection_id'
+    ).on(table.slackConnectionId)
   })
 );
 
 export type Channel = InferSelectModel<typeof channel>;
 
 // This represents a link between a Slack thread and a Zendesk ticket.
-export const conversation = sqliteTable('conversations', {
-  id: integer('id', { mode: 'number' }).primaryKey({ autoIncrement: true }),
-  createdAtMs: integer('created_at_ms')
-    .default(
-      sql`(CAST(strftime('%s', 'now') AS INTEGER) * 1000 + CAST(strftime('%f', 'now') AS INTEGER) % 1000)`
-    )
-    .notNull(),
-  updatedAtMs: integer('updated_at_ms'),
-  externalId: text('external_id').notNull().unique(),
-  channelId: integer('channel_id')
-    .notNull()
-    .references(() => channel.id, { onDelete: 'cascade' }),
-  zendeskTicketId: text('zendesk_ticket_id').notNull(),
-  followUpToZendeskTicketId: text('follow_up_to_zendesk_ticket_id'),
-  slackParentMessageId: text('slack_parent_message_id').notNull(),
-  slackAuthorUserId: text('slack_author_user_id').notNull()
-});
+export const conversation = sqliteTable(
+  'conversations',
+  {
+    id: integer('id', { mode: 'number' }).primaryKey({ autoIncrement: true }),
+    createdAtMs: integer('created_at_ms')
+      .default(
+        sql`(CAST(strftime('%s', 'now') AS INTEGER) * 1000 + CAST(strftime('%f', 'now') AS INTEGER) % 1000)`
+      )
+      .notNull(),
+    updatedAtMs: integer('updated_at_ms'),
+    externalId: text('external_id').notNull().unique(),
+    channelId: integer('channel_id')
+      .notNull()
+      .references(() => channel.id, { onDelete: 'cascade' }),
+    zendeskTicketId: text('zendesk_ticket_id').notNull(),
+    followUpToZendeskTicketId: text('follow_up_to_zendesk_ticket_id'),
+    slackParentMessageId: text('slack_parent_message_id').notNull(),
+    slackAuthorUserId: text('slack_author_user_id').notNull(),
+    latestSlackMessageId: text('latest_slack_message_id').notNull()
+  },
+  table => ({
+    idx_conversations_slack_parent_message_id: index(
+      'idx_conversations_slack_parent_message_id'
+    ).on(table.slackParentMessageId)
+  })
+);
 
 export type Conversation = InferSelectModel<typeof conversation>;
 

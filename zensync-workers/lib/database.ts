@@ -593,14 +593,91 @@ export async function getZendeskCredentials(
 
 export async function getConversationFromExternalId(
   db: DrizzleD1Database<typeof schema>,
+  slackConnectionId: number,
   externalId: string
 ) {
-  return await db.query.conversation.findFirst({
-    where: eq(conversation.externalId, externalId),
-    with: {
-      channel: true
-    }
-  });
+  const conversationInfo = await db
+    .select({ conversation, channel })
+    .from(conversation)
+    .innerJoin(channel, eq(conversation.channelId, channel.id))
+    .where(
+      and(
+        eq(channel.slackConnectionId, slackConnectionId),
+        eq(conversation.externalId, externalId)
+      )
+    )
+    .limit(1);
+
+  if (!conversationInfo || conversationInfo.length === 0) {
+    return null;
+  }
+
+  return conversationInfo[0];
+}
+
+export async function getConversationFromSlackMessage(
+  db: DrizzleD1Database<typeof schema>,
+  slackConnectionId: number,
+  slackChannelIdentifier: string,
+  slackParentMessageId: string
+) {
+  const conversationInfo = await db
+    .select({ conversation, channel })
+    .from(conversation)
+    .innerJoin(channel, eq(conversation.channelId, channel.id))
+    .where(
+      and(
+        eq(channel.slackConnectionId, slackConnectionId),
+        eq(channel.slackChannelIdentifier, slackChannelIdentifier),
+        eq(conversation.slackParentMessageId, slackParentMessageId)
+      )
+    )
+    .orderBy(desc(conversation.createdAtMs))
+    .limit(1);
+
+  if (!conversationInfo || conversationInfo.length === 0) {
+    return null;
+  }
+
+  return conversationInfo[0];
+}
+
+export async function getLatestConversationInChannel(
+  db: DrizzleD1Database<typeof schema>,
+  slackConnectionId: number,
+  channelIdentifier: string
+) {
+  const conversationInfo = await db
+    .select({ conversation, channel })
+    .from(conversation)
+    .innerJoin(channel, eq(conversation.channelId, channel.id))
+    .where(
+      and(
+        eq(channel.slackConnectionId, slackConnectionId),
+        eq(channel.slackChannelIdentifier, channelIdentifier)
+      )
+    )
+    .orderBy(desc(conversation.createdAtMs))
+    .limit(1);
+
+  if (!conversationInfo || conversationInfo.length === 0) {
+    return null;
+  }
+
+  return conversationInfo[0];
+}
+
+export async function updateLatestSlackMessageId(
+  db: DrizzleD1Database<typeof schema>,
+  conversationId: number,
+  slackMessageId: string
+) {
+  await db
+    .update(conversation)
+    .set({
+      latestSlackMessageId: slackMessageId
+    })
+    .where(eq(conversation.id, conversationId));
 }
 
 export async function createConversation(
@@ -618,6 +695,7 @@ export async function createConversation(
     slackParentMessageId: slackParentMessageId,
     zendeskTicketId: zendeskTicketId,
     slackAuthorUserId: slackAuthorUserId,
-    followUpToZendeskTicketId: followUpToZendeskTicketId
+    followUpToZendeskTicketId: followUpToZendeskTicketId,
+    latestSlackMessageId: slackParentMessageId
   });
 }

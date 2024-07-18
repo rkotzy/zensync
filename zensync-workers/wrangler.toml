@@ -1,0 +1,85 @@
+name = "zensync-workers"
+main = "src/index.ts"
+compatibility_date = "2024-01-29"
+compatibility_flags = [ "nodejs_compat" ]
+logpush = true
+
+# Define your environment variables here
+[vars]
+ROOT_URL = "https://api.slacktozendesk.com"
+SLACK_CLIENT_ID = "6820193403571.6385268273780"
+DEFAULT_STRIPE_PRODUCT_ID = "prod_Q5BHjL3CLeZGhd"
+DEFAULT_STRIPE_PRICE_ID = "price_1PF0vJDlJlwKmwDWAK2IsLX9"
+SUBSCRIPTION_EXPIRATION_BUFFER_HOURS = 36
+
+[[d1_databases]]
+binding = "DBSQLITE"
+database_name = "zensync-prod-d1"
+database_id = "b6cf337d-0b0c-4048-be79-e8cedf577c01"
+
+[[queues.producers]]
+queue = "process-slack-messages"
+binding = "PROCESS_SLACK_MESSAGES_QUEUE_BINDING"
+
+[[queues.producers]]
+queue = "upload-files-to-zendesk"
+binding = "UPLOAD_FILES_TO_ZENDESK_QUEUE_BINDING"
+
+[[queues.producers]]
+queue = "slack-connection-created"
+binding = "SLACK_CONNECTION_CREATED_QUEUE_BINDING"
+
+[[queues.producers]]
+queue = "stripe-subscription-changed"
+binding = "STRIPE_SUBSCRIPTION_CHANGED_QUEUE_BINDING"
+
+[[queues.producers]]
+queue = "slack-app-uninstalled"
+binding = "SLACK_APP_UNINSTALLED_QUEUE_BINDING"
+
+[[queues.consumers]]
+queue = "process-slack-messages"
+max_batch_size = 1
+max_batch_timeout = 1
+max_retries = 3
+retry_delay = 5
+dead_letter_queue = "dlq"
+
+[[queues.consumers]]
+queue = "upload-files-to-zendesk"
+max_batch_size = 1
+max_batch_timeout = 1
+max_retries = 3
+retry_delay = 5
+dead_letter_queue = "dlq"
+
+[[queues.consumers]]
+queue = "slack-connection-created"
+max_batch_size = 1
+max_batch_timeout = 1
+max_retries = 4
+retry_delay = 5
+dead_letter_queue = "dlq"
+
+[[queues.consumers]]
+queue = "stripe-subscription-changed"
+max_batch_size = 1
+max_batch_timeout = 1
+max_retries = 3
+retry_delay = 5
+dead_letter_queue = "dlq"
+
+[[queues.consumers]]
+queue = "slack-app-uninstalled"
+max_batch_size = 1
+max_batch_timeout = 1
+max_retries = 4
+retry_delay = 5
+dead_letter_queue = "dlq"
+
+
+[[queues.consumers]]
+queue = "dlq"
+max_batch_size = 1
+max_batch_timeout = 1
+max_retries = 10
